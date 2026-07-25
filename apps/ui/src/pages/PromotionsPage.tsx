@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
+import { NextStep, PageHeader } from "../components/PageChrome";
 
 type PromoRow = {
   id: string;
@@ -39,13 +40,49 @@ export function PromotionsPage() {
     load();
   }, []);
 
+  const drafts = rows.filter((r) => r.status === "draft");
+
   return (
     <div className="stack">
-      <div>
-        <h1>Promotion packets</h1>
-        <p>Separate from performance rating. Evidence mapped to <strong>next-role</strong> expectations only.</p>
-      </div>
+      <PageHeader
+        title="Promotion packets"
+        job="Separate from performance rating. Map evidence to next-role expectations only, then submit the case."
+        primary={
+          people.length > 0 ? (
+            <button className="btn" form="start-promo-form" type="submit" disabled={!personId}>
+              Start promotion packet
+            </button>
+          ) : (
+            <Link className="btn" to="/roles">Set target next roles</Link>
+          )
+        }
+      />
+
+      {people.length === 0 ? (
+        <NextStep
+          tone="warn"
+          label="No one has a target next role"
+          detail="On Roles, assign a current RoleDefinition and an optional target next — only then can you open a promotion packet."
+          action={<Link className="btn" to="/roles">Assign next roles</Link>}
+        />
+      ) : drafts[0] ? (
+        <NextStep
+          tone="brand"
+          label={`Continue: ${drafts[0].personName}`}
+          detail={`${drafts.length} draft packet${drafts.length === 1 ? "" : "s"} in progress. Finish next-role marks and the case narrative, then Submit.`}
+          action={<Link className="btn" to={`/promotions/${drafts[0].id}`}>Open draft packet</Link>}
+        />
+      ) : (
+        <NextStep
+          tone="brand"
+          label="Start a promotion packet"
+          detail="Pick someone with a target next role. This does not change their performance rating."
+          action={<button className="btn" form="start-promo-form" type="submit" disabled={!personId}>Start promotion packet</button>}
+        />
+      )}
+
       <form
+        id="start-promo-form"
         className="panel row"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -56,32 +93,43 @@ export function PromotionsPage() {
           navigate(`/promotions/${res.id}`);
         }}
       >
-        <select value={personId} onChange={(e) => setPersonId(e.target.value)}>
+        <select value={personId} onChange={(e) => setPersonId(e.target.value)} aria-label="Person">
+          {people.length === 0 && <option value="">No eligible people</option>}
           {people.map((p) => (
             <option key={p.id} value={p.id}>{p.name} → {p.targetNextRoleTitle}</option>
           ))}
         </select>
-        <select value={cycleId} onChange={(e) => setCycleId(e.target.value)}>
+        <select value={cycleId} onChange={(e) => setCycleId(e.target.value)} aria-label="Cycle">
           {cycles.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button className="btn" disabled={!personId}>Start promotion packet</button>
       </form>
+
       <div className="panel">
-        <table className="table">
-          <thead>
-            <tr><th>Person</th><th>Current → Next</th><th>Status</th><th></th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{r.personName}</td>
-                <td className="muted">{r.currentRole} → {r.targetRole}</td>
-                <td><span className="flag">{r.status}</span></td>
-                <td><Link to={`/promotions/${r.id}`}>Open</Link></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <h2>Open packets</h2>
+        {rows.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>No packets yet. Start one above when promo readiness is in play.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr><th>Person</th><th>Current → Next</th><th>Status</th><th>Your move</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.personName}</td>
+                  <td className="muted">{r.currentRole} → {r.targetRole}</td>
+                  <td><span className="flag">{r.status}</span></td>
+                  <td>
+                    <Link className="btn" to={`/promotions/${r.id}`}>
+                      {r.status === "submitted" ? "View packet" : "Continue packet"}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

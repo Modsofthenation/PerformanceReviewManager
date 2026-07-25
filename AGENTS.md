@@ -19,5 +19,5 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 - Locking the workspace ("Lock & encrypt") seals the SQLite DB + files to `.enc` at rest; unlocking decrypts them.
 
 ### Known pre-existing issues (not environment problems)
-- `pnpm build` (production) and `pnpm -r typecheck` fail on pre-existing TypeScript errors: `apps/api/src/index.ts` references `roleFrameworkVersions` without importing it (plus two type-index errors), and `apps/ui/src/pages/WritingDeskPage.tsx:281`. Dev servers (`tsx`/`vite`) run fine because they do not strict-typecheck.
-- Because of the missing import above, the `GET /api/roles` endpoint and the Roles page throw at runtime. Avoid depending on those until the import is fixed. All other flows (people, dossier/achievements/goals, cycles, promotions, bundles, uploads, AI digest) work.
+- `pnpm build` (production) and `pnpm -r typecheck` may still fail on residual TypeScript strictness issues in the UI/API; Dev servers (`tsx`/`vite`) run fine because they do not strict-typecheck.
+- Core loop evaluation & capture gaps: `docs/CORE_LOOP_EVAL.md`.

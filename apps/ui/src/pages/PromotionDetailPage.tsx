@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { GapMark, RoleDefinitionDTO } from "@prm/shared";
 import { api } from "../lib/api";
+import { NextStep, PageHeader } from "../components/PageChrome";
 
 type PromoDetail = {
   id: string;
@@ -66,17 +67,84 @@ export function PromotionDetailPage() {
 
   if (!detail) return <p>Loading…</p>;
 
+  const submitted = detail.status === "submitted";
+  const thinNarrative = !summary.trim() || !scope.trim();
+
   return (
     <div className="stack">
-      <div className="row">
-        <div>
-          <h1>Promotion: {detail.person?.name}</h1>
-          <p>{detail.currentRole?.title} → <strong>{detail.targetRole?.title}</strong></p>
-        </div>
-        <Link className="btn ghost" to="/promotions">Back</Link>
-        <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
-        <button className="btn" onClick={() => save("submitted")}>Submit</button>
-      </div>
+      <PageHeader
+        title={`Promotion: ${detail.person?.name}`}
+        job={`${detail.currentRole?.title ?? "—"} → ${detail.targetRole?.title ?? "—"} · Mark next-role expectations, write the case, then submit.`}
+        primary={
+          submitted ? (
+            <Link className="btn" to="/promotions">Back to packets</Link>
+          ) : (
+            <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
+          )
+        }
+        secondary={
+          <>
+            <Link className="btn ghost" to="/promotions">All packets</Link>
+            {!submitted && <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>}
+          </>
+        }
+      />
+
+      {submitted ? (
+        <NextStep
+          tone="ok"
+          label="Packet submitted"
+          detail="Case is marked submitted on this workspace. Export/share for skip-level discussion is next (HTML/PDF still to come)."
+          action={<Link className="btn" to="/promotions">Back to promotions</Link>}
+        />
+      ) : thinNarrative ? (
+        <NextStep
+          tone="brand"
+          label="Complete the case narrative"
+          detail="Mark each next-role expectation, then fill summary + demonstrated scope. AI draft can scaffold — you own the final text."
+          action={
+            <button
+              className="btn"
+              onClick={async () => {
+                const res = await api<{ outputText: string }>("/api/ai/promotion-draft", {
+                  method: "POST",
+                  body: JSON.stringify({ promotionId: id }),
+                });
+                setAiOut(res.outputText);
+                try {
+                  const jsonMatch = res.outputText.match(/\{[\s\S]*\}/);
+                  if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]) as Record<string, string>;
+                    if (parsed.case_summary) setSummary(parsed.case_summary);
+                    if (parsed.scope_examples) setScope(parsed.scope_examples);
+                    if (parsed.remaining_gaps) setGapsText(parsed.remaining_gaps);
+                    if (parsed.recommendation === "ready" || parsed.recommendation === "not_yet") {
+                      setRecommendation(parsed.recommendation);
+                    }
+                  }
+                } catch {
+                  /* keep raw */
+                }
+              }}
+            >
+              AI draft case
+            </button>
+          }
+        />
+      ) : (
+        <NextStep
+          tone="brand"
+          label="Ready to submit?"
+          detail="Save a draft anytime. Submit when marks and narrative are ready for skip-level review."
+          action={
+            <>
+              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
+              <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
+            </>
+          }
+        />
+      )}
+
       {msg && <p className="muted">{msg}</p>}
 
       <div className="writing">
@@ -147,6 +215,12 @@ export function PromotionDetailPage() {
               <option value="ready">Ready</option>
             </select>
           </div>
+          {!submitted && (
+            <div className="cta-primary-row">
+              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
+              <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

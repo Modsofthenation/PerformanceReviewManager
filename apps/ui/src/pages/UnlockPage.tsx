@@ -39,13 +39,19 @@ export function UnlockPage({
     }
   }
 
+  const primaryLabel = status.initialized ? "Unlock workbench" : "Create & seed demo team";
+
   return (
     <div className="unlock-screen">
       <form className="panel unlock-card" onSubmit={submit}>
         <h1>{status.initialized ? "Unlock workbench" : "Create workbench"}</h1>
+        <p className="page-job" style={{ marginBottom: "1rem" }}>
+          {status.initialized
+            ? "Enter your password to open the encrypted vault and continue reviews."
+            : "Create a local encrypted vault, seed a demo team, then assign roles and open a cycle."}
+        </p>
         <p>
-          Solo EM performance review manager. Your password unlocks an encrypted vault
-          (SQLite + files). Self/peer input arrives via import bundles — ICs do not log in.
+          Solo EM performance review manager. Self/peer input arrives via import bundles — ICs do not log in.
           {status.encryptedAtRest ? " Vault is currently sealed on disk." : ""}
         </p>
         {!status.initialized && (
@@ -56,11 +62,11 @@ export function UnlockPage({
         )}
         <div className="field">
           <label>Password {status.initialized ? "" : "(default seed: workbench)"}</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
         </div>
         {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
         <button className="btn" disabled={busy}>
-          {busy ? "…" : status.initialized ? "Unlock" : "Create & seed demo team"}
+          {busy ? "…" : primaryLabel}
         </button>
       </form>
     </div>

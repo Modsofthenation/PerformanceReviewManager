@@ -18,6 +18,7 @@ import {
   roleAssignments,
   roleDefinitions,
   roleExpectations,
+  roleFrameworkVersions,
   workspace,
 } from "@prm/db";
 import type { PacketDTO, PersonDTO, RoleDefinitionDTO, WorkspaceStatus } from "@prm/shared";
@@ -628,6 +629,32 @@ app.post("/api/people/:id/goals", async (c) => {
     createdAt: nowIso(),
   }).run();
   return c.json({ id: goalId });
+});
+
+app.post("/api/people/:id/feedback", async (c) => {
+  const personId = c.req.param("id");
+  const body = await c.req.json<{
+    body: string;
+    fromName?: string;
+    kind?: string;
+    visibility?: string;
+    occurredAt?: string;
+  }>();
+  if (!body.body?.trim()) return c.json({ error: "Feedback body required" }, 400);
+  const db = getDb();
+  const fbId = id("fb");
+  db.insert(feedbackItems).values({
+    id: fbId,
+    toPersonId: personId,
+    fromName: body.fromName?.trim() || null,
+    kind: body.kind ?? "coaching",
+    body: body.body.trim(),
+    visibility: body.visibility ?? "em_and_subject",
+    occurredAt: body.occurredAt ?? nowIso().slice(0, 10),
+    createdAt: nowIso(),
+  }).run();
+  logActivity("feedback.create", "person", personId, { feedbackId: fbId });
+  return c.json({ id: fbId });
 });
 
 app.get("/api/ai/settings", (c) => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { NextStep, PageHeader } from "../components/PageChrome";
 
 type AiSettings = {
   enabled: boolean;
@@ -18,24 +19,101 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    setSettings(await api<AiSettings>("/api/ai/settings"));
+    try {
+      setSettings(await api<AiSettings>("/api/ai/settings"));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load settings");
+    }
   }
 
   useEffect(() => {
     load();
   }, []);
 
+  if (error && !settings) {
+    return (
+      <div className="stack">
+        <PageHeader title="Settings" job="Configure AI co-pilot keys and private-tier egress." />
+        <NextStep
+          tone="warn"
+          label="Could not load settings"
+          detail={error}
+          action={<button className="btn" type="button" onClick={() => void load()}>Retry</button>}
+        />
+      </div>
+    );
+  }
+
   if (!settings) return <p>Loading…</p>;
+
+  const needsKey = settings.enabled && !settings.localOnly && settings.provider !== "ollama" && !settings.hasApiKey && !apiKey;
 
   return (
     <div className="stack">
-      <div>
-        <h1>Settings</h1>
-        <p>AI keys are stored encrypted with the workspace secret (OS keychain comes with the Tauri shell). Private-tier cloud egress defaults off.</p>
-      </div>
+      <PageHeader
+        title="Settings"
+        job="Configure AI co-pilot keys and private-tier egress. Keys stay encrypted with the workspace secret."
+        primary={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
+        secondary={
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={async () => {
+              const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
+                method: "POST",
+                body: "{}",
+              });
+              setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
+            }}
+          >
+            Test connection
+          </button>
+        }
+      />
+
+      {needsKey ? (
+        <NextStep
+          tone="warn"
+          label="Add an API key to use cloud drafting"
+          detail="AI is enabled but no key is on file. Paste a key below, Save, then Test connection — or switch to Ollama / local-only."
+          action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
+        />
+      ) : settings.enabled ? (
+        <NextStep
+          tone="ok"
+          label="AI ready for writing desk"
+          detail="Digest and section drafts pull from dossier + imports. Private notes stay off cloud unless you opt in below."
+          action={
+            <button
+              type="button"
+              className="btn"
+              onClick={async () => {
+                const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
+                  method: "POST",
+                  body: "{}",
+                });
+                setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
+              }}
+            >
+              Test connection
+            </button>
+          }
+        />
+      ) : (
+        <NextStep
+          tone="brand"
+          label="Enable AI when you want grounded drafts"
+          detail="Without AI, writing desk still works — you draft from packet evidence manually."
+          action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
+        />
+      )}
+
       <form
+        id="ai-settings-form"
         className="panel"
         onSubmit={async (e) => {
           e.preventDefault();
@@ -119,20 +197,22 @@ export function SettingsPage() {
             </label>
           </div>
         ))}
-        <button className="btn">Save AI settings</button>
-        <button
-          type="button"
-          className="btn secondary"
-          onClick={async () => {
-            const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
-              method: "POST",
-              body: "{}",
-            });
-            setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
-          }}
-        >
-          Test connection
-        </button>
+        <div className="cta-primary-row">
+          <button className="btn">Save AI settings</button>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={async () => {
+              const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
+                method: "POST",
+                body: "{}",
+              });
+              setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
+            }}
+          >
+            Test connection
+          </button>
+        </div>
         {msg && <p className="muted">{msg}</p>}
       </form>
     </div>
