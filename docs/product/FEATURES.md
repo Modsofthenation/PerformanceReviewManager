@@ -25,8 +25,8 @@ Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Upload R&R / career framework docs | P0 | PDF/DOCX/MD; retain source file |
-| Structure RoleDefinitions | P0 | Manual structured edit first; AI-assisted extract P1 |
+| Upload R&R / career framework docs | P0 | PDF/DOCX/MD; retained under `files/frameworks` |
+| Structure RoleDefinitions | P0 | Manual add/edit on Roles page; AI-assisted extract available |
 | Expectations with **stable IDs** | P0 | `RoleExpectation` rows — not bare string arrays |
 | Progression graph (`next_role_keys`) | P0 | Keys within framework version |
 | Publish immutable framework version | P0 | Cycles pin version |

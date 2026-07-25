@@ -23,6 +23,7 @@ import {
   roleDefinitions,
   roleExpectations,
   roleFrameworkVersions,
+  roleFrameworks,
   workspace,
 } from "@prm/db";
 import type {
@@ -32,6 +33,8 @@ import type {
   PacketDTO,
   PersonDTO,
   RoleDefinitionDTO,
+  RoleDraftDTO,
+  RoleFrameworkInfo,
   WorkspaceStatus,
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
@@ -52,6 +55,7 @@ import {
   bootstrapVault,
   unlockVault,
   writeEncryptedDocument,
+  writeFrameworkFile,
   readDocumentFile,
   exportAuditPack,
   verifyActivityChain,
@@ -82,6 +86,14 @@ import {
   type TimelineEntry,
 } from "./evidenceGates.js";
 import { parsePeopleCsv } from "./peopleCsv.js";
+import {
+  FRAMEWORK_EXTRACT_SYSTEM,
+  parseExtractedRolesJson,
+  parseFrameworkTextLocal,
+  slugifyRoleKey,
+  textFromUpload,
+  type RoleDraft,
+} from "./roleFramework.js";
 
 type Vars = { token: string };
 
@@ -432,11 +444,415 @@ app.post("/api/people/import", async (c) => {
 
 app.get("/api/roles", (c) => {
   const db = getDb();
-  const versions = db.select().from(roleFrameworkVersions).all();
-  const published = versions.filter((v) => v.status === "published").sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
+  const published = getPublishedVersion();
   if (!published) return c.json([]);
   const roles = db.select().from(roleDefinitions).where(eq(roleDefinitions.frameworkVersionId, published.id)).all();
   return c.json(roles.map((r) => loadRole(r.id)));
+});
+
+app.get("/api/roles/framework", (c) => {
+  const info = frameworkInfo();
+  return c.json(info ?? { frameworkId: null, frameworkName: null, versionId: null, versionLabel: null, sourceFilename: null, roleCount: 0 });
+});
+
+function getPublishedVersion() {
+  const db = getDb();
+  const versions = db.select().from(roleFrameworkVersions).all();
+  return versions.filter((v) => v.status === "published").sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0] ?? null;
+}
+
+function ensurePublishedVersion() {
+  const db = getDb();
+  const existing = getPublishedVersion();
+  if (existing) return existing;
+  const fwId = id("fw");
+  const fwvId = id("fwv");
+  const createdAt = nowIso();
+  db.insert(roleFrameworks).values({ id: fwId, name: "Custom Career Framework", createdAt }).run();
+  db.insert(roleFrameworkVersions)
+    .values({
+      id: fwvId,
+      frameworkId: fwId,
+      versionLabel: "draft.1",
+      status: "published",
+      publishedAt: createdAt,
+      sourceFilename: null,
+    })
+    .run();
+  return db.select().from(roleFrameworkVersions).where(eq(roleFrameworkVersions.id, fwvId)).all()[0]!;
+}
+
+function frameworkInfo(): RoleFrameworkInfo | null {
+  const db = getDb();
+  const version = getPublishedVersion();
+  if (!version) return null;
+  const fw = db.select().from(roleFrameworks).where(eq(roleFrameworks.id, version.frameworkId)).all()[0];
+  const roleCount = db
+    .select()
+    .from(roleDefinitions)
+    .where(eq(roleDefinitions.frameworkVersionId, version.id))
+    .all().length;
+  return {
+    frameworkId: version.frameworkId,
+    frameworkName: fw?.name ?? "Career Framework",
+    versionId: version.id,
+    versionLabel: version.versionLabel,
+    sourceFilename: version.sourceFilename,
+    roleCount,
+  };
+}
+
+function defaultCompetencyKeys(track: string): string[] {
+  return track === "manager"
+    ? ["execution", "ownership", "collaboration", "impact", "people_leadership", "org_influence"]
+    : ["execution", "technical_depth", "ownership", "collaboration", "impact", "growth_leadership"];
+}
+
+function uniqueRoleKey(frameworkVersionId: string, desired: string, excludeId?: string): string {
+  const db = getDb();
+  const existing = db
+    .select()
+    .from(roleDefinitions)
+    .where(eq(roleDefinitions.frameworkVersionId, frameworkVersionId))
+    .all()
+    .filter((r) => r.id !== excludeId)
+    .map((r) => r.key);
+  let key = desired || slugifyRoleKey("role");
+  if (!existing.includes(key)) return key;
+  let i = 2;
+  while (existing.includes(`${key}_${i}`)) i += 1;
+  return `${key}_${i}`;
+}
+
+function insertRoleDraft(frameworkVersionId: string, draft: RoleDraft) {
+  const db = getDb();
+  const roleId = id("role");
+  const key = uniqueRoleKey(frameworkVersionId, draft.key || slugifyRoleKey(draft.title, draft.levelKey));
+  db.insert(roleDefinitions)
+    .values({
+      id: roleId,
+      frameworkVersionId,
+      key,
+      title: draft.title,
+      track: draft.track,
+      levelKey: draft.levelKey,
+      summary: draft.summary,
+      nextRoleKeysJson: JSON.stringify(draft.nextRoleKeys ?? []),
+      competencyKeysJson: JSON.stringify(defaultCompetencyKeys(draft.track)),
+    })
+    .run();
+  draft.expectations.forEach((exp, idx) => {
+    db.insert(roleExpectations)
+      .values({
+        id: id("rexp"),
+        roleDefinitionId: roleId,
+        kind: exp.kind,
+        text: exp.text,
+        sortOrder: idx,
+      })
+      .run();
+  });
+  return roleId;
+}
+
+function replaceExpectations(roleId: string, expectations: Array<{ id?: string; kind: string; text: string; sortOrder?: number }>) {
+  const db = getDb();
+  const existing = db.select().from(roleExpectations).where(eq(roleExpectations.roleDefinitionId, roleId)).all();
+  for (const row of existing) {
+    db.delete(roleExpectations).where(eq(roleExpectations.id, row.id)).run();
+  }
+  expectations.forEach((exp, idx) => {
+    db.insert(roleExpectations)
+      .values({
+        id: exp.id && exp.id.startsWith("rexp_") ? exp.id : id("rexp"),
+        roleDefinitionId: roleId,
+        kind: exp.kind === "expectation" ? "expectation" : "responsibility",
+        text: exp.text,
+        sortOrder: exp.sortOrder ?? idx,
+      })
+      .run();
+  });
+}
+
+app.post("/api/roles", async (c) => {
+  const body = await c.req.json<{
+    key?: string;
+    title: string;
+    track?: string;
+    levelKey?: string | null;
+    summary?: string | null;
+    nextRoleKeys?: string[];
+    expectations?: Array<{ kind?: string; text: string }>;
+  }>();
+  if (!body.title?.trim()) return c.json({ error: "title required" }, 400);
+  const version = ensurePublishedVersion();
+  const draft: RoleDraft = {
+    key: body.key?.trim() || slugifyRoleKey(body.title, body.levelKey),
+    title: body.title.trim(),
+    track: body.track === "manager" || body.track === "other" ? body.track : "ic",
+    levelKey: body.levelKey?.trim() || null,
+    summary: body.summary?.trim() || null,
+    nextRoleKeys: body.nextRoleKeys ?? [],
+    expectations: (body.expectations ?? [])
+      .filter((e) => e.text?.trim())
+      .map((e) => ({
+        kind: e.kind === "expectation" ? ("expectation" as const) : ("responsibility" as const),
+        text: e.text.trim(),
+      })),
+  };
+  const roleId = insertRoleDraft(version.id, draft);
+  logActivity("role.create", "role", roleId, { title: draft.title, levelKey: draft.levelKey });
+  return c.json(loadRole(roleId));
+});
+
+app.put("/api/roles/:id", async (c) => {
+  const roleId = c.req.param("id");
+  const db = getDb();
+  const role = db.select().from(roleDefinitions).where(eq(roleDefinitions.id, roleId)).all()[0];
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  const body = await c.req.json<{
+    key?: string;
+    title?: string;
+    track?: string;
+    levelKey?: string | null;
+    summary?: string | null;
+    nextRoleKeys?: string[];
+    expectations?: Array<{ id?: string; kind?: string; text: string; sortOrder?: number }>;
+  }>();
+  const title = body.title?.trim() || role.title;
+  const levelKey = body.levelKey === undefined ? role.levelKey : body.levelKey?.trim() || null;
+  const track = body.track === "manager" || body.track === "other" || body.track === "ic" ? body.track : role.track;
+  const key = uniqueRoleKey(
+    role.frameworkVersionId,
+    body.key?.trim() || role.key,
+    roleId,
+  );
+  db.update(roleDefinitions)
+    .set({
+      key,
+      title,
+      track,
+      levelKey,
+      summary: body.summary === undefined ? role.summary : body.summary?.trim() || null,
+      nextRoleKeysJson:
+        body.nextRoleKeys === undefined ? role.nextRoleKeysJson : JSON.stringify(body.nextRoleKeys),
+    })
+    .where(eq(roleDefinitions.id, roleId))
+    .run();
+  if (body.expectations) {
+    replaceExpectations(
+      roleId,
+      body.expectations.filter((e) => e.text?.trim()).map((e) => ({
+        id: e.id,
+        kind: e.kind ?? "responsibility",
+        text: e.text.trim(),
+        sortOrder: e.sortOrder,
+      })),
+    );
+  }
+  logActivity("role.update", "role", roleId, { title });
+  return c.json(loadRole(roleId));
+});
+
+app.delete("/api/roles/:id", (c) => {
+  const roleId = c.req.param("id");
+  const db = getDb();
+  const role = db.select().from(roleDefinitions).where(eq(roleDefinitions.id, roleId)).all()[0];
+  if (!role) return c.json({ error: "Role not found" }, 404);
+  const assigned = db.select().from(roleAssignments).where(eq(roleAssignments.roleDefinitionId, roleId)).all();
+  const targeted = db
+    .select()
+    .from(roleAssignments)
+    .where(eq(roleAssignments.targetNextRoleDefinitionId, roleId))
+    .all();
+  if (assigned.length || targeted.length) {
+    return c.json({ error: "Role is assigned to people — reassign them first", code: "role_in_use" }, 409);
+  }
+  const expectations = db.select().from(roleExpectations).where(eq(roleExpectations.roleDefinitionId, roleId)).all();
+  for (const e of expectations) db.delete(roleExpectations).where(eq(roleExpectations.id, e.id)).run();
+  db.delete(roleDefinitions).where(eq(roleDefinitions.id, roleId)).run();
+  logActivity("role.delete", "role", roleId, { title: role.title });
+  return c.json({ ok: true });
+});
+
+app.post("/api/roles/framework/upload", async (c) => {
+  const contentType = c.req.header("content-type") ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return c.json({ error: "Expected multipart form upload" }, 400);
+  }
+  const form = await c.req.parseBody();
+  const file = form.file;
+  if (!file || typeof file === "string") return c.json({ error: "file required" }, 400);
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!["pdf", "docx", "txt", "md", "csv"].includes(ext)) {
+    return c.json({ error: "Allowlisted: pdf, docx, txt, md, csv" }, 400);
+  }
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.byteLength > 25 * 1024 * 1024) return c.json({ error: "Max 25MB" }, 400);
+  const safeFilename = basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const saved = writeFrameworkFile(safeFilename, buf);
+  const version = ensurePublishedVersion();
+  const db = getDb();
+  db.update(roleFrameworkVersions)
+    .set({ sourceFilename: saved.storageName })
+    .where(eq(roleFrameworkVersions.id, version.id))
+    .run();
+  let extractedText: string | null = null;
+  let extractError: string | null = null;
+  try {
+    extractedText = textFromUpload(buf, safeFilename);
+  } catch (e) {
+    extractError = e instanceof Error ? e.message : "Could not extract text";
+  }
+  logActivity("framework.upload", "framework_version", version.id, {
+    filename: safeFilename,
+    bytes: saved.byteSize,
+  });
+  return c.json({
+    ok: true,
+    storageName: saved.storageName,
+    filename: safeFilename,
+    byteSize: saved.byteSize,
+    textChars: extractedText?.length ?? 0,
+    textPreview: extractedText?.slice(0, 2000) ?? null,
+    extractError,
+    framework: frameworkInfo(),
+  });
+});
+
+app.post("/api/roles/extract", async (c) => {
+  const body = await c.req.json<{
+    text?: string;
+    useAi?: boolean;
+  }>();
+  const text = body.text?.trim() ?? "";
+  if (!text) return c.json({ error: "text required — paste framework content or upload a readable .txt/.md first" }, 400);
+  if (text.length > 120_000) return c.json({ error: "Text too long (max ~120k chars)" }, 400);
+
+  const useAi = body.useAi !== false;
+  const cfg = getAiConfig();
+  let roles: RoleDraft[] = [];
+  let mode: "ai" | "local" = "local";
+  let model: string | null = null;
+  let warning: string | null = null;
+
+  if (useAi && cfg.enabled && (cfg.localOnly || cfg.provider === "ollama" || cfg.hasApiKey)) {
+    try {
+      const result = await runChat("framework_extract", [
+        { role: "system", content: FRAMEWORK_EXTRACT_SYSTEM },
+        {
+          role: "user",
+          content: `Extract RoleDefinitions from this career framework document:\n\n${text.slice(0, 100_000)}`,
+        },
+      ]);
+      roles = parseExtractedRolesJson(result.text);
+      mode = "ai";
+      model = result.model;
+      storeGeneration({
+        feature: "framework_extract",
+        model: result.model,
+        outputText: result.text.slice(0, 50_000),
+        citations: [],
+        dataClassesSent: ["framework_document"],
+      });
+      if (!roles.length) {
+        warning = "AI returned no roles — fell back to local parser";
+        roles = parseFrameworkTextLocal(text);
+        mode = "local";
+      }
+    } catch (e) {
+      warning = e instanceof Error ? e.message : "AI extract failed";
+      roles = parseFrameworkTextLocal(text);
+      mode = "local";
+    }
+  } else {
+    if (useAi && !cfg.enabled) warning = "AI disabled — using local parser. Enable AI in Settings for better extract.";
+    else if (useAi && !cfg.hasApiKey && cfg.provider !== "ollama" && !cfg.localOnly) {
+      warning = "No API key — using local parser.";
+    }
+    roles = parseFrameworkTextLocal(text);
+  }
+
+  if (!roles.length) {
+    return c.json({
+      error: "No roles detected. Try markdown headings (# IC4 — Title) with bullet lists, or enable AI.",
+      roles: [],
+      mode,
+      model,
+      warning,
+    }, 400);
+  }
+
+  logActivity("framework.extract", "framework_version", getPublishedVersion()?.id ?? null, {
+    mode,
+    count: roles.length,
+  });
+  return c.json({ roles: roles as RoleDraftDTO[], mode, model, warning });
+});
+
+app.post("/api/roles/import", async (c) => {
+  const body = await c.req.json<{
+    roles: RoleDraft[];
+    replace?: boolean;
+  }>();
+  const drafts = body.roles ?? [];
+  if (!drafts.length) return c.json({ error: "roles required" }, 400);
+  if (drafts.length > 40) return c.json({ error: "Max 40 roles per import" }, 400);
+
+  const version = ensurePublishedVersion();
+  const db = getDb();
+
+  if (body.replace) {
+    const existing = db
+      .select()
+      .from(roleDefinitions)
+      .where(eq(roleDefinitions.frameworkVersionId, version.id))
+      .all();
+    for (const role of existing) {
+      const inUse =
+        db.select().from(roleAssignments).where(eq(roleAssignments.roleDefinitionId, role.id)).all().length > 0 ||
+        db.select().from(roleAssignments).where(eq(roleAssignments.targetNextRoleDefinitionId, role.id)).all()
+          .length > 0;
+      if (inUse) {
+        return c.json(
+          { error: `Cannot replace: ${role.title} is still assigned. Reassign people or import without replace.` },
+          409,
+        );
+      }
+    }
+    for (const role of existing) {
+      const exps = db.select().from(roleExpectations).where(eq(roleExpectations.roleDefinitionId, role.id)).all();
+      for (const e of exps) db.delete(roleExpectations).where(eq(roleExpectations.id, e.id)).run();
+      db.delete(roleDefinitions).where(eq(roleDefinitions.id, role.id)).run();
+    }
+  }
+
+  const created: RoleDefinitionDTO[] = [];
+  for (const draft of drafts) {
+    if (!draft.title?.trim()) continue;
+    const roleId = insertRoleDraft(version.id, {
+      key: draft.key || slugifyRoleKey(draft.title, draft.levelKey),
+      title: draft.title.trim(),
+      track: draft.track === "manager" || draft.track === "other" ? draft.track : "ic",
+      levelKey: draft.levelKey ?? null,
+      summary: draft.summary ?? null,
+      nextRoleKeys: draft.nextRoleKeys ?? [],
+      expectations: (draft.expectations ?? [])
+        .filter((e) => e.text?.trim())
+        .map((e) => ({
+          kind: e.kind === "expectation" ? ("expectation" as const) : ("responsibility" as const),
+          text: e.text.trim(),
+        })),
+    });
+    const loaded = loadRole(roleId);
+    if (loaded) created.push(loaded);
+  }
+
+  logActivity("framework.import", "framework_version", version.id, {
+    created: created.length,
+    replace: Boolean(body.replace),
+  });
+  return c.json({ created, framework: frameworkInfo() });
 });
 
 app.post("/api/roles/assign", async (c) => {

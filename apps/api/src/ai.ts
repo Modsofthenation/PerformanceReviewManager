@@ -10,11 +10,12 @@ export type AiFeature =
   | "promotion_draft"
   | "chat_dossier"
   | "bias_lint"
-  | "peer_synthesize";
+  | "peer_synthesize"
+  | "framework_extract";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
-async function callAnthropic(apiKey: string, model: string, messages: ChatMessage[]) {
+async function callAnthropic(apiKey: string, model: string, messages: ChatMessage[], maxTokens = 1600) {
   const system = messages.find((m) => m.role === "system")?.content ?? "";
   const userMessages = messages.filter((m) => m.role !== "system");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -26,7 +27,7 @@ async function callAnthropic(apiKey: string, model: string, messages: ChatMessag
     },
     body: JSON.stringify({
       model: model || "claude-sonnet-4-5",
-      max_tokens: 1600,
+      max_tokens: maxTokens,
       system,
       messages: userMessages.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
     }),
@@ -106,6 +107,7 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
   if (!cfg.enabled) {
     throw new Error("AI disabled — enable in Settings → AI");
   }
+  const maxTokens = feature === "framework_extract" ? 4096 : 1600;
   if (cfg.localOnly || cfg.provider === "ollama") {
     const text = await callOllama(cfg.ollamaBaseUrl, cfg.modelDraft || "llama3.1", messages);
     return { text, model: `ollama:${cfg.modelDraft || "llama3.1"}`, provider: "ollama" as const };
@@ -116,7 +118,7 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
     const text = await callOpenAI(cfg.apiKey, model || "gpt-4o-mini", messages);
     return { text, model: `openai:${model}`, provider: "openai" as const };
   }
-  const text = await callAnthropic(cfg.apiKey, model || "claude-sonnet-4-5", messages);
+  const text = await callAnthropic(cfg.apiKey, model || "claude-sonnet-4-5", messages, maxTokens);
   return { text, model: `anthropic:${model}`, provider: "anthropic" as const };
 }
 

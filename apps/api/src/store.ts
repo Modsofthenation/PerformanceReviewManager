@@ -368,6 +368,16 @@ export function writeEncryptedDocument(filename: string, data: Buffer) {
   return { storagePath, storageName, byteSize: data.length };
 }
 
+export function writeFrameworkFile(filename: string, data: Buffer) {
+  const secret = getWorkspaceSecret();
+  if (!secret) throw new Error("Workspace locked");
+  const safe = basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storageName = `${nanoid(8)}_${safe}`;
+  const storagePath = join(paths.frameworks, storageName);
+  writeFileSync(storagePath, data, { mode: 0o600 });
+  return { storagePath, storageName, byteSize: data.length };
+}
+
 export function readDocumentFile(storagePath: string) {
   const secret = getWorkspaceSecret();
   if (existsSync(storagePath)) return readFileSync(storagePath);
