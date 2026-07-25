@@ -21,3 +21,9 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 ### Known pre-existing issues (not environment problems)
 - `pnpm build` (production) and `pnpm -r typecheck` may still fail on residual TypeScript strictness issues in the UI/API; Dev servers (`tsx`/`vite`) run fine because they do not strict-typecheck.
 - Core loop evaluation & capture gaps: `docs/CORE_LOOP_EVAL.md`.
+
+### Cursor MCP (`@prm/mcp`)
+- Stdio MCP for bulk-loading dossier evidence into the local API: `pnpm mcp` (or `pnpm --filter @prm/mcp start`).
+- Requires API on `127.0.0.1:8787`; unlocks with `PRM_PASSWORD` (default `workbench`).
+- Setup example: `.cursor/mcp.json.example` and `packages/mcp/README.md`.
+- Typical flow with other MCPs (Jira/Google): fetch externally → `prm_bulk_load_evidence` / `prm_upload_document` here.
