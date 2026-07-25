@@ -30,6 +30,7 @@ upload role R&R → tag people → year-round dossier
 | Subject export | Done | HTML (+ Print→PDF tip); requires finalized/shared; strips `private_notes` / `em_only`; redacts peer names in cites |
 | Consistency + bias + faithfulness | Partial | Advisory invention checks + golden eval set + cite/soften actions — not fairness certification |
 | Continuous 1:1 themes | Done | Feedback notes accept comma-separated theme tags; included in AI evidence context |
+| Jira + Bitbucket integrations | Done | Settings credentials (encrypted); person account link; sync tickets/merged PRs into achievements |
 | Decision log + audit pack | Done* | Append-only triggers; verify + HMAC export in Settings. *Tamper-evident / EM-keyed — not external legal custody (TRUST_MODEL) |
 | Promotion packets | Done | Next-role marks + AI case draft |
 | Backfill + MCP bulk load | Done | Thin = ach+fb+docs+goals &lt; 2; MCP needs explicit unlock / `PRM_PASSWORD` |

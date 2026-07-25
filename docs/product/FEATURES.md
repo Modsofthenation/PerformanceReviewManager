@@ -169,7 +169,7 @@ Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 | Document / framework upload | P0 | Workbench | |
 | Google Drive / Meet file pick or manual transcript | P1 | Workbench | |
 | GitHub / Linear | P2 | |
-| Jira Cloud + Bitbucket Cloud | P1 | Settings → Integrations; person link + sync into dossier achievements | |
+| Jira Cloud + Bitbucket Cloud | P1 | Settings → Integrations; person link + sync into dossier achievements |
 | Slack / email digests | — | Hosted-only / later | |
 
 ---
