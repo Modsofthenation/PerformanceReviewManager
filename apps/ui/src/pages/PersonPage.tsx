@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { ConcernLogDTO, CycleDTO, PersonDTO } from "@prm/shared";
+import type {
+  ConcernLogDTO,
+  CycleDTO,
+  IntegrationProvider,
+  IntegrationRemoteUser,
+  IntegrationSyncResult,
+  PersonDTO,
+  PersonExternalLinkDTO,
+} from "@prm/shared";
 import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -10,7 +18,14 @@ export function PersonPage() {
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
   const [dossier, setDossier] = useState<{
     goals: Array<{ id: string; title: string; status: string }>;
-    achievements: Array<{ id: string; title: string; occurredAt: string; description: string | null }>;
+    achievements: Array<{
+      id: string;
+      title: string;
+      occurredAt: string;
+      description: string | null;
+      sourceProvider?: string | null;
+      externalUrl?: string | null;
+    }>;
     feedback: Array<{ id: string; fromName: string | null; body: string; kind: string; themes?: string[] }>;
     documents: Array<{ id: string; title: string; filename: string; visibility: string; occurredAt: string }>;
   } | null>(null);
@@ -29,6 +44,12 @@ export function PersonPage() {
   const [concernBody, setConcernBody] = useState("");
   const [concernExpectation, setConcernExpectation] = useState("");
   const [concernPlan, setConcernPlan] = useState("");
+  const [extLinks, setExtLinks] = useState<PersonExternalLinkDTO[]>([]);
+  const [linkProvider, setLinkProvider] = useState<IntegrationProvider>("jira");
+  const [linkQuery, setLinkQuery] = useState("");
+  const [linkResults, setLinkResults] = useState<IntegrationRemoteUser[]>([]);
+  const [linkMsg, setLinkMsg] = useState<string | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
 
   async function load() {
     if (!id) return;
@@ -40,6 +61,12 @@ export function PersonPage() {
       setConcerns(res.items);
     } catch {
       setConcerns([]);
+    }
+    try {
+      const links = await api<{ items: PersonExternalLinkDTO[] }>(`/api/people/${id}/external-links`);
+      setExtLinks(links.items);
+    } catch {
+      setExtLinks([]);
     }
   }
 
@@ -100,12 +127,160 @@ export function PersonPage() {
         />
       )}
 
+      <div className="panel stack" id="integrations">
+        <h2>Jira & Bitbucket</h2>
+        <p className="muted">
+          Link remote accounts, then pull tickets / merged PRs into achievements. Configure credentials in{" "}
+          <Link to="/settings">Settings → Integrations</Link>.
+        </p>
+        {extLinks.length === 0 ? (
+          <p className="muted">No external accounts linked yet.</p>
+        ) : (
+          <ul>
+            {extLinks.map((l) => (
+              <li key={l.id} style={{ marginBottom: 8 }}>
+                <strong>{l.provider}</strong> — {l.externalDisplayName ?? l.externalAccountId}
+                {l.externalEmail ? <span className="muted"> · {l.externalEmail}</span> : null}
+                {l.externalUsername ? <span className="muted"> · @{l.externalUsername}</span> : null}{" "}
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={async () => {
+                    await api(`/api/people/${id}/external-links/${l.provider}`, { method: "DELETE" });
+                    await load();
+                  }}
+                >
+                  Unlink
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="row" style={{ flexWrap: "wrap", gap: 8, alignItems: "end" }}>
+          <div className="field" style={{ margin: 0 }}>
+            <label>Provider</label>
+            <select
+              value={linkProvider}
+              onChange={(e) => setLinkProvider(e.target.value as IntegrationProvider)}
+            >
+              <option value="jira">Jira</option>
+              <option value="bitbucket">Bitbucket</option>
+            </select>
+          </div>
+          <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
+            <label>Search remote users</label>
+            <input
+              value={linkQuery}
+              onChange={(e) => setLinkQuery(e.target.value)}
+              placeholder={person.email ?? person.name}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={async () => {
+              const q = linkQuery.trim() || person.email || person.name;
+              try {
+                const res = await api<{ items: IntegrationRemoteUser[] }>(
+                  `/api/integrations/${linkProvider}/users?q=${encodeURIComponent(q)}`,
+                );
+                setLinkResults(res.items);
+                setLinkMsg(res.items.length ? null : "No users found");
+              } catch (e) {
+                setLinkResults([]);
+                setLinkMsg(e instanceof Error ? e.message : "Search failed");
+              }
+            }}
+          >
+            Search
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={syncBusy || extLinks.length === 0}
+            onClick={async () => {
+              setSyncBusy(true);
+              try {
+                const res = await api<IntegrationSyncResult>(`/api/people/${id}/integrations/sync`, {
+                  method: "POST",
+                  body: "{}",
+                });
+                const parts = [
+                  !res.jira.skipped
+                    ? `Jira +${res.jira.imported}/~${res.jira.updated}${res.jira.error ? ` (${res.jira.error})` : ""}`
+                    : null,
+                  !res.bitbucket.skipped
+                    ? `BB +${res.bitbucket.imported}/~${res.bitbucket.updated}${
+                        res.bitbucket.error ? ` (${res.bitbucket.error})` : ""
+                      }`
+                    : null,
+                ].filter(Boolean);
+                setLinkMsg(parts.join(" · ") || "Nothing synced");
+                setCaptureMsg("Integration sync finished");
+                await load();
+              } catch (e) {
+                setLinkMsg(e instanceof Error ? e.message : "Sync failed");
+              } finally {
+                setSyncBusy(false);
+              }
+            }}
+          >
+            Sync linked accounts
+          </button>
+        </div>
+        {linkResults.length > 0 && (
+          <ul>
+            {linkResults.map((u) => (
+              <li key={u.accountId} className="row" style={{ gap: 8, marginBottom: 6 }}>
+                <span>
+                  {u.displayName}
+                  {u.email ? <span className="muted"> · {u.email}</span> : null}
+                  {u.username ? <span className="muted"> · @{u.username}</span> : null}
+                </span>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={async () => {
+                    await api(`/api/people/${id}/external-links/${linkProvider}`, {
+                      method: "PUT",
+                      body: JSON.stringify({
+                        externalAccountId: u.accountId,
+                        externalDisplayName: u.displayName,
+                        externalEmail: u.email ?? null,
+                        externalUsername: u.username ?? null,
+                      }),
+                    });
+                    setLinkResults([]);
+                    setLinkMsg(`Linked ${linkProvider} → ${u.displayName}`);
+                    await load();
+                  }}
+                >
+                  Link
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {linkMsg && <p className="muted">{linkMsg}</p>}
+      </div>
+
       <div className="grid-2">
         <div className="panel" id="capture-achievements">
           <h2>Achievements</h2>
           <ul>
             {dossier.achievements.map((a) => (
-              <li key={a.id}><strong>{a.title}</strong> <span className="muted">({a.occurredAt})</span></li>
+              <li key={a.id}>
+                <strong>{a.title}</strong> <span className="muted">({a.occurredAt})</span>
+                {a.sourceProvider ? <span className="flag"> {a.sourceProvider}</span> : null}
+                {a.externalUrl ? (
+                  <>
+                    {" "}
+                    <a href={a.externalUrl} target="_blank" rel="noreferrer">
+                      open
+                    </a>
+                  </>
+                ) : null}
+              </li>
             ))}
           </ul>
           <form

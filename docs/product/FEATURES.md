@@ -73,6 +73,7 @@ Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 | Meet / transcript → MeetingSummary | P1 | Opt-in; default private-to-EM; notice that “private” ≠ undiscoverable legally |
 | 1:1 theme tags | P1 | Feedback notes; themes feed AI digests |
 | Integration signals (GitHub/Linear) | P2 | Optional |
+| Jira + Bitbucket sync | P1 | Settings credentials; person account link; tickets/merged PRs → achievements |
 | Private vs shareable | P0 | Controls **share/export** inclusion; EM always sees workspace data |
 | Evidence snapshots at finalize | P0 | Cited title/checksum/excerpt frozen into review |
 | Out-of-window tray | P1 | Don’t silently drop late-uploaded docs |
@@ -167,7 +168,8 @@ Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 | OS + in-app notifications | P0 | Workbench | |
 | Document / framework upload | P0 | Workbench | |
 | Google Drive / Meet file pick or manual transcript | P1 | Workbench | |
-| GitHub / Linear | P2 | | |
+| GitHub / Linear | P2 | |
+| Jira Cloud + Bitbucket Cloud | P1 | Settings → Integrations; person link + sync into dossier achievements | |
 | Slack / email digests | — | Hosted-only / later | |
 
 ---
