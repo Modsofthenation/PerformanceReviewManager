@@ -183,6 +183,17 @@ CREATE TABLE IF NOT EXISTS evidence_links (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS citation_snapshots (
+  id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL,
+  source_type TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  excerpt TEXT,
+  checksum TEXT,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS next_level_assessments (
   id TEXT PRIMARY KEY,
   review_id TEXT NOT NULL,
