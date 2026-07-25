@@ -15,9 +15,9 @@ pnpm desktop:dev
 
 1. Writes a shared `PRM_LAUNCH_TOKEN` under `$PRM_DATA_DIR/.launch_token` (default `data/`)
 2. Starts API + UI with that env so the API requires `x-prm-launch-token`
-3. The Tauri process reads the same token, injects `window.__PRM_LAUNCH_TOKEN__`, and exposes `get_launch_config` IPC
+3. The Tauri process reads the same token, injects `window.__PRM_LAUNCH_TOKEN__` and `window.__PRM_API_BASE_URL__`, and exposes `get_launch_config` IPC
 
-Browser-only `pnpm dev` does **not** set the launch token (middleware stays off).
+Browser-only `pnpm dev` does **not** set the launch token (middleware stays off). The UI uses relative `/api` under Vite (proxied). Packaged builds must use the injected absolute API base URL — relative `/api` has no proxy in the Tauri webview.
 
 Optional: set `PRM_SPAWN_API=1` so the shell also starts the API via `pnpm exec tsx` (useful when not using `desktop-dev.sh`).
 
@@ -38,7 +38,9 @@ pnpm desktop:build
 1. Bundles `@prm/api` into `src-tauri/sidecars/prm-api.mjs` (esbuild) and copies a portable **Node** binary + `better-sqlite3` next to it
 2. Builds the UI into `apps/ui/dist` (Tauri `frontendDist` is `../../ui/dist` from `src-tauri`)
 
-At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR`, and kills the child on exit — one process from the user’s point of view.
+At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR`, waits until `/api/health` responds, and kills the child on exit — one process from the user’s point of view.
+
+Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 
 CI builds the same matrix (Ubuntu / macOS / Windows) on pushes to `main`. Each green desktop job uploads an Actions artifact (retained 30 days):
 

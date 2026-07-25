@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { BiasFinding, DecisionLogEntry, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
-import { api, getToken } from "../lib/api";
+import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 type EvidenceLinkDraft = {
@@ -325,7 +325,7 @@ export function WritingDeskPage() {
   async function openSubjectHtml() {
     if (!cycleId || !personId) return;
     const token = getToken();
-    const res = await fetch(`/api/exports/subject/${cycleId}/${personId}?format=html`, {
+    const res = await fetch(apiUrl(`/api/exports/subject/${cycleId}/${personId}?format=html`), {
       headers: token ? { "x-prm-token": token } : {},
     });
     if (!res.ok) {

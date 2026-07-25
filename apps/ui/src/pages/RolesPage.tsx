@@ -6,7 +6,7 @@ import type {
   RoleDraftDTO,
   RoleFrameworkInfo,
 } from "@prm/shared";
-import { api, getToken } from "../lib/api";
+import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 type ExpectationEdit = { id?: string; kind: "responsibility" | "expectation"; text: string };
@@ -163,7 +163,7 @@ export function RolesPage() {
       if (typeof window !== "undefined" && window.__PRM_LAUNCH_TOKEN__) {
         headers["x-prm-launch-token"] = window.__PRM_LAUNCH_TOKEN__;
       }
-      const res = await fetch("/api/roles/framework/upload", { method: "POST", headers, body: fd });
+      const res = await fetch(apiUrl("/api/roles/framework/upload"), { method: "POST", headers, body: fd });
       const json = (await res.json()) as {
         error?: string;
         textPreview?: string | null;
