@@ -175,6 +175,17 @@ export const evidenceLinks = sqliteTable("evidence_links", {
   createdAt: text("created_at").notNull(),
 });
 
+export const citationSnapshots = sqliteTable("citation_snapshots", {
+  id: text("id").primaryKey(),
+  reviewId: text("review_id").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id").notNull(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt"),
+  checksum: text("checksum"),
+  createdAt: text("created_at").notNull(),
+});
+
 export const nextLevelAssessments = sqliteTable("next_level_assessments", {
   id: text("id").primaryKey(),
   reviewId: text("review_id").notNull(),
@@ -249,6 +260,7 @@ export const schema = {
   feedbackItems,
   documents,
   evidenceLinks,
+  citationSnapshots,
   nextLevelAssessments,
   promotionCases,
   aiSettings,

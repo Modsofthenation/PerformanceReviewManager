@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { GapMark, RoleDefinitionDTO } from "@prm/shared";
-import { api } from "../lib/api";
+import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 type PromoDetail = {
@@ -65,6 +65,17 @@ export function PromotionDetailPage() {
     await load();
   }
 
+  async function openHtmlPacket() {
+    if (!id) return;
+    const token = getToken();
+    const res = await fetch(`/api/exports/promotion/${id}?format=html`, {
+      headers: token ? { "x-prm-token": token } : {},
+    });
+    const html = await res.text();
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   if (!detail) return <p>Loading…</p>;
 
   const submitted = detail.status === "submitted";
@@ -77,7 +88,9 @@ export function PromotionDetailPage() {
         job={`${detail.currentRole?.title ?? "—"} → ${detail.targetRole?.title ?? "—"} · Mark next-role expectations, write the case, then submit.`}
         primary={
           submitted ? (
-            <Link className="btn" to="/promotions">Back to packets</Link>
+            <button className="btn" type="button" onClick={() => void openHtmlPacket()}>
+              Open HTML packet
+            </button>
           ) : (
             <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
           )
@@ -94,8 +107,17 @@ export function PromotionDetailPage() {
         <NextStep
           tone="ok"
           label="Packet submitted"
-          detail="Case is marked submitted on this workspace. Export/share for skip-level discussion is next (HTML/PDF still to come)."
-          action={<Link className="btn" to="/promotions">Back to promotions</Link>}
+          detail="Case is marked submitted. Open the HTML packet for skip-level discussion (Print → Save as PDF)."
+          action={
+            <>
+              <button className="btn" type="button" onClick={() => void openHtmlPacket()}>
+                Open HTML packet
+              </button>
+              <Link className="btn secondary" to="/promotions">
+                Back to promotions
+              </Link>
+            </>
+          }
         />
       ) : thinNarrative ? (
         <NextStep

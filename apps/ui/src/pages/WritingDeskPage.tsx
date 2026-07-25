@@ -1,8 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
-import { api } from "../lib/api";
+import type { BiasFinding, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
+import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
+import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+
+type EvidenceLinkDraft = {
+  targetType: string;
+  targetKey: string;
+  sourceType: string;
+  sourceId: string;
+};
 
 export function WritingDeskPage() {
   const { cycleId, personId } = useParams();
@@ -15,10 +23,21 @@ export function WritingDeskPage() {
   const [roleFit, setRoleFit] = useState("");
   const [promo, setPromo] = useState<PromoReadiness>("not_applicable");
   const [privateNotes, setPrivateNotes] = useState("");
+  const [competencies, setCompetencies] = useState<Record<string, number>>({});
+  const [links, setLinks] = useState<EvidenceLinkDraft[]>([]);
   const [gaps, setGaps] = useState<Record<string, GapMark>>({});
   const [digest, setDigest] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [subjectExport, setSubjectExport] = useState<unknown>(null);
+  const [biasFindings, setBiasFindings] = useState<BiasFinding[] | null>(null);
+
+  const competencyKeys = useMemo(() => {
+    const keys = packet?.currentRole?.competencyKeys?.length
+      ? packet.currentRole.competencyKeys
+      : COMPETENCY_CATALOG.filter((c) => !c.appliesToTracks || c.appliesToTracks.includes("ic")).map((c) => c.key);
+    return keys;
+  }, [packet?.currentRole?.competencyKeys, packet?.currentRole?.track]);
 
   async function load() {
     if (!cycleId || !personId) return;
@@ -33,11 +52,32 @@ export function WritingDeskPage() {
     setRoleFit(String(payload.role_fit ?? ""));
     setPromo((payload.promo_readiness as PromoReadiness) ?? "not_applicable");
     setPrivateNotes(String(payload.private_notes ?? ""));
+    const comps = (payload.competencies ?? {}) as Record<string, number>;
+    setCompetencies(comps);
+    setLinks(
+      (p.evidenceLinks ?? []).map((l) => ({
+        targetType: l.targetType,
+        targetKey: l.targetKey,
+        sourceType: l.sourceType,
+        sourceId: l.sourceId,
+      })),
+    );
   }
 
   useEffect(() => {
     load();
   }, [cycleId, personId]);
+
+  useEffect(() => {
+    if (!packet) return;
+    setCompetencies((prev) => {
+      const next = { ...prev };
+      for (const key of competencyKeys) {
+        if (next[key] == null) next[key] = MIDDLE_BAND;
+      }
+      return next;
+    });
+  }, [packet?.currentRole?.id, competencyKeys.join("|")]);
 
   const showGaps = promo === "ready" || promo === "not_yet";
   const nextExpectations = packet?.nextRole?.expectations ?? [];
@@ -57,31 +97,113 @@ export function WritingDeskPage() {
   const reviewStatus = packet?.managerReview?.status ?? "missing";
   const finalized = reviewStatus === "finalized" || reviewStatus === "shared";
 
+  const evidenceOptions = useMemo(() => {
+    if (!packet) return [] as Array<{ sourceType: string; sourceId: string; label: string }>;
+    return [
+      ...packet.achievements.map((a) => ({
+        sourceType: "achievement",
+        sourceId: a.id,
+        label: `Achievement: ${a.title}`,
+      })),
+      ...packet.goals.map((g) => ({
+        sourceType: "goal",
+        sourceId: g.id,
+        label: `Goal: ${g.title}`,
+      })),
+      ...packet.feedback.map((f) => ({
+        sourceType: "feedback",
+        sourceId: f.id,
+        label: `Feedback: ${(f.body ?? "").slice(0, 60)}`,
+      })),
+      ...packet.documents.map((d) => ({
+        sourceType: "document",
+        sourceId: d.id,
+        label: `Document: ${d.title}`,
+      })),
+    ];
+  }, [packet]);
+
+  function linksFor(key: string) {
+    return links.filter((l) => l.targetType === "competency" && l.targetKey === key);
+  }
+
+  function toggleLink(key: string, sourceType: string, sourceId: string) {
+    setLinks((prev) => {
+      const exists = prev.find(
+        (l) => l.targetType === "competency" && l.targetKey === key && l.sourceId === sourceId,
+      );
+      if (exists) {
+        return prev.filter((l) => l !== exists);
+      }
+      return [...prev, { targetType: "competency", targetKey: key, sourceType, sourceId }];
+    });
+  }
+
+  function missingEvidenceForFinalize() {
+    const missing: string[] = [];
+    for (const key of competencyKeys) {
+      const score = competencies[key] ?? MIDDLE_BAND;
+      if (score !== MIDDLE_BAND && !linksFor(key).length) missing.push(competencyLabel(key));
+    }
+    if (overall !== MIDDLE_BAND && links.length === 0) missing.push("overall rating");
+    return missing;
+  }
+
   async function save(nextStatus = "draft") {
     if (!cycleId || !personId) return;
-    await api("/api/reviews/manager", {
-      method: "PUT",
-      body: JSON.stringify({
-        cycleId,
-        subjectPersonId: personId,
-        status: nextStatus,
-        payload: {
-          overall,
-          summary,
-          strengths,
-          growth_areas: growth,
-          dev_plan: devPlan,
-          role_fit: roleFit,
-          promo_readiness: promo,
-          private_notes: privateNotes,
-        },
-        gapAssessments: showGaps
-          ? Object.entries(gaps).map(([roleExpectationId, mark]) => ({ roleExpectationId, mark }))
-          : [],
-      }),
+    setError(null);
+    if (nextStatus === "finalized") {
+      const missing = missingEvidenceForFinalize();
+      if (missing.length) {
+        setError(`Link evidence before finalizing (outside middle band): ${missing.join(", ")}`);
+        return;
+      }
+    }
+    try {
+      await api("/api/reviews/manager", {
+        method: "PUT",
+        body: JSON.stringify({
+          cycleId,
+          subjectPersonId: personId,
+          status: nextStatus,
+          payload: {
+            overall,
+            summary,
+            strengths,
+            growth_areas: growth,
+            dev_plan: devPlan,
+            role_fit: roleFit,
+            promo_readiness: promo,
+            private_notes: privateNotes,
+            competencies,
+          },
+          gapAssessments: showGaps
+            ? Object.entries(gaps).map(([roleExpectationId, mark]) => ({ roleExpectationId, mark }))
+            : [],
+          evidenceLinks: links,
+        }),
+      });
+      setStatus(`Saved (${nextStatus})`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    }
+  }
+
+  async function openSubjectHtml() {
+    if (!cycleId || !personId) return;
+    const token = getToken();
+    const res = await fetch(`/api/exports/subject/${cycleId}/${personId}?format=html`, {
+      headers: token ? { "x-prm-token": token } : {},
     });
-    setStatus(`Saved (${nextStatus})`);
-    await load();
+    if (!res.ok) {
+      setError("Could not load HTML packet");
+      return;
+    }
+    const html = await res.text();
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   if (!packet) return <p>Loading packet…</p>;
@@ -90,27 +212,30 @@ export function WritingDeskPage() {
     <div className="stack">
       <PageHeader
         title={packet.person.name}
-        job={`${packet.currentRole?.title ?? "No role"}${packet.nextRole ? ` → ${packet.nextRole.title}` : ""} · Draft against evidence, then finalize and preview what the IC will see.`}
+        job={`${packet.currentRole?.title ?? "No role"}${packet.nextRole ? ` → ${packet.nextRole.title}` : ""} · Score competencies with evidence, lint tone, finalize (freezes citations), then share HTML/PDF.`}
         primary={
           finalized ? (
-            <button
-              className="btn"
-              onClick={async () => {
-                const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
-                setSubjectExport(exp);
-              }}
-            >
-              Preview subject export
+            <button className="btn" type="button" onClick={() => void openSubjectHtml()}>
+              Open subject packet (HTML)
             </button>
           ) : (
-            <button className="btn" onClick={() => save("finalized")}>Finalize review</button>
+            <button className="btn" type="button" onClick={() => void save("finalized")}>
+              Finalize review
+            </button>
           )
         }
         secondary={
           <>
-            <Link className="btn ghost" to={`/team/${packet.person.id}`}>Dossier</Link>
+            <Link className="btn ghost" to={`/team/${packet.person.id}`}>
+              Dossier
+            </Link>
+            <Link className="btn ghost" to={`/consistency?cycleId=${cycleId}`}>
+              Consistency
+            </Link>
             {!finalized && (
-              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
+              <button className="btn secondary" type="button" onClick={() => void save("draft")}>
+                Save draft
+              </button>
             )}
           </>
         }
@@ -123,31 +248,20 @@ export function WritingDeskPage() {
           detail="Ratings should be judged against a published RoleDefinition."
           action={<Link className="btn" to="/roles">Assign role</Link>}
         />
-      ) : !packet.selfReview ? (
-        <NextStep
-          tone="warn"
-          label="Self-review still missing"
-          detail="You can draft now, but import the self bundle when it arrives — or waive later with a reason (coming soon)."
-          action={<Link className="btn" to="/cycles">Import self bundle</Link>}
-        />
       ) : finalized ? (
         <NextStep
           tone="ok"
-          label="Review finalized"
-          detail="Preview the subject export (private notes omitted). Open a promotion packet if readiness is ready/not yet."
+          label="Review finalized — citations frozen"
+          detail={`${packet.citationSnapshots.length} citation snapshot(s). Share the HTML packet (Print → PDF). Private notes stay out.`}
           action={
             <>
-              <button
-                className="btn"
-                onClick={async () => {
-                  const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
-                  setSubjectExport(exp);
-                }}
-              >
-                Preview subject export
+              <button className="btn" type="button" onClick={() => void openSubjectHtml()}>
+                Open HTML packet
               </button>
               {(promo === "ready" || promo === "not_yet") && (
-                <Link className="btn secondary" to="/promotions">Open promotions</Link>
+                <Link className="btn secondary" to="/promotions">
+                  Open promotions
+                </Link>
               )}
             </>
           }
@@ -155,21 +269,32 @@ export function WritingDeskPage() {
       ) : (
         <NextStep
           tone="brand"
-          label="Draft → Save → Finalize"
-          detail="Fill role fit and narrative from the packet on the left. Use AI drafts as starting points, then Finalize when ready to share."
+          label="Evidence → competencies → lint → finalize"
+          detail={`Scores other than ${MIDDLE_BAND} need at least one linked achievement, feedback, goal, or document.`}
           action={
             <>
-              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
-              <button className="btn" onClick={() => save("finalized")}>Finalize review</button>
+              <button className="btn secondary" type="button" onClick={() => void save("draft")}>
+                Save draft
+              </button>
+              <button className="btn" type="button" onClick={() => void save("finalized")}>
+                Finalize review
+              </button>
             </>
           }
         />
       )}
 
       {flags.length > 0 && (
-        <div>{flags.map((f) => <span className="flag" key={f}>{f}</span>)}</div>
+        <div>
+          {flags.map((f) => (
+            <span className="flag" key={f}>
+              {f}
+            </span>
+          ))}
+        </div>
       )}
       {status && <p className="muted">{status}</p>}
+      {error && <p className="chat-error" style={{ padding: 0 }}>{error}</p>}
 
       <div className="writing">
         <div className="stack">
@@ -178,6 +303,7 @@ export function WritingDeskPage() {
               <h2 style={{ flex: 1, margin: 0 }}>Evidence digest</h2>
               <button
                 className="btn secondary"
+                type="button"
                 onClick={async () => {
                   const res = await api<{ outputText: string }>("/api/ai/digest", {
                     method: "POST",
@@ -195,27 +321,63 @@ export function WritingDeskPage() {
             <h2>Current role expectations</h2>
             <ol>
               {(packet.currentRole?.expectations ?? []).map((e) => (
-                <li key={e.id}><span className="flag">{e.kind}</span> {e.text}</li>
+                <li key={e.id}>
+                  <span className="flag">{e.kind}</span> {e.text}
+                </li>
               ))}
             </ol>
           </div>
           <div className="panel">
             <h2>Imports & dossier</h2>
-            <p><strong>Self:</strong> {packet.selfReview ? "imported" : "missing"}</p>
+            <p>
+              <strong>Self:</strong> {packet.selfReview ? "imported" : "missing"}
+            </p>
             {packet.selfReview && (
               <pre className="digest">{JSON.stringify(packet.selfReview.payload, null, 2)}</pre>
             )}
-            <p><strong>Peers:</strong> {packet.peerReviews.length}</p>
+            <p>
+              <strong>Peers:</strong> {packet.peerReviews.length}
+            </p>
             {packet.peerReviews.map((p) => (
               <div key={p.id} className="digest" style={{ marginBottom: 8 }}>
                 <div className="muted">Author (EM-visible): {p.authorName}</div>
                 <pre style={{ margin: 0 }}>{JSON.stringify(p.payload, null, 2)}</pre>
               </div>
             ))}
-            <p><strong>Achievements</strong></p>
-            <ul>{packet.achievements.map((a) => <li key={a.id}>{a.title}</li>)}</ul>
-            <p><strong>Goals</strong></p>
-            <ul>{packet.goals.map((g) => <li key={g.id}>{g.title} ({g.status})</li>)}</ul>
+            <p>
+              <strong>Achievements</strong>
+            </p>
+            <ul>
+              {packet.achievements.map((a) => (
+                <li key={a.id}>
+                  [{a.id}] {a.title}
+                </li>
+              ))}
+            </ul>
+            <p>
+              <strong>Feedback</strong>
+            </p>
+            <ul>
+              {packet.feedback.map((f) => (
+                <li key={f.id}>
+                  [{f.id}] {f.body.slice(0, 80)}
+                </li>
+              ))}
+            </ul>
+            {packet.citationSnapshots.length > 0 && (
+              <>
+                <p>
+                  <strong>Frozen citations</strong>
+                </p>
+                <ul>
+                  {packet.citationSnapshots.map((s) => (
+                    <li key={s.id}>
+                      {s.title} <span className="muted">[{s.sourceId}]</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </div>
 
@@ -223,11 +385,88 @@ export function WritingDeskPage() {
           <h2>Manager draft</h2>
           <div className="field">
             <label>Overall (1–5)</label>
-            <input type="number" min={1} max={5} value={overall} onChange={(e) => setOverall(Number(e.target.value))} />
+            <input
+              type="number"
+              min={1}
+              max={5}
+              value={overall}
+              disabled={finalized}
+              onChange={(e) => setOverall(Number(e.target.value))}
+            />
+            {overall !== MIDDLE_BAND && (
+              <p className="muted">Outside middle band — link evidence on at least one competency below.</p>
+            )}
           </div>
+
+          <div className="stack competency-block">
+            <h3>Competencies</h3>
+            <p className="muted">
+              Scores other than {MIDDLE_BAND} require ≥1 evidence link. Catalog keys come from the assigned role.
+            </p>
+            {competencyKeys.map((key) => {
+              const score = competencies[key] ?? MIDDLE_BAND;
+              const linked = linksFor(key);
+              return (
+                <div key={key} className="competency-row">
+                  <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <strong>{competencyLabel(key)}</strong>
+                      <div className="muted" style={{ fontSize: "0.82rem" }}>
+                        {COMPETENCY_CATALOG.find((c) => c.key === key)?.description}
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      style={{ width: 64 }}
+                      value={score}
+                      disabled={finalized}
+                      onChange={(e) =>
+                        setCompetencies((c) => ({ ...c, [key]: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  {score !== MIDDLE_BAND && (
+                    <div className="evidence-picker">
+                      <div className="muted" style={{ fontSize: "0.8rem", marginBottom: 6 }}>
+                        Evidence links ({linked.length})
+                        {linked.length === 0 ? " — required before finalize" : ""}
+                      </div>
+                      <div className="evidence-options">
+                        {evidenceOptions.map((opt) => {
+                          const on = linked.some((l) => l.sourceId === opt.sourceId);
+                          return (
+                            <label key={`${key}-${opt.sourceId}`} className={`evidence-chip${on ? " on" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={on}
+                                disabled={finalized}
+                                onChange={() => toggleLink(key, opt.sourceType, opt.sourceId)}
+                              />
+                              {opt.label}
+                            </label>
+                          );
+                        })}
+                        {!evidenceOptions.length && (
+                          <p className="muted">No dossier items yet — capture evidence on the person page.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
           <div className="field">
             <label>Role fit</label>
-            <textarea value={roleFit} onChange={(e) => setRoleFit(e.target.value)} placeholder="Against current RoleDefinition…" />
+            <textarea
+              value={roleFit}
+              disabled={finalized}
+              onChange={(e) => setRoleFit(e.target.value)}
+              placeholder="Against current RoleDefinition…"
+            />
           </div>
           <div className="field">
             <label className="row" style={{ justifyContent: "space-between" }}>
@@ -235,6 +474,7 @@ export function WritingDeskPage() {
               <button
                 type="button"
                 className="btn ghost"
+                disabled={finalized}
                 onClick={async () => {
                   const res = await api<{ outputText: string }>("/api/ai/draft-section", {
                     method: "POST",
@@ -246,7 +486,7 @@ export function WritingDeskPage() {
                 AI draft
               </button>
             </label>
-            <textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
+            <textarea value={summary} disabled={finalized} onChange={(e) => setSummary(e.target.value)} />
           </div>
           <div className="field">
             <label className="row" style={{ justifyContent: "space-between" }}>
@@ -254,6 +494,7 @@ export function WritingDeskPage() {
               <button
                 type="button"
                 className="btn ghost"
+                disabled={finalized}
                 onClick={async () => {
                   const res = await api<{ outputText: string }>("/api/ai/draft-section", {
                     method: "POST",
@@ -265,7 +506,7 @@ export function WritingDeskPage() {
                 AI draft
               </button>
             </label>
-            <textarea value={strengths} onChange={(e) => setStrengths(e.target.value)} />
+            <textarea value={strengths} disabled={finalized} onChange={(e) => setStrengths(e.target.value)} />
           </div>
           <div className="field">
             <label className="row" style={{ justifyContent: "space-between" }}>
@@ -273,6 +514,7 @@ export function WritingDeskPage() {
               <button
                 type="button"
                 className="btn ghost"
+                disabled={finalized}
                 onClick={async () => {
                   const res = await api<{ outputText: string }>("/api/ai/draft-section", {
                     method: "POST",
@@ -284,15 +526,19 @@ export function WritingDeskPage() {
                 AI draft
               </button>
             </label>
-            <textarea value={growth} onChange={(e) => setGrowth(e.target.value)} />
+            <textarea value={growth} disabled={finalized} onChange={(e) => setGrowth(e.target.value)} />
           </div>
           <div className="field">
             <label>Development plan</label>
-            <textarea value={devPlan} onChange={(e) => setDevPlan(e.target.value)} />
+            <textarea value={devPlan} disabled={finalized} onChange={(e) => setDevPlan(e.target.value)} />
           </div>
           <div className="field">
             <label>Promotion readiness</label>
-            <select value={promo} onChange={(e) => setPromo(e.target.value as PromoReadiness)}>
+            <select
+              value={promo}
+              disabled={finalized}
+              onChange={(e) => setPromo(e.target.value as PromoReadiness)}
+            >
               <option value="not_applicable">Not applicable</option>
               <option value="too_early">Too early</option>
               <option value="not_yet">Not yet</option>
@@ -303,26 +549,16 @@ export function WritingDeskPage() {
             <div className="stack">
               <div className="row">
                 <h3 style={{ flex: 1 }}>Next-level gaps ({packet.nextRole?.title ?? "pick next role"})</h3>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={async () => {
-                    const res = await api<{ outputText: string }>("/api/ai/role-gap", {
-                      method: "POST",
-                      body: JSON.stringify({ cycleId, personId }),
-                    });
-                    setDigest((d) => `${d ?? ""}\n\n— Role gap —\n${res.outputText}`);
-                  }}
-                >
-                  AI gap analysis
-                </button>
-                <Link className="btn secondary" to="/promotions">Start promotion packet</Link>
+                <Link className="btn secondary" to="/promotions">
+                  Start promotion packet
+                </Link>
               </div>
               {nextExpectations.map((e) => (
                 <div key={e.id} className="field">
                   <label>{e.text}</label>
                   <select
                     value={gaps[e.id] ?? "emerging"}
+                    disabled={finalized}
                     onChange={(ev) => setGaps((g) => ({ ...g, [e.id]: ev.target.value as GapMark }))}
                   >
                     <option value="demonstrating">Demonstrating</option>
@@ -335,29 +571,73 @@ export function WritingDeskPage() {
           )}
           <div className="field">
             <label>Private notes (em_only — omitted from subject export)</label>
-            <textarea value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />
+            <textarea
+              value={privateNotes}
+              disabled={finalized}
+              onChange={(e) => setPrivateNotes(e.target.value)}
+            />
           </div>
+
+          <div className="panel" style={{ background: "var(--panel-alt)" }}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <h3 style={{ margin: 0 }}>Bias / tone lint</h3>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={async () => {
+                  const res = await api<{ findings: BiasFinding[] }>("/api/ai/bias-lint", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      cycleId,
+                      personId,
+                      text: [summary, strengths, growth, devPlan, roleFit].join("\n\n"),
+                    }),
+                  });
+                  setBiasFindings(res.findings);
+                }}
+              >
+                Run lint
+              </button>
+            </div>
+            <p className="muted">Advisory only — ephemeral findings, not stored on the review.</p>
+            {biasFindings && (
+              <ul className="bias-list">
+                {biasFindings.map((f) => (
+                  <li key={f.id} className={`bias-${f.severity}`}>
+                    <strong>{f.category}</strong> — {f.message}
+                    {f.excerpt ? <span className="muted"> (“{f.excerpt}”)</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <div className="cta-primary-row">
             {!finalized && (
               <>
-                <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
-                <button className="btn" onClick={() => save("finalized")}>Finalize review</button>
+                <button className="btn secondary" type="button" onClick={() => void save("draft")}>
+                  Save draft
+                </button>
+                <button className="btn" type="button" onClick={() => void save("finalized")}>
+                  Finalize review
+                </button>
               </>
             )}
+            <button className="btn secondary" type="button" onClick={() => void openSubjectHtml()}>
+              Open HTML packet
+            </button>
             <button
-              className="btn secondary"
+              className="btn ghost"
+              type="button"
               onClick={async () => {
-                await save(finalized ? "finalized" : "draft");
                 const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
                 setSubjectExport(exp);
               }}
             >
-              Preview subject export
+              Preview JSON
             </button>
           </div>
-          {subjectExport && (
-            <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre>
-          )}
+          {subjectExport && <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre>}
         </div>
       </div>
     </div>

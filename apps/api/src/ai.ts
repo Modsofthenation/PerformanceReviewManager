@@ -8,7 +8,8 @@ export type AiFeature =
   | "draft_section"
   | "role_gap"
   | "promotion_draft"
-  | "chat_dossier";
+  | "chat_dossier"
+  | "bias_lint";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
