@@ -42,6 +42,12 @@ At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API
 
 CI builds the same matrix (Ubuntu / macOS / Windows) on pushes to `main`.
 
-## Data
+## Icons
 
-Set `PRM_DATA_DIR` to override the SQLite/vault location (default `../../data` from the API cwd).
+Source mark: `apps/desktop/app-icon.png` (1024²). Regenerate platform icons with:
+
+```bash
+cd apps/desktop && pnpm exec tauri icon ./app-icon.png -o src-tauri/icons
+```
+
+Windows needs `icons/icon.ico`; macOS needs `icons/icon.icns`.
