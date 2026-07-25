@@ -26,7 +26,7 @@ If a feature needs a trust boundary the EM does not control (hiding data from th
 1. **Single trust domain.** Anyone with OS access to the EM’s account can read the workspace files unless encryption + OS account hygiene are in place.
 2. **EM sees everything in the workspace.** There is no “private from the manager” data on the local install.
 3. **Subject privacy is share-time, not store-time.** What the IC sees is whatever the EM puts in the shared packet / export — not a server redaction of a shared DB.
-4. **Local audit is tamper-evident at best, not compliance-grade.** Hash-chained activity log; the EM (or malware) can still destroy the DB. Do not sell this as immutable legal evidence.
+4. **Local audit is tamper-evident at best, not compliance-grade.** Hash-chained activity log with append-only SQLite triggers, verify endpoint, and HMAC-signed export packs keyed by the unlocked workspace secret. The EM (or malware) can still destroy the DB or re-sign after unlock. Do not sell this as immutable legal evidence or external custody.
 5. **Cloud AI is an egress boundary.** Anything sent to a provider leaves the machine under the user’s API-key contract. Private-tier classes require explicit per-class opt-in.
 
 ---

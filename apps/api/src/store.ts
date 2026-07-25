@@ -1,5 +1,6 @@
 import {
   createHash,
+  createHmac,
   randomBytes,
   scryptSync,
   timingSafeEqual,
@@ -413,6 +414,197 @@ export function logActivity(action: string, entityType?: string, entityId?: stri
     db.update(workspace).set({ lastActivityHash: hash }).where(eq(workspace.id, ws.id)).run();
   }
   return hash;
+}
+
+/** Recompute hash the same way `logActivity` wrote it. */
+export function hashActivityEvent(row: {
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  detailJson: string;
+  prevHash: string | null;
+  createdAt: string;
+}) {
+  let detail: Record<string, unknown> = {};
+  try {
+    detail = JSON.parse(row.detailJson) as Record<string, unknown>;
+  } catch {
+    detail = {};
+  }
+  const body = JSON.stringify({
+    action: row.action,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    detail,
+    prevHash: row.prevHash ?? "genesis",
+    createdAt: row.createdAt,
+  });
+  return createHash("sha256").update(body).digest("hex");
+}
+
+export type ActivityChainRow = {
+  id: string;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  detailJson: string;
+  prevHash: string | null;
+  hash: string;
+  createdAt: string;
+};
+
+/** Pure chain check — used by verifyActivityChain and unit tests. */
+export function verifyEventChain(
+  rowsIn: ActivityChainRow[],
+  expectedTip: string | null,
+): {
+  ok: boolean;
+  count: number;
+  tipHash: string | null;
+  expectedTip: string | null;
+  brokenAt: string | null;
+  error: string | null;
+} {
+  const rows = rowsIn;
+  const fail = (error: string, brokenAt: string | null = null) => ({
+    ok: false,
+    count: rows.length,
+    tipHash: rows.length ? (expectedTip ?? rows[rows.length - 1]?.hash ?? null) : null,
+    expectedTip,
+    brokenAt,
+    error,
+  });
+
+  if (!rows.length) {
+    return {
+      ok: !expectedTip || expectedTip === "genesis",
+      count: 0,
+      tipHash: null,
+      expectedTip,
+      brokenAt: null,
+      error: expectedTip && expectedTip !== "genesis" ? "Tip hash set but no events" : null,
+    };
+  }
+
+  // Walk by prevHash→hash links (not createdAt sort — seed/burst writes share ms timestamps).
+  const byPrev = new Map<string, ActivityChainRow[]>();
+  for (const row of rows) {
+    const key = row.prevHash ?? "genesis";
+    const list = byPrev.get(key) ?? [];
+    list.push(row);
+    byPrev.set(key, list);
+  }
+
+  const ordered: ActivityChainRow[] = [];
+  const seen = new Set<string>();
+  let cursor = "genesis";
+  while (true) {
+    const children = byPrev.get(cursor) ?? [];
+    if (!children.length) break;
+    if (children.length > 1) {
+      return fail(
+        `fork after ${cursor.slice(0, 12)}… (${children.length} children)`,
+        children[0]?.id ?? null,
+      );
+    }
+    const next = children[0]!;
+    if (seen.has(next.id)) return fail(`cycle at ${next.id}`, next.id);
+    ordered.push(next);
+    seen.add(next.id);
+    cursor = next.hash;
+  }
+
+  if (ordered.length !== rows.length) {
+    const orphan = rows.find((r) => !seen.has(r.id));
+    return fail(
+      `orphaned or disconnected events (${rows.length - ordered.length})`,
+      orphan?.id ?? null,
+    );
+  }
+
+  for (const row of ordered) {
+    const recomputed = hashActivityEvent(row);
+    if (recomputed !== row.hash) {
+      return fail(`hash mismatch at ${row.id}`, row.id);
+    }
+  }
+
+  const tipHash = ordered[ordered.length - 1]!.hash;
+  if (expectedTip && expectedTip !== tipHash) {
+    return fail("workspace.last_activity_hash does not match chain tip");
+  }
+
+  return { ok: true, count: rows.length, tipHash, expectedTip, brokenAt: null, error: null };
+}
+
+export function verifyActivityChain(): {
+  ok: boolean;
+  count: number;
+  tipHash: string | null;
+  expectedTip: string | null;
+  brokenAt: string | null;
+  error: string | null;
+} {
+  const db = getDb();
+  const rows = db.select().from(activityEvents).all();
+  const ws = db.select().from(workspace).limit(1).all()[0];
+  return verifyEventChain(rows, ws?.lastActivityHash ?? null);
+}
+
+export function exportAuditPack() {
+  const db = getDb();
+  const secret = getWorkspaceSecret();
+  if (!secret) throw new Error("Workspace locked");
+  const verification = verifyActivityChain();
+  const raw = db.select().from(activityEvents).all();
+  const byPrev = new Map<string, (typeof raw)[0][]>();
+  for (const row of raw) {
+    const key = row.prevHash ?? "genesis";
+    const list = byPrev.get(key) ?? [];
+    list.push(row);
+    byPrev.set(key, list);
+  }
+  const ordered: typeof raw = [];
+  let cursor = "genesis";
+  while (true) {
+    const children = byPrev.get(cursor) ?? [];
+    if (!children.length) break;
+    const next = children[0]!;
+    ordered.push(next);
+    cursor = next.hash;
+  }
+  // Append any orphans so export is complete even if verify failed.
+  const seen = new Set(ordered.map((r) => r.id));
+  for (const row of raw) {
+    if (!seen.has(row.id)) ordered.push(row);
+  }
+  const rows = ordered.map((r) => ({
+    id: r.id,
+    action: r.action,
+    entityType: r.entityType,
+    entityId: r.entityId,
+    detail: JSON.parse(r.detailJson) as Record<string, unknown>,
+    prevHash: r.prevHash,
+    hash: r.hash,
+    createdAt: r.createdAt,
+  }));
+  const ws = db.select().from(workspace).limit(1).all()[0];
+  const pack = {
+    version: 1 as const,
+    exportedAt: nowIso(),
+    workspaceName: ws?.name ?? null,
+    verification,
+    events: rows,
+  };
+  const canonical = JSON.stringify(pack);
+  const signature = createHmac("sha256", secret).update(canonical).digest("hex");
+  return {
+    ...pack,
+    signatureAlg: "hmac-sha256-workspace-secret" as const,
+    signature,
+    notice:
+      "Tamper-evident local audit pack. HMAC uses the unlocked workspace key — anyone with the vault password can re-sign. Not external legal custody.",
+  };
 }
 
 /** Ensure DB is open only when this process holds the in-memory secret (post-unlock). */

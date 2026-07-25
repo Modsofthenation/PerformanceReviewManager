@@ -53,6 +53,8 @@ import {
   unlockVault,
   writeEncryptedDocument,
   readDocumentFile,
+  exportAuditPack,
+  verifyActivityChain,
 } from "./store.js";
 import {
   buildChatSystemPrompt,
@@ -79,12 +81,45 @@ import {
   type EvidenceLinkInput,
   type TimelineEntry,
 } from "./evidenceGates.js";
+import { parsePeopleCsv } from "./peopleCsv.js";
 
 type Vars = { token: string };
 
 const app = new Hono<{ Variables: Vars }>();
 
-app.use("*", cors({ origin: ["http://localhost:5173", "http://127.0.0.1:5173"], credentials: true }));
+const CORS_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:5175",
+  "tauri://localhost",
+  "https://tauri.localhost",
+  "http://tauri.localhost",
+];
+
+app.use(
+  "*",
+  cors({
+    origin: CORS_ORIGINS,
+    credentials: true,
+    allowHeaders: ["Content-Type", "x-prm-token", "x-prm-launch-token"],
+  }),
+);
+
+/** When PRM_LAUNCH_TOKEN is set (desktop sidecar), require matching header on every API call. */
+app.use("/api/*", async (c, next) => {
+  const launch = process.env.PRM_LAUNCH_TOKEN?.trim();
+  if (launch) {
+    if (c.req.path === "/api/health") return next();
+    const hdr = c.req.header("x-prm-launch-token") ?? "";
+    if (hdr !== launch) {
+      return c.json({ error: "Invalid or missing launch token", code: "launch_token_required" }, 401);
+    }
+  }
+  return next();
+});
 
 app.use("/api/*", async (c, next) => {
   if (
@@ -301,6 +336,98 @@ app.post("/api/people", async (c) => {
   }).run();
   logActivity("person.create", "person", personId, { name: body.name });
   return c.json(mapPerson(db.select().from(people).where(eq(people.id, personId)).all()[0], assignmentFor(personId)));
+});
+
+app.get("/api/people/import/template", (c) => {
+  const csv = "name,email,title,levelKey,hireDate\nMaya Chen,maya@example.com,Senior Software Engineer,IC4,2024-03-01\n";
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": 'attachment; filename="prm-people-template.csv"',
+    },
+  });
+});
+
+app.post("/api/people/import", async (c) => {
+  const body = await c.req.json<{
+    rows?: Array<{
+      name?: string;
+      email?: string;
+      title?: string;
+      levelKey?: string;
+      hireDate?: string;
+    }>;
+    csv?: string;
+    defaultManagerId?: string | null;
+  }>();
+  const db = getDb();
+  const em =
+    body.defaultManagerId ||
+    db.select().from(people).all().find((p) => !p.managerId)?.id ||
+    null;
+
+  let rows = body.rows ?? [];
+  if ((!rows.length || body.csv) && body.csv) {
+    try {
+      rows = parsePeopleCsv(body.csv);
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : "Invalid CSV" }, 400);
+    }
+  }
+  if (!rows.length) return c.json({ error: "No rows to import" }, 400);
+  if (rows.length > 500) return c.json({ error: "Max 500 rows per import" }, 400);
+
+  const existing = db.select().from(people).all();
+  const byEmail = new Map(
+    existing.filter((p) => p.email).map((p) => [p.email!.toLowerCase(), p] as const),
+  );
+  const byName = new Map(existing.map((p) => [p.name.trim().toLowerCase(), p] as const));
+
+  const created: Array<{ id: string; name: string }> = [];
+  const skipped: Array<{ name: string; reason: string }> = [];
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const name = String(row.name ?? "").trim();
+    if (!name) {
+      errors.push({ row: i + 1, message: "name required" });
+      continue;
+    }
+    const email = row.email?.trim() || undefined;
+    if (email && byEmail.has(email.toLowerCase())) {
+      skipped.push({ name, reason: `duplicate email ${email}` });
+      continue;
+    }
+    if (byName.has(name.toLowerCase())) {
+      skipped.push({ name, reason: "duplicate name" });
+      continue;
+    }
+    const personId = id("person");
+    db.insert(people)
+      .values({
+        id: personId,
+        name,
+        email: email ?? null,
+        title: row.title?.trim() || null,
+        levelKey: row.levelKey?.trim() || null,
+        managerId: em,
+        hireDate: row.hireDate?.trim() || null,
+        status: "active",
+        createdAt: nowIso(),
+      })
+      .run();
+    created.push({ id: personId, name });
+    byName.set(name.toLowerCase(), { id: personId } as (typeof existing)[0]);
+    if (email) byEmail.set(email.toLowerCase(), { id: personId } as (typeof existing)[0]);
+  }
+
+  logActivity("person.import", "workspace", em, {
+    created: created.length,
+    skipped: skipped.length,
+    errors: errors.length,
+  });
+  return c.json({ created, skipped, errors });
 });
 
 app.get("/api/roles", (c) => {
@@ -2062,8 +2189,29 @@ app.get("/api/activity", (c) => {
     entityId: r.entityId,
     detail: JSON.parse(r.detailJson) as Record<string, unknown>,
     createdAt: r.createdAt,
+    prevHash: r.prevHash,
+    hash: r.hash,
   }));
   return c.json({ entries });
+});
+
+app.get("/api/activity/verify", (c) => {
+  const result = verifyActivityChain();
+  return c.json(result);
+});
+
+app.post("/api/activity/export", (c) => {
+  try {
+    const pack = exportAuditPack();
+    logActivity("activity.export", "workspace", null, {
+      count: pack.events.length,
+      tipHash: pack.verification.tipHash,
+      ok: pack.verification.ok,
+    });
+    return c.json(pack);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Export failed" }, 500);
+  }
 });
 
 app.get("/api/workspace/thin-dossiers", (c) => {

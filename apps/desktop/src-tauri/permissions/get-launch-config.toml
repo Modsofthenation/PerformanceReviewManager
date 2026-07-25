@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-get-launch-config"
+description = "Allows the frontend to read API base URL and desktop launch token"
+commands.allow = ["get_launch_config"]

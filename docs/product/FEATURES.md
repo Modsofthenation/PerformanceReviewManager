@@ -13,7 +13,7 @@ Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 | Local workspace + encrypted store | P0 | Workbench | Required before real employee data |
 | People as employees (not necessarily logins) | P0 | Workbench | `Person` records; EM is the only Account by default |
 | Reporting hierarchy | P0 | Workbench | Directs list |
-| CSV / manual people import | P0 | Workbench | Primary onboarding |
+| CSV / manual people import | P0 | Workbench | Team paste/file + `POST /api/people/import` |
 | Cold-start backfill | P0 | Workbench | Past ratings, achievements, prior review docs — first 30 min usable |
 | Level ladder | P0 | Workbench | Coarse; prefer RoleDefinition when assigned |
 | Role framework library | P0 | Workbench | See §1.1 |
@@ -122,7 +122,7 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 | Feature | Priority | Mode | Notes |
 |---------|----------|------|-------|
 | Single-EM consistency view | P0 | Workbench | Distribution across own directs; side-by-side |
-| Decision log (local) | P0 | Workbench | Tamper-evident hash chain; not compliance-grade |
+| Decision log (local) | P0 | Workbench | Append-only triggers; Settings verify + HMAC export; not compliance-grade custody |
 | Cross-manager calibration | P1 | Bundle-calib | Export candidate cards → director import → decisions back |
 | Live multi-EM calib room | — | Hosted-only | |
 
@@ -177,7 +177,7 @@ Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 |---------|----------|-------|
 | Workspace settings | P0 | Scales, AI, retention (short default locally) |
 | Encrypted backup / restore | P0 | SQLite backup API |
-| Activity log (hash-chained) | P0 | |
+| Activity log (hash-chained) | P0 | Append-only triggers; Settings verify + HMAC-signed export (EM-keyed, not legal custody) |
 | Export subject packet / workspace archive | P0 | Handoff when EM leaves |
 | Legal-hold flag (local) | P1 | Blocks purge |
 | Retention default | P0 | **Current + previous cycle** locally; export to company SoR at close; long retention = hosted |
