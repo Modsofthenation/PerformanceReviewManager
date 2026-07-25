@@ -6,7 +6,9 @@
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
-    "build": "tauri build"
+    "build": "tauri build",
+    "prepare:build": "node ./src-tauri/run-hook.mjs build",
+    "prepare:dev": "node ./src-tauri/run-hook.mjs dev"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.4.0",

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CycleDTO, DeadlineNudge, WorkspaceStatus } from "@prm/shared";
+import type { CycleDTO, CycleStatsDTO, DeadlineNudge, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -39,6 +39,7 @@ export function HomePage() {
   const [nudges, setNudges] = useState<DeadlineNudge[]>([]);
   const [nudgeDays, setNudgeDays] = useState<number | null>(null);
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
+  const [cycleStats, setCycleStats] = useState<CycleStatsDTO | null>(null);
 
   useEffect(() => {
     api<CycleDTO[]>("/api/cycles").then((c) => {
@@ -62,6 +63,9 @@ export function HomePage() {
         setNudges([]);
         setNudgeDays(null);
       });
+    api<CycleStatsDTO>(`/api/cycles/${cycleId}/stats`)
+      .then(setCycleStats)
+      .catch(() => setCycleStats(null));
   }, [cycleId]);
 
   const active = cycles.find((c) => c.id === cycleId);
@@ -194,6 +198,51 @@ export function HomePage() {
         </select>
         {active && <span className="muted">{active.windowStart} → {active.windowEnd} · {active.status}</span>}
       </div>
+
+      {cycleStats && (
+        <div className="panel stack">
+          <h2 style={{ margin: 0 }}>Cycle dashboard</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Writing time, evidence coverage, and thin dossiers for {cycleStats.cycleName}.
+          </p>
+          <div className="row" style={{ flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div className="muted">Avg writing time</div>
+              <strong>
+                {cycleStats.writing.peopleWithTime
+                  ? `${Math.floor(cycleStats.writing.avgSeconds / 60)}m`
+                  : "—"}
+              </strong>
+              <span className="muted">
+                {" "}
+                · {cycleStats.writing.under45MinPct}% ≤45 min
+                {cycleStats.writing.peopleWithTime
+                  ? ` (${cycleStats.writing.under45MinCount}/${cycleStats.writing.peopleWithTime})`
+                  : ""}
+              </span>
+            </div>
+            <div>
+              <div className="muted">Evidence coverage</div>
+              <strong>{cycleStats.evidence.coveragePct}%</strong>
+              <span className="muted">
+                {" "}
+                · avg {cycleStats.evidence.avgLinkedSources} linked sources / draft
+              </span>
+            </div>
+            <div>
+              <div className="muted">Thin dossiers</div>
+              <strong>{cycleStats.thinDossierCount}</strong>
+              <span className="muted"> / {cycleStats.participantCount} people</span>
+              {cycleStats.thinDossierCount > 0 ? (
+                <>
+                  {" "}
+                  <Link to="/backfill">Backfill</Link>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       {cycleId && nudges.length > 0 && (
         <div className="panel stack">

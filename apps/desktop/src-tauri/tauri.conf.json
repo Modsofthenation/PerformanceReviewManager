@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.prm.workbench",
   "build": {
-    "beforeDevCommand": "bash ../scripts/desktop-dev.sh",
+    "beforeDevCommand": "pnpm prepare:dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "node ../scripts/bundle-api-sidecar.mjs --node && pnpm --dir ../.. --filter @prm/ui build",
+    "beforeBuildCommand": "pnpm prepare:build",
     "frontendDist": "../ui/dist"
   },
   "app": {

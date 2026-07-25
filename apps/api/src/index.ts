@@ -38,6 +38,7 @@ import type {
   RoleFrameworkInfo,
   WorkspaceStatus,
   ConcernLogDTO,
+  CycleStatsDTO,
   DeadlineNudge,
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
@@ -1097,6 +1098,115 @@ app.get("/api/cycles/:id/nudges", (c) => {
   return c.json({ cycleId, windowEnd: cycle.windowEnd, daysUntilDue, nudges });
 });
 
+app.get("/api/cycles/:id/stats", (c) => {
+  const db = getDb();
+  const cycleId = c.req.param("id");
+  const cycle = db.select().from(cycles).where(eq(cycles.id, cycleId)).all()[0];
+  if (!cycle) return c.json({ error: "Not found" }, 404);
+  const participants = db.select().from(cycleParticipants).where(eq(cycleParticipants.cycleId, cycleId)).all();
+  const BUDGET = 45 * 60;
+  const peopleStats: CycleStatsDTO["people"] = [];
+  let totalSeconds = 0;
+  let peopleWithTime = 0;
+  let under45 = 0;
+  let thin = 0;
+  let linkedTotal = 0;
+  let peopleWithDraft = 0;
+  let coverageHits = 0;
+  let coverageNeed = 0;
+
+  for (const cp of participants) {
+    const person = db.select().from(people).where(eq(people.id, cp.personId)).all()[0];
+    if (!person) continue;
+    const ach = db.select().from(achievements).where(eq(achievements.personId, person.id)).all().length;
+    const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, person.id)).all().length;
+    const docs = db.select().from(documents).where(eq(documents.personId, person.id)).all().length;
+    const goalsN = db.select().from(goals).where(eq(goals.personId, person.id)).all().length;
+    const evidenceCount = ach + fb + docs + goalsN;
+    const isThin = evidenceCount < 2;
+    if (isThin) thin += 1;
+
+    const manager = db
+      .select()
+      .from(reviews)
+      .where(and(eq(reviews.cycleId, cycleId), eq(reviews.subjectPersonId, person.id), eq(reviews.type, "manager")))
+      .all()
+      .find((r) => r.status !== "superseded");
+
+    let writingSeconds = 0;
+    let linkedSources = 0;
+    let managerStatus = "not_started";
+    if (manager) {
+      managerStatus = manager.status;
+      peopleWithDraft += 1;
+      try {
+        const payload = JSON.parse(manager.payloadJson) as Record<string, unknown>;
+        if (typeof payload.writing_seconds_total === "number") {
+          writingSeconds = payload.writing_seconds_total;
+        }
+        const comps = (payload.competencies ?? {}) as Record<string, number>;
+        const overall = typeof payload.overall === "number" ? payload.overall : null;
+        const links = db.select().from(evidenceLinks).where(eq(evidenceLinks.reviewId, manager.id)).all();
+        linkedSources = new Set(links.map((l) => l.sourceId)).size;
+        linkedTotal += linkedSources;
+        const scored: Array<{ key: string; score: number }> = [
+          ...Object.entries(comps).map(([key, score]) => ({ key, score })),
+          ...(overall != null ? [{ key: "overall", score: overall }] : []),
+        ];
+        for (const s of scored) {
+          if (s.score === 3) continue;
+          coverageNeed += 1;
+          const has = links.some(
+            (l) =>
+              (s.key === "overall" && l.targetType === "overall") ||
+              (l.targetType === "competency" && l.targetKey === s.key),
+          );
+          if (has) coverageHits += 1;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (writingSeconds > 0) {
+      peopleWithTime += 1;
+      totalSeconds += writingSeconds;
+      if (writingSeconds <= BUDGET) under45 += 1;
+    }
+    peopleStats.push({
+      personId: person.id,
+      personName: person.name,
+      writingSeconds,
+      under45Min: writingSeconds > 0 ? writingSeconds <= BUDGET : true,
+      evidenceCount,
+      thin: isThin,
+      linkedSources,
+      managerStatus,
+    });
+  }
+
+  const avgSeconds = peopleWithTime ? Math.round(totalSeconds / peopleWithTime) : 0;
+  const stats: CycleStatsDTO = {
+    cycleId,
+    cycleName: cycle.name,
+    participantCount: participants.length,
+    thinDossierCount: thin,
+    writing: {
+      peopleWithTime,
+      totalSeconds,
+      avgSeconds,
+      under45MinCount: under45,
+      under45MinPct: peopleWithTime ? Math.round((under45 / peopleWithTime) * 100) : 100,
+    },
+    evidence: {
+      peopleWithDraft,
+      avgLinkedSources: peopleWithDraft ? Math.round((linkedTotal / peopleWithDraft) * 10) / 10 : 0,
+      coveragePct: coverageNeed ? Math.round((coverageHits / coverageNeed) * 100) : 100,
+    },
+    people: peopleStats.sort((a, b) => a.personName.localeCompare(b.personName)),
+  };
+  return c.json(stats);
+});
+
 app.get("/api/cycles/:id/command-center", (c) => {
   const db = getDb();
   const cycleId = c.req.param("id");
@@ -1829,10 +1939,24 @@ app.patch("/api/concerns/:id", async (c) => {
 app.get("/api/people/:id/dossier", (c) => {
   const personId = c.req.param("id");
   const db = getDb();
+  const feedback = db
+    .select()
+    .from(feedbackItems)
+    .where(eq(feedbackItems.toPersonId, personId))
+    .all()
+    .map((f) => {
+      let themes: string[] = [];
+      try {
+        themes = JSON.parse(f.themesJson || "[]") as string[];
+      } catch {
+        themes = [];
+      }
+      return { ...f, themes };
+    });
   return c.json({
     goals: db.select().from(goals).where(eq(goals.personId, personId)).all(),
     achievements: db.select().from(achievements).where(eq(achievements.personId, personId)).all(),
-    feedback: db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, personId)).all(),
+    feedback,
     documents: db.select().from(documents).where(eq(documents.personId, personId)).all(),
   });
 });
@@ -1877,10 +2001,15 @@ app.post("/api/people/:id/feedback", async (c) => {
     kind?: string;
     visibility?: string;
     occurredAt?: string;
+    themes?: string[];
   }>();
   if (!body.body?.trim()) return c.json({ error: "Feedback body required" }, 400);
   const db = getDb();
   const fbId = id("fb");
+  const themes = (body.themes ?? [])
+    .map((t) => String(t).trim())
+    .filter(Boolean)
+    .slice(0, 8);
   db.insert(feedbackItems).values({
     id: fbId,
     toPersonId: personId,
@@ -1890,8 +2019,9 @@ app.post("/api/people/:id/feedback", async (c) => {
     visibility: body.visibility ?? "em_and_subject",
     occurredAt: body.occurredAt ?? nowIso().slice(0, 10),
     createdAt: nowIso(),
+    themesJson: JSON.stringify(themes),
   }).run();
-  logActivity("feedback.create", "person", personId, { feedbackId: fbId });
+  logActivity("feedback.create", "person", personId, { feedbackId: fbId, themes });
   return c.json({ id: fbId });
 });
 
@@ -2070,7 +2200,28 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
     if (item.visibility === "em_only" && allowPrivateNotes && !dataClassesSent.includes("private_notes")) {
       dataClassesSent.push("private_notes");
     }
-    lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body}`);
+    let themes: string[] = [];
+    try {
+      themes = JSON.parse(item.themesJson || "[]") as string[];
+    } catch {
+      themes = [];
+    }
+    const themeBit = themes.length ? ` themes=[${themes.join(", ")}]` : "";
+    lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}${themeBit}: ${item.body}`);
+  }
+  const optedConcerns = db
+    .select()
+    .from(concernLogs)
+    .where(eq(concernLogs.personId, personId))
+    .all()
+    .filter((r) => r.aiAllowed);
+  for (const c of optedConcerns) {
+    if (!dataClassesSent.includes("concern_opt_in")) dataClassesSent.push("concern_opt_in");
+    lines.push(
+      `Concern (AI-opted-in) [${c.id}] ${c.occurredAt} (${c.status}): ${c.title}. ${c.body}` +
+        (c.expectationText ? ` Expectation: ${c.expectationText}.` : "") +
+        (c.planText ? ` Plan: ${c.planText}.` : ""),
+    );
   }
   for (const d of docs) {
     const meetingLike = looksLikeMeetingDoc(d.title, d.filename);
@@ -2128,6 +2279,7 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
     ...ach.map((x) => x.id),
     ...g.map((x) => x.id),
     ...fb.filter((x) => allowPrivateNotes || x.visibility !== "em_only").map((x) => x.id),
+    ...optedConcerns.map((c) => c.id),
     ...docs
       .filter((d) => (allowPrivateNotes || d.visibility !== "em_only") && (allowMeeting || !looksLikeMeetingDoc(d.title, d.filename)))
       .map((x) => x.id),
