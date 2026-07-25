@@ -41,7 +41,15 @@ import {
   writeEncryptedDocument,
   readDocumentFile,
 } from "./store.js";
-import { buildSystemPrompt, getAiConfig, localDigest, runChat, storeGeneration } from "./ai.js";
+import {
+  buildChatSystemPrompt,
+  buildSystemPrompt,
+  getAiConfig,
+  localDigest,
+  runChat,
+  storeGeneration,
+  type ChatMessage,
+} from "./ai.js";
 
 type Vars = { token: string };
 
@@ -836,6 +844,99 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
   return { person, role, next, lines, citations, ach, docs };
 }
 
+/** Compact workspace pack for chat when no single person is scoped. Caps per-person rows. */
+function buildWorkspaceContext(cycleId?: string) {
+  const db = getDb();
+  const allPeople = db.select().from(people).all();
+  const allCycles = db.select().from(cycles).all();
+  const allPromos = db.select().from(promotionCases).all();
+  const allRoles = db.select().from(roleDefinitions).all();
+  const lines: string[] = [];
+  const citations: string[] = [];
+
+  lines.push(`Workspace roster (${allPeople.length} people):`);
+  for (const p of allPeople) {
+    const a = assignmentFor(p.id);
+    const role = loadRole(a?.roleDefinitionId);
+    const next = loadRole(a?.targetNextRoleDefinitionId);
+    lines.push(
+      `Person [${p.id}] ${p.name} — ${p.title ?? "no title"} / ${p.levelKey ?? "?"} · role=${role?.title ?? "unassigned"} · next=${next?.title ?? "none"}`,
+    );
+  }
+
+  lines.push(`Role definitions (${allRoles.length}):`);
+  for (const r of allRoles) {
+    const expectations = db
+      .select()
+      .from(roleExpectations)
+      .where(eq(roleExpectations.roleDefinitionId, r.id))
+      .all();
+    lines.push(`Role [${r.id}] ${r.title} (${r.track}/${r.levelKey}): ${r.summary ?? ""}`);
+    for (const e of expectations.slice(0, 8)) {
+      lines.push(`  Expectation [${e.id}] (${e.kind}): ${e.text}`);
+      citations.push(e.id);
+    }
+  }
+
+  lines.push(`Cycles (${allCycles.length}):`);
+  for (const cycle of allCycles) {
+    const n = db.select().from(cycleParticipants).where(eq(cycleParticipants.cycleId, cycle.id)).all().length;
+    lines.push(`Cycle [${cycle.id}] ${cycle.name} (${cycle.status}) ${cycle.windowStart}→${cycle.windowEnd}, ${n} participants`);
+  }
+
+  if (allPromos.length) {
+    lines.push(`Promotion cases (${allPromos.length}):`);
+    for (const promo of allPromos) {
+      const person = allPeople.find((p) => p.id === promo.personId);
+      const current = loadRole(promo.currentRoleDefinitionId);
+      const target = loadRole(promo.targetRoleDefinitionId);
+      lines.push(
+        `Promo [${promo.id}] ${person?.name ?? promo.personId}: ${current?.title ?? "?"} → ${target?.title ?? "?"} (${promo.status})`,
+      );
+    }
+  }
+
+  const directs = allPeople.filter((p) => p.managerId);
+  for (const p of directs) {
+    const ach = db.select().from(achievements).where(eq(achievements.personId, p.id)).all().slice(0, 6);
+    const g = db.select().from(goals).where(eq(goals.personId, p.id)).all().slice(0, 6);
+    const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, p.id)).all().slice(0, 6);
+    const docs = db.select().from(documents).where(eq(documents.personId, p.id)).all().slice(0, 4);
+    if (!ach.length && !g.length && !fb.length && !docs.length) continue;
+    lines.push(`--- Evidence for ${p.name} [${p.id}] ---`);
+    for (const item of ach) {
+      lines.push(`Achievement [${item.id}] ${item.occurredAt}: ${item.title}. ${item.description ?? ""}`);
+      citations.push(item.id);
+    }
+    for (const item of g) {
+      lines.push(`Goal [${item.id}] (${item.status}): ${item.title}`);
+      citations.push(item.id);
+    }
+    for (const item of fb) {
+      lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body}`);
+      citations.push(item.id);
+    }
+    for (const d of docs) {
+      lines.push(`Document [${d.id}] (${d.visibility}): ${d.title} @ ${d.occurredAt}`);
+      citations.push(d.id);
+    }
+    if (cycleId) {
+      const revs = db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.cycleId, cycleId), eq(reviews.subjectPersonId, p.id)))
+        .all();
+      const self = revs.find((r) => r.type === "self");
+      if (self) lines.push(`Self-review [${self.id}] JSON: ${self.payloadJson}`);
+      for (const peer of revs.filter((r) => r.type === "peer")) {
+        lines.push(`Peer-review [${peer.id}] author=${peer.authorName}: ${peer.payloadJson}`);
+      }
+    }
+  }
+
+  return { lines, citations, scopeLabel: "entire workspace" as const };
+}
+
 app.post("/api/ai/digest", async (c) => {
   const body = await c.req.json<{ cycleId: string; personId: string; useCloud?: boolean }>();
   const ctx = buildEvidenceContext(body.personId, body.cycleId);
@@ -975,6 +1076,95 @@ app.post("/api/ai/test", async (c) => {
     return c.json({ ok: true, model: text.model, sample: text.text.slice(0, 80) });
   } catch (e) {
     return c.json({ ok: false, error: e instanceof Error ? e.message : "failed" }, 500);
+  }
+});
+
+const MAX_CHAT_MESSAGES = 24;
+const MAX_CHAT_MESSAGE_CHARS = 4000;
+
+app.post("/api/ai/chat", async (c) => {
+  const body = await c.req.json<{
+    messages: Array<{ role: "user" | "assistant"; content: string }>;
+    personId?: string | null;
+    cycleId?: string | null;
+  }>();
+  const cfg = getAiConfig();
+  if (!cfg.enabled) return c.json({ error: "Enable AI in Settings" }, 400);
+
+  const incoming = Array.isArray(body.messages) ? body.messages : [];
+  if (!incoming.length) return c.json({ error: "messages required" }, 400);
+  if (incoming.length > MAX_CHAT_MESSAGES) {
+    return c.json({ error: `At most ${MAX_CHAT_MESSAGES} messages per request` }, 400);
+  }
+  for (const m of incoming) {
+    if (m.role !== "user" && m.role !== "assistant") {
+      return c.json({ error: "Each message role must be user or assistant" }, 400);
+    }
+    if (typeof m.content !== "string" || !m.content.trim()) {
+      return c.json({ error: "Each message needs non-empty content" }, 400);
+    }
+    if (m.content.length > MAX_CHAT_MESSAGE_CHARS) {
+      return c.json({ error: `Message too long (max ${MAX_CHAT_MESSAGE_CHARS} chars)` }, 400);
+    }
+  }
+  if (incoming[incoming.length - 1]?.role !== "user") {
+    return c.json({ error: "Last message must be from the user" }, 400);
+  }
+
+  const personId = body.personId || undefined;
+  const cycleId = body.cycleId || undefined;
+  if (personId) {
+    const person = getDb().select().from(people).where(eq(people.id, personId)).all()[0];
+    if (!person) return c.json({ error: "Person not found" }, 404);
+  }
+
+  const ctx = personId
+    ? (() => {
+        const evidence = buildEvidenceContext(personId, cycleId);
+        return {
+          lines: evidence.lines,
+          citations: evidence.citations,
+          scopeLabel: evidence.person?.name ? `person: ${evidence.person.name}` : `person: ${personId}`,
+        };
+      })()
+    : buildWorkspaceContext(cycleId);
+
+  const history: ChatMessage[] = incoming.map((m) => ({ role: m.role, content: m.content.trim() }));
+  const packed: ChatMessage[] = [
+    { role: "system", content: buildChatSystemPrompt() },
+    {
+      role: "user",
+      content: `WORKSPACE EVIDENCE (scope=${ctx.scopeLabel}${cycleId ? `; cycle=${cycleId}` : ""}):\n${ctx.lines.join("\n")}\n\nUse only this evidence for the conversation that follows. Acknowledge the scope briefly only if asked.`,
+    },
+    {
+      role: "assistant",
+      content: "Understood. I will answer only from the provided workspace evidence and cite ids when making claims.",
+    },
+    ...history,
+  ];
+
+  try {
+    const result = await runChat("chat_dossier", packed);
+    const generationId = storeGeneration({
+      feature: "chat_dossier",
+      subjectPersonId: personId,
+      cycleId,
+      model: result.model,
+      outputText: result.text,
+      citations: ctx.citations,
+      dataClassesSent: ["dossier_public"],
+    });
+    return c.json({
+      generationId,
+      reply: result.text,
+      model: result.model,
+      provider: result.provider,
+      citations: ctx.citations,
+      dataClassesSent: ["dossier_public"],
+      scopeLabel: ctx.scopeLabel,
+    });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
   }
 });
 
