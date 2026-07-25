@@ -2,15 +2,20 @@
 
 use std::{
   fs,
-  io::Read,
+  io::{Read, Write},
+  net::TcpStream,
   path::{Path, PathBuf},
   process::{Child, Command, Stdio},
   sync::Mutex,
+  thread,
+  time::{Duration, Instant},
 };
 
 use serde::Serialize;
-use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
+const DEFAULT_API_HOST: &str = "127.0.0.1";
+const DEFAULT_API_PORT: u16 = 8787;
 const DEFAULT_API_BASE: &str = "http://127.0.0.1:8787";
 const DEV_UI_URL: &str = "http://localhost:5173";
 
@@ -33,11 +38,32 @@ fn get_launch_config(state: State<'_, LaunchState>) -> Result<LaunchConfig, Stri
     .map_err(|_| "launch config lock poisoned".into())
 }
 
-fn data_dir() -> PathBuf {
+fn api_port() -> u16 {
+  std::env::var("PRM_PORT")
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(DEFAULT_API_PORT)
+}
+
+fn api_base_url() -> String {
+  std::env::var("PRM_API_BASE_URL").unwrap_or_else(|_| {
+    format!("http://{DEFAULT_API_HOST}:{}", api_port())
+  })
+}
+
+fn resolve_data_dir(app: &AppHandle) -> PathBuf {
   if let Ok(dir) = std::env::var("PRM_DATA_DIR") {
     return PathBuf::from(dir);
   }
-  PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../data")
+  // Dev: keep repo `data/` next to the monorepo for shared browser/desktop use.
+  if cfg!(debug_assertions) {
+    return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../data");
+  }
+  // Packaged: never use CARGO_MANIFEST_DIR (that is a CI/build-machine path).
+  match app.path().app_data_dir() {
+    Ok(dir) => dir,
+    Err(_) => std::env::temp_dir().join("prm-workbench-data"),
+  }
 }
 
 fn read_launch_token(path: &Path) -> Option<String> {
@@ -71,8 +97,8 @@ fn random_token() -> String {
   buf.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn resolve_launch_config() -> LaunchConfig {
-  let token_path = data_dir().join(".launch_token");
+fn resolve_launch_config(data: &Path) -> LaunchConfig {
+  let token_path = data.join(".launch_token");
   let from_env = std::env::var("PRM_LAUNCH_TOKEN")
     .ok()
     .map(|s| s.trim().to_string())
@@ -82,7 +108,7 @@ fn resolve_launch_config() -> LaunchConfig {
     .unwrap_or_else(random_token);
   let _ = write_launch_token(&token_path, &token);
   LaunchConfig {
-    api_base_url: std::env::var("PRM_API_BASE_URL").unwrap_or_else(|_| DEFAULT_API_BASE.into()),
+    api_base_url: api_base_url(),
     launch_token: token,
   }
 }
@@ -100,10 +126,22 @@ fn candidate_sidecar_dirs(resource_dir: Option<&Path>) -> Vec<PathBuf> {
   dirs
 }
 
+fn append_log(path: &Path, line: &str) {
+  if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(path) {
+    let _ = writeln!(f, "{line}");
+  }
+}
+
 /// Spawn the local Node API when a bundled sidecar exists or `PRM_SPAWN_API=1`.
-fn maybe_spawn_api(token: &str, resource_dir: Option<&Path>) -> Option<Child> {
+fn maybe_spawn_api(
+  token: &str,
+  data: &Path,
+  resource_dir: Option<&Path>,
+  log_path: &Path,
+) -> Option<Child> {
   let force = std::env::var("PRM_SPAWN_API").ok().as_deref() == Some("1");
   let api_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../api/src/index.ts");
+  let port = api_port();
 
   let mut program: Option<String> = None;
   let mut args: Vec<String> = Vec::new();
@@ -137,55 +175,152 @@ fn maybe_spawn_api(token: &str, resource_dir: Option<&Path>) -> Option<Child> {
 
   let (program, args, cwd) = match (program, cwd) {
     (Some(p), Some(c)) => (p, args, c),
-    _ => return None,
+    _ => {
+      append_log(log_path, "PRM: no API sidecar found (prm-api.mjs missing)");
+      return None;
+    }
   };
 
-  let data = data_dir();
-  let _ = fs::create_dir_all(&data);
+  let _ = fs::create_dir_all(data);
+  append_log(
+    log_path,
+    &format!(
+      "PRM: spawning API sidecar program={program} cwd={} data={} port={port}",
+      cwd.display(),
+      data.display()
+    ),
+  );
+
   match Command::new(&program)
     .args(&args)
     .current_dir(&cwd)
     .env("PRM_LAUNCH_TOKEN", token)
-    .env("PRM_DATA_DIR", &data)
-    .env("PRM_PORT", "8787")
+    .env("PRM_DATA_DIR", data)
+    .env("PRM_PORT", port.to_string())
     .stdin(Stdio::null())
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
     .spawn()
   {
-    Ok(child) => {
-      eprintln!("PRM: spawned API sidecar ({program})");
+    Ok(mut child) => {
+      let log = log_path.to_path_buf();
+      if let Some(mut out) = child.stdout.take() {
+        thread::spawn(move || {
+          let mut buf = String::new();
+          let _ = out.read_to_string(&mut buf);
+          if !buf.trim().is_empty() {
+            append_log(&log, &format!("PRM API stdout:\n{buf}"));
+          }
+        });
+      }
+      let log = log_path.to_path_buf();
+      if let Some(mut err) = child.stderr.take() {
+        thread::spawn(move || {
+          let mut buf = String::new();
+          let _ = err.read_to_string(&mut buf);
+          if !buf.trim().is_empty() {
+            append_log(&log, &format!("PRM API stderr:\n{buf}"));
+          }
+        });
+      }
+      append_log(log_path, &format!("PRM: spawned API sidecar ({program})"));
       Some(child)
     }
     Err(err) => {
-      eprintln!("PRM: failed to spawn API sidecar: {err}");
+      append_log(log_path, &format!("PRM: failed to spawn API sidecar: {err}"));
       None
     }
   }
 }
 
-fn main() {
-  let launch = resolve_launch_config();
-  std::env::set_var("PRM_LAUNCH_TOKEN", &launch.launch_token);
-  let token_for_spawn = launch.launch_token.clone();
-
-  let inject = format!(
-    "window.__PRM_LAUNCH_TOKEN__={};",
-    serde_json::to_string(&launch.launch_token).unwrap_or_else(|_| "\"\"".into())
+fn api_health_ok(port: u16) -> bool {
+  let addr = format!("{DEFAULT_API_HOST}:{port}");
+  let Ok(mut stream) = TcpStream::connect_timeout(
+    &addr.parse().expect("api addr"),
+    Duration::from_millis(400),
+  ) else {
+    return false;
+  };
+  let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
+  let _ = stream.set_write_timeout(Some(Duration::from_millis(800)));
+  let req = format!(
+    "GET /api/health HTTP/1.1\r\nHost: {DEFAULT_API_HOST}:{port}\r\nConnection: close\r\n\r\n"
   );
+  if stream.write_all(req.as_bytes()).is_err() {
+    return false;
+  }
+  let mut buf = Vec::new();
+  let _ = stream.read_to_end(&mut buf);
+  let body = String::from_utf8_lossy(&buf);
+  body.contains("200") && body.contains("ok")
+}
 
+fn wait_for_api(port: u16, timeout: Duration, log_path: &Path) -> bool {
+  let start = Instant::now();
+  while start.elapsed() < timeout {
+    if api_health_ok(port) {
+      append_log(
+        log_path,
+        &format!("PRM: API healthy on :{port} after {:?}", start.elapsed()),
+      );
+      return true;
+    }
+    thread::sleep(Duration::from_millis(200));
+  }
+  append_log(
+    log_path,
+    &format!("PRM: API did not become healthy on :{port} within {timeout:?}"),
+  );
+  false
+}
+
+fn main() {
   tauri::Builder::default()
-    .manage(LaunchState(Mutex::new(launch)))
+    .manage(LaunchState(Mutex::new(LaunchConfig {
+      api_base_url: DEFAULT_API_BASE.into(),
+      launch_token: String::new(),
+    })))
     .manage(ApiChild(Mutex::new(None)))
     .invoke_handler(tauri::generate_handler![get_launch_config])
     .setup(move |app| {
-      let resource_dir = app.path().resource_dir().ok();
-      let child = maybe_spawn_api(&token_for_spawn, resource_dir.as_deref());
-      if let Some(state) = app.try_state::<ApiChild>() {
-        if let Ok(mut guard) = state.0.lock() {
-          *guard = child;
-        }
+      let data = resolve_data_dir(app.handle());
+      let _ = fs::create_dir_all(&data);
+      let log_path = data.join("desktop-api.log");
+      let launch = resolve_launch_config(&data);
+      std::env::set_var("PRM_LAUNCH_TOKEN", &launch.launch_token);
+      std::env::set_var("PRM_DATA_DIR", &data);
+
+      if let Ok(mut guard) = app.state::<LaunchState>().0.lock() {
+        *guard = launch.clone();
       }
+
+      let resource_dir = app.path().resource_dir().ok();
+      let child = maybe_spawn_api(
+        &launch.launch_token,
+        &data,
+        resource_dir.as_deref(),
+        &log_path,
+      );
+      if let Ok(mut guard) = app.state::<ApiChild>().0.lock() {
+        *guard = child;
+      }
+
+      let port = api_port();
+      let ready = wait_for_api(port, Duration::from_secs(25), &log_path);
+      if !ready {
+        eprintln!(
+          "PRM: API sidecar not healthy yet — see {}",
+          log_path.display()
+        );
+      }
+
+      let inject = format!(
+        "window.__PRM_LAUNCH_TOKEN__={};window.__PRM_API_BASE_URL__={};",
+        serde_json::to_string(&launch.launch_token).unwrap_or_else(|_| "\"\"".into()),
+        serde_json::to_string(&launch.api_base_url).unwrap_or_else(|_| {
+          serde_json::to_string(DEFAULT_API_BASE).unwrap_or_else(|_| "\"\"".into())
+        }),
+      );
 
       let url = if cfg!(debug_assertions) {
         WebviewUrl::External(DEV_UI_URL.parse().expect("dev ui url"))

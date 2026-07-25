@@ -10,7 +10,7 @@ import type {
   PersonExternalLinkDTO,
   PersonTimelineDTO,
 } from "@prm/shared";
-import { api, getToken } from "../lib/api";
+import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 export function PersonPage() {
@@ -424,7 +424,7 @@ export function PersonPage() {
               <strong>{d.title}</strong> <span className="muted">({d.filename} · {d.visibility} · {d.occurredAt})</span>{" "}
               <a href={`/api/documents/${d.id}/download`} onClick={(e) => {
                 e.preventDefault();
-                fetch(`/api/documents/${d.id}/download`, { headers: { "x-prm-token": getToken() ?? "" } })
+                fetch(apiUrl(`/api/documents/${d.id}/download`), { headers: { "x-prm-token": getToken() ?? "" } })
                   .then((r) => r.blob())
                   .then((blob) => {
                     const url = URL.createObjectURL(blob);
@@ -447,9 +447,13 @@ export function PersonPage() {
             fd.append("title", docTitle || docFile.name);
             fd.append("visibility", "em_and_subject");
             fd.append("occurredAt", new Date().toISOString().slice(0, 10));
-            const res = await fetch(`/api/people/${id}/documents`, {
+            const headers: Record<string, string> = { "x-prm-token": getToken() ?? "" };
+            if (typeof window !== "undefined" && window.__PRM_LAUNCH_TOKEN__) {
+              headers["x-prm-launch-token"] = window.__PRM_LAUNCH_TOKEN__;
+            }
+            const res = await fetch(apiUrl(`/api/people/${id}/documents`), {
               method: "POST",
-              headers: { "x-prm-token": getToken() ?? "" },
+              headers,
               body: fd,
             });
             if (!res.ok) {

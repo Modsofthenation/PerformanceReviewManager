@@ -1,7 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { WorkspaceStatus } from "@prm/shared";
-import { api, getToken, setToken } from "./lib/api";
+import { api, getToken, setToken, waitForApi } from "./lib/api";
 import { useTheme } from "./hooks/useTheme";
 import { UnlockPage } from "./pages/UnlockPage";
 import { HomePage } from "./pages/HomePage";
@@ -26,6 +26,7 @@ export function App() {
 
   async function refresh() {
     try {
+      await waitForApi();
       const s = await api<WorkspaceStatus>("/api/workspace/status");
       setStatus(s);
       setError(null);

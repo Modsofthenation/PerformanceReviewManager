@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { GapMark, RoleDefinitionDTO } from "@prm/shared";
-import { api, getToken } from "../lib/api";
+import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 type PromoDetail = {
@@ -89,7 +89,7 @@ export function PromotionDetailPage() {
   async function openHtmlPacket() {
     if (!id) return;
     const token = getToken();
-    const res = await fetch(`/api/exports/promotion/${id}?format=html`, {
+    const res = await fetch(apiUrl(`/api/exports/promotion/${id}?format=html`), {
       headers: token ? { "x-prm-token": token } : {},
     });
     const html = await res.text();

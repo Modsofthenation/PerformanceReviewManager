@@ -379,7 +379,10 @@ export async function seedWorkspace(opts: {
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("seed.ts")) {
+// Only when running `tsx src/seed.ts` directly — never when bundled into the desktop
+// sidecar entry (`prm-api.mjs`), where import.meta.url === argv[1] would also match.
+const entry = process.argv[1] ?? "";
+if (/(^|[/\\])seed\.(ts|js|mjs)$/.test(entry)) {
   seedWorkspace()
     .then((r) => {
       console.log("Seeded workspace:", r);

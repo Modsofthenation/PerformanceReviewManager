@@ -3,6 +3,8 @@ const TOKEN_KEY = "prm_token";
 declare global {
   interface Window {
     __PRM_LAUNCH_TOKEN__?: string;
+    /** Absolute API origin injected by the Tauri shell (e.g. http://127.0.0.1:8787). */
+    __PRM_API_BASE_URL__?: string;
   }
 }
 
@@ -21,6 +23,40 @@ function launchToken(): string | null {
   return window.__PRM_LAUNCH_TOKEN__?.trim() || null;
 }
 
+/** Packaged desktop sets this; browser/Vite leaves it empty so `/api` stays relative (proxy). */
+export function apiBaseUrl(): string {
+  if (typeof window === "undefined") return "";
+  return window.__PRM_API_BASE_URL__?.trim().replace(/\/$/, "") || "";
+}
+
+/** Resolve an API path for fetch (absolute in Tauri, relative under Vite). */
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const base = apiBaseUrl();
+  return base ? `${base}${normalized}` : normalized;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Wait until the local API answers /api/health (desktop sidecar warmup). */
+export async function waitForApi(opts?: { attempts?: number; delayMs?: number }): Promise<boolean> {
+  const attempts = opts?.attempts ?? (apiBaseUrl() ? 40 : 1);
+  const delayMs = opts?.delayMs ?? 250;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(apiUrl("/api/health"), { method: "GET" });
+      if (res.ok) return true;
+    } catch {
+      /* still starting */
+    }
+    if (i < attempts - 1) await sleep(delayMs);
+  }
+  return false;
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
@@ -30,7 +66,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers.set("x-prm-token", token);
   const launch = launchToken();
   if (launch) headers.set("x-prm-launch-token", launch);
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(apiUrl(path), { ...init, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error((err as { error?: string }).error || "Request failed");

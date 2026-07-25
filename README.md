@@ -63,6 +63,8 @@ pnpm desktop:build
 
 Packaged builds on `main` CI upload installers as Actions artifacts (`desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
 
+The desktop shell spawns a bundled Node API sidecar, injects `window.__PRM_API_BASE_URL__` + launch token into the webview, and stores vault data under the OS app-data directory (not a CI build path). If unlock hangs, check `desktop-api.log` next to the vault.
+
 ### Cursor MCP (bulk load)
 
 `@prm/mcp` unlocks the vault and writes dossier evidence. Pair it with Jira, Bitbucket, or other MCPs when you need a cold-start backfill instead of typing every note by hand.
