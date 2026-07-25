@@ -96,6 +96,12 @@ async function main() {
   for (const [name, route] of routes) {
     await page.goto(`${UI}${route}`, { waitUntil: "networkidle0" });
     await page.waitForSelector(".main, .app-shell", { timeout: 15000 });
+    if (route === "/chat") {
+      await page.waitForSelector(".chat-composer button", { timeout: 15000 });
+      await page.evaluate(() => {
+        document.querySelector(".chat-composer")?.scrollIntoView({ block: "end" });
+      });
+    }
     await new Promise((r) => setTimeout(r, 450));
     await shot(page, name);
   }
