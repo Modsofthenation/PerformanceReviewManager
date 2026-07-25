@@ -24,6 +24,16 @@ pnpm desktop:build    # platform installers
 
 See `apps/desktop/README.md`.
 
+## Cursor MCP (bulk load / automation)
+
+Local MCP server `@prm/mcp` can unlock the vault and write people evidence (notes, achievements, documents, roles, cycles) — useful when another LLM/MCP pulls from Jira/Google and you want to load results into PRM.
+
+```bash
+pnpm --filter @prm/mcp start
+```
+
+Setup: [`packages/mcp/README.md`](./packages/mcp/README.md) and [`.cursor/mcp.json.example`](./.cursor/mcp.json.example).
+
 ## Features in this slice
 
 - Encrypted vault (AES-256-GCM) for DB + dossier files on lock  
