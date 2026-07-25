@@ -19,14 +19,34 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    setSettings(await api<AiSettings>("/api/ai/settings"));
+    try {
+      setSettings(await api<AiSettings>("/api/ai/settings"));
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load settings");
+    }
   }
 
   useEffect(() => {
     load();
   }, []);
+
+  if (error && !settings) {
+    return (
+      <div className="stack">
+        <PageHeader title="Settings" job="Configure AI co-pilot keys and private-tier egress." />
+        <NextStep
+          tone="warn"
+          label="Could not load settings"
+          detail={error}
+          action={<button className="btn" type="button" onClick={() => void load()}>Retry</button>}
+        />
+      </div>
+    );
+  }
 
   if (!settings) return <p>Loading…</p>;
 
