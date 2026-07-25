@@ -27,11 +27,18 @@ type ChatTurn = {
   error?: boolean;
 };
 
-const SUGGESTIONS = [
+const WORKSPACE_SUGGESTIONS = [
   "Who has thin evidence or an unassigned role?",
   "Summarize promotion readiness signals across the team.",
   "What achievements and feedback stand out for my strongest direct?",
   "Where are goals off-track, and what should I ask in 1:1s?",
+];
+
+const PERSON_SUGGESTIONS = [
+  "Summarize this person's strongest evidence with citations.",
+  "What are the main growth areas vs the current role bar?",
+  "Is there enough evidence for a promotion case discussion?",
+  "What should I ask in the next 1:1?",
 ];
 
 function newId() {
@@ -80,6 +87,8 @@ export function ChatPage() {
   const scopeLabel = personId
     ? people.find((p) => p.id === personId)?.name ?? "selected person"
     : "entire workspace";
+
+  const suggestions = personId ? PERSON_SUGGESTIONS : WORKSPACE_SUGGESTIONS;
 
   async function sendMessage(text: string) {
     const content = text.trim();
@@ -240,7 +249,7 @@ export function ChatPage() {
                 This chat is for freeform Q&amp;A over the same sources.
               </p>
               <div className="chat-suggestions">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
