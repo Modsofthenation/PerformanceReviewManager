@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CycleDTO, WorkspaceStatus } from "@prm/shared";
+import type { CycleDTO, DeadlineNudge, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -10,6 +10,8 @@ type CommandItem = {
   peerCount: number;
   managerStatus: string;
   phaseStatus: Record<string, string>;
+  selfStatus?: string;
+  peerStatus?: string;
 };
 
 function managerLabel(status: string) {
@@ -18,11 +20,25 @@ function managerLabel(status: string) {
   return "not started";
 }
 
+function pipelinePill(status: string | undefined) {
+  const value = status || "pending";
+  const tone =
+    value === "returned" || value === "waived"
+      ? "ok"
+      : value === "exported"
+        ? "warn"
+        : "";
+  return <span className={`status-pill ${tone}`.trim()}>{value}</span>;
+}
+
 export function HomePage() {
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
   const [items, setItems] = useState<CommandItem[]>([]);
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [thinEvidenceCount, setThinEvidenceCount] = useState(0);
+  const [nudges, setNudges] = useState<DeadlineNudge[]>([]);
+  const [nudgeDays, setNudgeDays] = useState<number | null>(null);
+  const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api<CycleDTO[]>("/api/cycles").then((c) => {
@@ -37,13 +53,26 @@ export function HomePage() {
   useEffect(() => {
     if (!cycleId) return;
     api<{ items: CommandItem[] }>(`/api/cycles/${cycleId}/command-center`).then((r) => setItems(r.items));
+    api<{ nudges: DeadlineNudge[]; daysUntilDue: number }>(`/api/cycles/${cycleId}/nudges`)
+      .then((r) => {
+        setNudges(r.nudges);
+        setNudgeDays(r.daysUntilDue);
+      })
+      .catch(() => {
+        setNudges([]);
+        setNudgeDays(null);
+      });
   }, [cycleId]);
 
   const active = cycles.find((c) => c.id === cycleId);
 
   const stats = useMemo(() => {
     const unassigned = items.filter((i) => i.person && !i.person.roleTitle);
-    const needSelf = items.filter((i) => i.person && !i.hasSelf);
+    const needSelf = items.filter((i) => {
+      if (!i.person) return false;
+      const self = i.selfStatus ?? (i.hasSelf ? "returned" : "pending");
+      return self !== "returned" && self !== "waived";
+    });
     const readyToWrite = items.filter(
       (i) => i.person && i.hasSelf && i.managerStatus !== "finalized" && i.managerStatus !== "shared",
     );
@@ -166,6 +195,45 @@ export function HomePage() {
         {active && <span className="muted">{active.windowStart} → {active.windowEnd} · {active.status}</span>}
       </div>
 
+      {cycleId && nudges.length > 0 && (
+        <div className="panel stack">
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>Deadline nudges</h2>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={async () => {
+                const text = nudges
+                  .map((n) => `${n.personName}${n.email ? ` <${n.email}>` : ""} — ${n.mailtoHref}`)
+                  .join("\n");
+                try {
+                  await navigator.clipboard.writeText(text);
+                  setNudgeMsg("Copied all nudge links");
+                } catch {
+                  setNudgeMsg("Could not copy — select mailto links below");
+                }
+              }}
+            >
+              Copy all
+            </button>
+          </div>
+          <p className="muted" style={{ margin: 0 }}>
+            {nudges.length} missing self-review
+            {nudgeDays != null ? ` · ${nudgeDays} day(s) until window end` : ""}
+          </p>
+          <ul>
+            {nudges.map((n) => (
+              <li key={n.personId}>
+                <strong>{n.personName}</strong>{" "}
+                <span className="muted">({n.selfStatus})</span>{" "}
+                <a href={n.mailtoHref}>mailto</a>
+              </li>
+            ))}
+          </ul>
+          {nudgeMsg && <p className="muted">{nudgeMsg}</p>}
+        </div>
+      )}
+
       <div className="panel">
         {items.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
@@ -178,7 +246,9 @@ export function HomePage() {
                 <th>Person</th>
                 <th>Role</th>
                 <th>Self</th>
+                <th>Self pipeline</th>
                 <th>Peers</th>
+                <th>Peer pipeline</th>
                 <th>Manager</th>
                 <th>Your move</th>
               </tr>
@@ -188,7 +258,8 @@ export function HomePage() {
                 const person = item.person;
                 if (!person || !cycleId) return null;
                 const needsRole = !person.roleTitle;
-                const needsSelf = !item.hasSelf;
+                const selfStatus = item.selfStatus ?? (item.hasSelf ? "returned" : "pending");
+                const needsSelf = selfStatus !== "returned" && selfStatus !== "waived";
                 const finalized = item.managerStatus === "finalized" || item.managerStatus === "shared";
                 let cta: ReactNode;
                 if (needsRole) {
@@ -216,7 +287,9 @@ export function HomePage() {
                         ? <span className="status-pill ok">imported</span>
                         : <span className="status-pill warn">missing</span>}
                     </td>
+                    <td>{pipelinePill(selfStatus)}</td>
                     <td>{item.peerCount}</td>
+                    <td>{pipelinePill(item.peerStatus)}</td>
                     <td>
                       <span className={`status-pill ${finalized ? "ok" : item.managerStatus === "draft" ? "warn" : ""}`}>
                         {managerLabel(item.managerStatus)}

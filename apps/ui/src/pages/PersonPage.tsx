@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { CycleDTO, PersonDTO } from "@prm/shared";
+import type { ConcernLogDTO, CycleDTO, PersonDTO } from "@prm/shared";
 import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -23,12 +23,23 @@ export function PersonPage() {
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docMsg, setDocMsg] = useState<string | null>(null);
   const [captureMsg, setCaptureMsg] = useState<string | null>(null);
+  const [concerns, setConcerns] = useState<ConcernLogDTO[]>([]);
+  const [concernTitle, setConcernTitle] = useState("");
+  const [concernBody, setConcernBody] = useState("");
+  const [concernExpectation, setConcernExpectation] = useState("");
+  const [concernPlan, setConcernPlan] = useState("");
 
   async function load() {
     if (!id) return;
     setPerson(await api<PersonDTO>(`/api/people/${id}`));
     setDossier(await api(`/api/people/${id}/dossier`));
     setCycles(await api<CycleDTO[]>("/api/cycles"));
+    try {
+      const res = await api<{ items: ConcernLogDTO[] }>(`/api/people/${id}/concerns`);
+      setConcerns(res.items);
+    } catch {
+      setConcerns([]);
+    }
   }
 
   useEffect(() => {
@@ -233,6 +244,94 @@ export function PersonPage() {
       </div>
 
       {captureMsg && <p className="muted">{captureMsg}</p>}
+
+      <div className="panel stack">
+        <h2>Concern log</h2>
+        <p className="muted">
+          Private performance concerns and follow-up plans. AI is off by default — these stay out of digests and drafts unless you later opt a concern in.
+        </p>
+        {concerns.length === 0 ? (
+          <p className="muted">No concerns logged.</p>
+        ) : (
+          <ul>
+            {concerns.map((c) => (
+              <li key={c.id} style={{ marginBottom: 10 }}>
+                <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <strong>{c.title}</strong>
+                  <span className={`status-pill ${c.status === "closed" ? "ok" : "warn"}`}>{c.status}</span>
+                </div>
+                <p style={{ margin: "4px 0" }}>{c.body}</p>
+                {c.expectationText && (
+                  <p className="muted" style={{ margin: "2px 0" }}>Expectation: {c.expectationText}</p>
+                )}
+                {c.planText && <p className="muted" style={{ margin: "2px 0" }}>Plan: {c.planText}</p>}
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={async () => {
+                    await api(`/api/concerns/${c.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ status: c.status === "open" ? "closed" : "open" }),
+                    });
+                    await load();
+                  }}
+                >
+                  Mark {c.status === "open" ? "closed" : "open"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          className="stack"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!id) return;
+            await api(`/api/people/${id}/concerns`, {
+              method: "POST",
+              body: JSON.stringify({
+                title: concernTitle,
+                body: concernBody,
+                expectationText: concernExpectation || undefined,
+                planText: concernPlan || undefined,
+                aiAllowed: false,
+              }),
+            });
+            setConcernTitle("");
+            setConcernBody("");
+            setConcernExpectation("");
+            setConcernPlan("");
+            setCaptureMsg("Concern logged");
+            await load();
+          }}
+        >
+          <div className="field">
+            <label>Title</label>
+            <input value={concernTitle} onChange={(e) => setConcernTitle(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>Body</label>
+            <textarea value={concernBody} onChange={(e) => setConcernBody(e.target.value)} required />
+          </div>
+          <div className="field">
+            <label>Expectation</label>
+            <textarea
+              value={concernExpectation}
+              onChange={(e) => setConcernExpectation(e.target.value)}
+              placeholder="What good looks like…"
+            />
+          </div>
+          <div className="field">
+            <label>Plan</label>
+            <textarea
+              value={concernPlan}
+              onChange={(e) => setConcernPlan(e.target.value)}
+              placeholder="Follow-up steps…"
+            />
+          </div>
+          <button className="btn">Add concern</button>
+        </form>
+      </div>
 
       {person.targetNextRoleTitle && (
         <NextStep

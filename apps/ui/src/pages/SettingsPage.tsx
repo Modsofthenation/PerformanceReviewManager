@@ -26,6 +26,10 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditVerifyResult | null>(null);
   const [auditBusy, setAuditBusy] = useState(false);
+  const [backups, setBackups] = useState<
+    Array<{ filename: string; byteSize: number; modifiedAt: string }>
+  >([]);
+  const [backupBusy, setBackupBusy] = useState(false);
   const { theme, setTheme } = useTheme();
 
   async function load() {
@@ -37,8 +41,20 @@ export function SettingsPage() {
     }
   }
 
+  async function loadBackups() {
+    try {
+      const res = await api<{ backups: Array<{ filename: string; byteSize: number; modifiedAt: string }> }>(
+        "/api/workspace/backups",
+      );
+      setBackups(res.backups);
+    } catch {
+      setBackups([]);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadBackups();
   }, []);
 
   if (error && !settings) {
@@ -167,6 +183,80 @@ export function SettingsPage() {
             {audit.tipHash ? ` · tip ${audit.tipHash.slice(0, 12)}…` : ""}
             {audit.error ? ` · ${audit.error}` : ""}
           </p>
+        )}
+      </div>
+
+      <div className="panel stack">
+        <h2>Backup & restore</h2>
+        <p className="muted">
+          Encrypted snapshots of the unlocked SQLite DB under data/backups. Restore replaces the live
+          database — confirm carefully.
+        </p>
+        <div className="cta-primary-row">
+          <button
+            type="button"
+            className="btn"
+            disabled={backupBusy}
+            onClick={async () => {
+              setBackupBusy(true);
+              try {
+                await api("/api/workspace/backup", {
+                  method: "POST",
+                  body: JSON.stringify({ label: "manual" }),
+                });
+                setMsg("Backup created");
+                await loadBackups();
+              } catch (e) {
+                setMsg(e instanceof Error ? e.message : "Backup failed");
+              } finally {
+                setBackupBusy(false);
+              }
+            }}
+          >
+            Create backup
+          </button>
+        </div>
+        {backups.length === 0 ? (
+          <p className="muted">No backups yet.</p>
+        ) : (
+          <ul>
+            {backups.map((b) => (
+              <li key={b.filename} className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+                <span>
+                  <strong>{b.filename}</strong>{" "}
+                  <span className="muted">
+                    · {(b.byteSize / 1024).toFixed(1)} KB · {b.modifiedAt.slice(0, 19)}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={backupBusy}
+                  onClick={async () => {
+                    const ok = window.confirm(
+                      `Restore ${b.filename}? This replaces the live database. Continue?`,
+                    );
+                    if (!ok) return;
+                    setBackupBusy(true);
+                    try {
+                      await api("/api/workspace/restore", {
+                        method: "POST",
+                        body: JSON.stringify({ filename: b.filename, confirm: true }),
+                      });
+                      setMsg(`Restored ${b.filename}`);
+                      await loadBackups();
+                    } catch (e) {
+                      setMsg(e instanceof Error ? e.message : "Restore failed");
+                    } finally {
+                      setBackupBusy(false);
+                    }
+                  }}
+                >
+                  Restore
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 

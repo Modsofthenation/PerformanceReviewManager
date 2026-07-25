@@ -213,6 +213,20 @@ CREATE TABLE IF NOT EXISTS promotion_cases (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS concern_logs (
+  id TEXT PRIMARY KEY,
+  person_id TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  expectation_text TEXT,
+  plan_text TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  ai_allowed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ai_settings (
   id TEXT PRIMARY KEY,
   enabled INTEGER NOT NULL DEFAULT 0,

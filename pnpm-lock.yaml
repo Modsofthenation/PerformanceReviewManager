@@ -54,6 +54,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2.4.0
         version: 2.11.4
+      esbuild:
+        specifier: ^0.25.12
+        version: 0.25.12
 
   apps/ui:
     dependencies:

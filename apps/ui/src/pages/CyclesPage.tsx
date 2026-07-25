@@ -4,10 +4,22 @@ import type { CycleDTO, PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
+const PHASE_STATUSES = [
+  { value: "self_open", label: "Self open" },
+  { value: "peer_open", label: "Peer open" },
+  { value: "manager_writing", label: "Manager writing" },
+  { value: "closed", label: "Closed" },
+] as const;
+
 export function CyclesPage() {
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
   const [people, setPeople] = useState<PersonDTO[]>([]);
   const [name, setName] = useState("H2 2026");
+  const [windowStart, setWindowStart] = useState("2026-07-01");
+  const [windowEnd, setWindowEnd] = useState("2026-12-31");
+  const [selfDue, setSelfDue] = useState("");
+  const [peerDue, setPeerDue] = useState("");
+  const [managerDue, setManagerDue] = useState("");
   const [selectedCycle, setSelectedCycle] = useState<string>("");
   const [subjectId, setSubjectId] = useState("");
   const [bundleKind, setBundleKind] = useState<"self" | "peer">("self");
@@ -29,6 +41,7 @@ export function CyclesPage() {
   }, []);
 
   const subject = people.find((p) => p.id === subjectId);
+  const selected = cycles.find((c) => c.id === selectedCycle);
 
   return (
     <div className="stack">
@@ -77,7 +90,11 @@ export function CyclesPage() {
             <thead><tr><th>Name</th><th>Window</th><th>Status</th><th>People</th></tr></thead>
             <tbody>
               {cycles.map((c) => (
-                <tr key={c.id}>
+                <tr
+                  key={c.id}
+                  style={{ cursor: "pointer", background: c.id === selectedCycle ? "var(--panel-alt)" : undefined }}
+                  onClick={() => setSelectedCycle(c.id)}
+                >
                   <td>{c.name}</td>
                   <td className="muted">{c.windowStart} → {c.windowEnd}</td>
                   <td>{c.status}</td>
@@ -89,22 +106,109 @@ export function CyclesPage() {
         )}
         <form
           id="create-cycle-form"
-          className="row"
+          className="stack"
           style={{ marginTop: 12 }}
           onSubmit={async (e) => {
             e.preventDefault();
             await api("/api/cycles", {
               method: "POST",
-              body: JSON.stringify({ name, windowStart: "2026-07-01", windowEnd: "2026-12-31", includeDirects: true }),
+              body: JSON.stringify({
+                name,
+                windowStart,
+                windowEnd,
+                includeDirects: true,
+                ...(selfDue ? { selfDue } : {}),
+                ...(peerDue ? { peerDue } : {}),
+                ...(managerDue ? { managerDue } : {}),
+              }),
             });
             setMessage("Cycle created — export self-review bundles next.");
             await load();
           }}
         >
-          <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Cycle name" />
-          <button className="btn secondary">Create cycle (directs)</button>
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Cycle name" placeholder="Cycle name" />
+            <div className="field" style={{ margin: 0 }}>
+              <label>Window start</label>
+              <input type="date" value={windowStart} onChange={(e) => setWindowStart(e.target.value)} required />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Window end</label>
+              <input type="date" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} required />
+            </div>
+          </div>
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Self due (optional)</label>
+              <input type="date" value={selfDue} onChange={(e) => setSelfDue(e.target.value)} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Peer due (optional)</label>
+              <input type="date" value={peerDue} onChange={(e) => setPeerDue(e.target.value)} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Manager due (optional)</label>
+              <input type="date" value={managerDue} onChange={(e) => setManagerDue(e.target.value)} />
+            </div>
+            <button className="btn secondary" style={{ alignSelf: "end" }}>Create cycle (directs)</button>
+          </div>
         </form>
       </div>
+
+      {selected && (
+        <div className="panel stack">
+          <h2>Phase wizard — {selected.name}</h2>
+          <p className="muted">
+            Soft gates only: advance phases when ready. Waive missing self/peer from the writing desk with a reason.
+          </p>
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            {PHASE_STATUSES.map((phase) => (
+              <button
+                key={phase.value}
+                type="button"
+                className={`btn ${selected.status === phase.value ? "" : "secondary"}`}
+                onClick={async () => {
+                  await api(`/api/cycles/${selected.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ status: phase.value }),
+                  });
+                  setMessage(`Cycle status set to ${phase.label}.`);
+                  await load();
+                }}
+              >
+                {phase.label}
+              </button>
+            ))}
+          </div>
+          <form
+            className="row"
+            style={{ flexWrap: "wrap", gap: 8, alignItems: "end" }}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              await api(`/api/cycles/${selected.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({
+                  windowStart: String(fd.get("windowStart") || selected.windowStart),
+                  windowEnd: String(fd.get("windowEnd") || selected.windowEnd),
+                }),
+              });
+              setMessage("Cycle window updated.");
+              await load();
+            }}
+          >
+            <div className="field" style={{ margin: 0 }}>
+              <label>Window start</label>
+              <input type="date" name="windowStart" defaultValue={selected.windowStart} key={`${selected.id}-start`} />
+            </div>
+            <div className="field" style={{ margin: 0 }}>
+              <label>Window end</label>
+              <input type="date" name="windowEnd" defaultValue={selected.windowEnd} key={`${selected.id}-end`} />
+            </div>
+            <button className="btn secondary" type="submit">Update window</button>
+          </form>
+        </div>
+      )}
 
       <div className="grid-2">
         <form
@@ -128,7 +232,9 @@ export function CyclesPage() {
             a.href = url;
             a.download = `${bundleKind}-${(bundle.subjectName as string)?.replace(/\s+/g, "-") ?? "bundle"}.json`;
             a.click();
-            setMessage("Bundle downloaded — send outside the app, then import the filled JSON below.");
+            setMessage(
+              `Bundle downloaded — ${bundleKind} pipeline marked exported. Send outside the app, then import the filled JSON below.`,
+            );
           }}
         >
           <h2>1. Export bundle</h2>

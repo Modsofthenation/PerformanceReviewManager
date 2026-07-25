@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { BiasFinding, DecisionLogEntry, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
@@ -11,6 +11,12 @@ type EvidenceLinkDraft = {
   sourceType: string;
   sourceId: string;
 };
+
+function formatWritingTime(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export function WritingDeskPage() {
   const { cycleId, personId } = useParams();
@@ -34,6 +40,10 @@ export function WritingDeskPage() {
   const [biasFindings, setBiasFindings] = useState<BiasFinding[] | null>(null);
   const [decisionReason, setDecisionReason] = useState("");
   const [decisions, setDecisions] = useState<DecisionLogEntry[]>([]);
+  const [writingSeconds, setWritingSeconds] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const writingSecondsRef = useRef(0);
   const [baseline, setBaseline] = useState<{
     overall: number;
     competencies: Record<string, number>;
@@ -46,6 +56,16 @@ export function WritingDeskPage() {
       : COMPETENCY_CATALOG.filter((c) => !c.appliesToTracks || c.appliesToTracks.includes("ic")).map((c) => c.key);
     return keys;
   }, [packet?.currentRole?.competencyKeys, packet?.currentRole?.track]);
+
+  function markDirty() {
+    dirtyRef.current = true;
+    setDirty(true);
+  }
+
+  function clearDirty() {
+    dirtyRef.current = false;
+    setDirty(false);
+  }
 
   async function load() {
     if (!cycleId || !personId) return;
@@ -65,6 +85,10 @@ export function WritingDeskPage() {
     const comps = (payload.competencies ?? {}) as Record<string, number>;
     setCompetencies(comps);
     setBaseline({ overall: nextOverall, competencies: comps, promo: nextPromo });
+    const seededSeconds = p.writingSecondsTotal ?? 0;
+    writingSecondsRef.current = seededSeconds;
+    setWritingSeconds(seededSeconds);
+    clearDirty();
     setLinks(
       (p.evidenceLinks ?? []).map((l) => ({
         targetType: l.targetType,
@@ -98,6 +122,16 @@ export function WritingDeskPage() {
     });
   }, [packet?.currentRole?.id, competencyKeys.join("|")]);
 
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      writingSecondsRef.current += 1;
+      setWritingSeconds(writingSecondsRef.current);
+    };
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [cycleId, personId]);
+
   const showGaps = promo === "ready" || promo === "not_yet";
   const nextExpectations = packet?.nextRole?.expectations ?? [];
 
@@ -118,11 +152,12 @@ export function WritingDeskPage() {
 
   const evidenceOptions = useMemo(() => {
     if (!packet) return [] as Array<{ sourceType: string; sourceId: string; label: string }>;
+    const oow = (flag?: boolean) => (flag ? " · out of window" : "");
     return [
       ...packet.achievements.map((a) => ({
         sourceType: "achievement",
         sourceId: a.id,
-        label: `Achievement: ${a.title}`,
+        label: `Achievement: ${a.title}${oow(a.outOfWindow)}`,
       })),
       ...packet.goals.map((g) => ({
         sourceType: "goal",
@@ -132,21 +167,30 @@ export function WritingDeskPage() {
       ...packet.feedback.map((f) => ({
         sourceType: "feedback",
         sourceId: f.id,
-        label: `Feedback: ${(f.body ?? "").slice(0, 60)}`,
+        label: `Feedback: ${(f.body ?? "").slice(0, 60)}${oow(f.outOfWindow)}`,
       })),
       ...packet.documents.map((d) => ({
         sourceType: "document",
         sourceId: d.id,
-        label: `Document: ${d.title}`,
+        label: `Document: ${d.title}${oow(d.outOfWindow)}`,
       })),
     ];
   }, [packet]);
+
+  const outOfWindowTray = packet?.outOfWindow;
+  const hasOutOfWindow =
+    !!outOfWindowTray &&
+    (outOfWindowTray.achievements.length > 0 ||
+      outOfWindowTray.feedback.length > 0 ||
+      outOfWindowTray.documents.length > 0);
+  const writingUnderBudget = writingSeconds <= 45 * 60;
 
   function linksFor(key: string) {
     return links.filter((l) => l.targetType === "competency" && l.targetKey === key);
   }
 
   function toggleLink(key: string, sourceType: string, sourceId: string) {
+    markDirty();
     setLinks((prev) => {
       const exists = prev.find(
         (l) => l.targetType === "competency" && l.targetKey === key && l.sourceId === sourceId,
@@ -233,6 +277,7 @@ export function WritingDeskPage() {
             promo_readiness: promo,
             private_notes: privateNotes,
             competencies,
+            writing_seconds_total: writingSecondsRef.current,
           },
           gapAssessments: showGaps
             ? Object.entries(gaps).map(([roleExpectationId, mark]) => ({ roleExpectationId, mark }))
@@ -242,11 +287,40 @@ export function WritingDeskPage() {
       });
       setStatus(`Saved (${nextStatus})`);
       if (changes.length || reopening) setDecisionReason("");
+      clearDirty();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     }
   }
+
+  useEffect(() => {
+    if (finalized || !packet) return;
+    const id = window.setInterval(() => {
+      if (!dirtyRef.current) return;
+      void save("draft");
+    }, 8000);
+    return () => window.clearInterval(id);
+    // Intentionally re-bind when draft fields change so autosave sees fresh closures.
+  }, [
+    finalized,
+    packet?.managerReview?.status,
+    cycleId,
+    personId,
+    summary,
+    strengths,
+    growth,
+    devPlan,
+    overall,
+    roleFit,
+    promo,
+    privateNotes,
+    competencies,
+    links,
+    gaps,
+    decisionReason,
+    dirty,
+  ]);
 
   async function openSubjectHtml() {
     if (!cycleId || !personId) return;
@@ -356,16 +430,68 @@ export function WritingDeskPage() {
       )}
 
       {flags.length > 0 && (
-        <div>
+        <div className="row" style={{ flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {flags.map((f) => (
             <span className="flag" key={f}>
               {f}
             </span>
           ))}
+          {flags.includes("missing_self_import") && (
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={async () => {
+                const reason = window.prompt("Reason for waiving self-review import?");
+                if (!reason?.trim() || !cycleId || !personId) return;
+                try {
+                  await api(`/api/cycles/${cycleId}/participants/${personId}/waive`, {
+                    method: "POST",
+                    body: JSON.stringify({ phase: "self", reason: reason.trim() }),
+                  });
+                  setStatus("Self-import waived");
+                  await load();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Waive failed");
+                }
+              }}
+            >
+              Waive self-import
+            </button>
+          )}
         </div>
       )}
+      <p className="muted" style={{ margin: 0 }}>
+        Writing time {formatWritingTime(writingSeconds)}{" "}
+        <span className={`status-pill ${writingUnderBudget ? "ok" : "warn"}`}>≤45 min</span>
+        {dirty && !finalized ? " · unsaved changes" : ""}
+      </p>
       {status && <p className="muted">{status}</p>}
       {error && <p className="chat-error" style={{ padding: 0 }}>{error}</p>}
+
+      {hasOutOfWindow && outOfWindowTray && (
+        <div className="panel">
+          <h2>Out of window</h2>
+          <p className="muted">Evidence dated outside the cycle window — still citable.</p>
+          <ul>
+            {outOfWindowTray.achievements.map((a) => (
+              <li key={a.id}>
+                {a.title} <span className="muted">out of window · {a.occurredAt}</span>
+              </li>
+            ))}
+            {outOfWindowTray.feedback.map((f) => (
+              <li key={f.id}>
+                {(f.body ?? "").slice(0, 80)} <span className="muted">out of window · {f.occurredAt}</span>
+              </li>
+            ))}
+            {outOfWindowTray.documents.map((d) => (
+              <li key={d.id}>
+                {d.title}{" "}
+                <span className="muted">out of window{d.occurredAt ? ` · ${d.occurredAt}` : ""}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="writing">
         <div className="stack">
@@ -528,7 +654,10 @@ export function WritingDeskPage() {
               max={5}
               value={overall}
               disabled={finalized}
-              onChange={(e) => setOverall(Number(e.target.value))}
+              onChange={(e) => {
+                markDirty();
+                setOverall(Number(e.target.value));
+              }}
             />
             {overall !== MIDDLE_BAND && (
               <p className="muted">Outside middle band — link evidence on competencies below.</p>
@@ -591,9 +720,10 @@ export function WritingDeskPage() {
                       style={{ width: 64 }}
                       value={score}
                       disabled={finalized}
-                      onChange={(e) =>
-                        setCompetencies((c) => ({ ...c, [key]: Number(e.target.value) }))
-                      }
+                      onChange={(e) => {
+                        markDirty();
+                        setCompetencies((c) => ({ ...c, [key]: Number(e.target.value) }));
+                      }}
                     />
                   </div>
                   {score !== MIDDLE_BAND && (
@@ -633,7 +763,10 @@ export function WritingDeskPage() {
             <textarea
               value={roleFit}
               disabled={finalized}
-              onChange={(e) => setRoleFit(e.target.value)}
+              onChange={(e) => {
+                markDirty();
+                setRoleFit(e.target.value);
+              }}
               placeholder="Against current RoleDefinition…"
             />
           </div>
@@ -650,12 +783,20 @@ export function WritingDeskPage() {
                     body: JSON.stringify({ cycleId, personId, section: "summary" }),
                   });
                   setSummary(res.outputText);
+                  markDirty();
                 }}
               >
                 AI draft
               </button>
             </label>
-            <textarea value={summary} disabled={finalized} onChange={(e) => setSummary(e.target.value)} />
+            <textarea
+              value={summary}
+              disabled={finalized}
+              onChange={(e) => {
+                markDirty();
+                setSummary(e.target.value);
+              }}
+            />
           </div>
           <div className="field">
             <label className="row" style={{ justifyContent: "space-between" }}>
@@ -670,12 +811,20 @@ export function WritingDeskPage() {
                     body: JSON.stringify({ cycleId, personId, section: "strengths" }),
                   });
                   setStrengths(res.outputText);
+                  markDirty();
                 }}
               >
                 AI draft
               </button>
             </label>
-            <textarea value={strengths} disabled={finalized} onChange={(e) => setStrengths(e.target.value)} />
+            <textarea
+              value={strengths}
+              disabled={finalized}
+              onChange={(e) => {
+                markDirty();
+                setStrengths(e.target.value);
+              }}
+            />
           </div>
           <div className="field">
             <label className="row" style={{ justifyContent: "space-between" }}>
@@ -690,23 +839,41 @@ export function WritingDeskPage() {
                     body: JSON.stringify({ cycleId, personId, section: "growth_areas" }),
                   });
                   setGrowth(res.outputText);
+                  markDirty();
                 }}
               >
                 AI draft
               </button>
             </label>
-            <textarea value={growth} disabled={finalized} onChange={(e) => setGrowth(e.target.value)} />
+            <textarea
+              value={growth}
+              disabled={finalized}
+              onChange={(e) => {
+                markDirty();
+                setGrowth(e.target.value);
+              }}
+            />
           </div>
           <div className="field">
             <label>Development plan</label>
-            <textarea value={devPlan} disabled={finalized} onChange={(e) => setDevPlan(e.target.value)} />
+            <textarea
+              value={devPlan}
+              disabled={finalized}
+              onChange={(e) => {
+                markDirty();
+                setDevPlan(e.target.value);
+              }}
+            />
           </div>
           <div className="field">
             <label>Promotion readiness</label>
             <select
               value={promo}
               disabled={finalized}
-              onChange={(e) => setPromo(e.target.value as PromoReadiness)}
+              onChange={(e) => {
+                markDirty();
+                setPromo(e.target.value as PromoReadiness);
+              }}
             >
               <option value="not_applicable">Not applicable</option>
               <option value="too_early">Too early</option>
@@ -728,7 +895,10 @@ export function WritingDeskPage() {
                   <select
                     value={gaps[e.id] ?? "emerging"}
                     disabled={finalized}
-                    onChange={(ev) => setGaps((g) => ({ ...g, [e.id]: ev.target.value as GapMark }))}
+                    onChange={(ev) => {
+                      markDirty();
+                      setGaps((g) => ({ ...g, [e.id]: ev.target.value as GapMark }));
+                    }}
                   >
                     <option value="demonstrating">Demonstrating</option>
                     <option value="emerging">Emerging</option>
@@ -743,7 +913,10 @@ export function WritingDeskPage() {
             <textarea
               value={privateNotes}
               disabled={finalized}
-              onChange={(e) => setPrivateNotes(e.target.value)}
+              onChange={(e) => {
+                markDirty();
+                setPrivateNotes(e.target.value);
+              }}
             />
           </div>
 

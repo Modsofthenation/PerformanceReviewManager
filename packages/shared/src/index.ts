@@ -169,10 +169,35 @@ export interface PacketDTO {
   selfReview: ReviewDTO | null;
   peerReviews: ReviewDTO[];
   managerReview: ReviewDTO | null;
-  goals: Array<{ id: string; title: string; status: string }>;
-  achievements: Array<{ id: string; title: string; occurredAt: string; description?: string | null }>;
-  feedback: Array<{ id: string; fromName: string | null; kind: string; body: string; occurredAt: string }>;
-  documents: Array<{ id: string; title: string; visibility: Visibility }>;
+  goals: Array<{ id: string; title: string; status: string; createdAt?: string }>;
+  achievements: Array<{
+    id: string;
+    title: string;
+    occurredAt: string;
+    description?: string | null;
+    outOfWindow?: boolean;
+  }>;
+  feedback: Array<{
+    id: string;
+    fromName: string | null;
+    kind: string;
+    body: string;
+    occurredAt: string;
+    outOfWindow?: boolean;
+  }>;
+  documents: Array<{
+    id: string;
+    title: string;
+    visibility: Visibility;
+    occurredAt?: string;
+    outOfWindow?: boolean;
+  }>;
+  /** Evidence dated outside the cycle window — still citable, visually separated. */
+  outOfWindow: {
+    achievements: Array<{ id: string; title: string; occurredAt: string }>;
+    feedback: Array<{ id: string; fromName: string | null; kind: string; body: string; occurredAt: string }>;
+    documents: Array<{ id: string; title: string; occurredAt?: string }>;
+  };
   evidenceLinks: EvidenceLinkDTO[];
   citationSnapshots: CitationSnapshotDTO[];
   /** Most recent prior finalized/shared manager review (other cycle), if any. */
@@ -195,6 +220,36 @@ export interface PacketDTO {
     sourceId?: string;
   }>;
   flags: string[];
+  /** Soft phase status from cycle participant (self/peer/manager). */
+  phaseStatus?: Record<string, string>;
+  writingSecondsTotal?: number;
+}
+
+export interface ConcernLogDTO {
+  id: string;
+  personId: string;
+  occurredAt: string;
+  title: string;
+  body: string;
+  expectationText: string | null;
+  planText: string | null;
+  status: string;
+  aiAllowed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeadlineNudge {
+  personId: string;
+  personName: string;
+  email: string | null;
+  cycleId: string;
+  cycleName: string;
+  windowEnd: string;
+  daysUntilDue: number;
+  missingSelf: boolean;
+  selfStatus: string;
+  mailtoHref: string;
 }
 
 export interface DecisionLogEntry {

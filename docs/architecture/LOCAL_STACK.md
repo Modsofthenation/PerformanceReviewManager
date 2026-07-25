@@ -68,7 +68,7 @@ Same OS paths as before (`Application Support` / `%APPDATA%` / `~/.local/share/.
 
 **Default:** no Node sidecar — domain logic in TS inside webview calling Tauri commands for privileged ops, **or** core domain in Rust.  
 
-**Escape:** Node/Bun sidecar only with capability token + supervised lifecycle + dual-binary signing plan documented in Phase 0 spike.
+**Current escape (shipped):** packaged Node + bundled Hono API under `src-tauri/sidecars/` (capability token + supervised lifecycle). Prefer migrating privileged ops to Tauri commands over time.
 
 ---
 

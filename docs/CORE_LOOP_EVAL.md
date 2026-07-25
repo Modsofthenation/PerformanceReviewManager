@@ -1,7 +1,7 @@
 # Core loop evaluation & capture gaps
 
 Snapshot of what the solo EM workbench **does today** vs residual gaps.
-Updated after role framework authoring + AI/local extract from R&R docs.
+Updated after the high-impact next slice (autosave, pipelines, phases, nudges, concerns, faithfulness, OOW tray, backup UI, API sidecar, desktop CI).
 
 ## Core loop (product)
 
@@ -16,28 +16,31 @@ upload role R&R → tag people → year-round dossier
 | Step | Status | Notes |
 |------|--------|--------|
 | Encrypted workspace unlock/lock | Done | AES vault; seed password `workbench`; `.session` is token-only (re-unlock after API restart) |
+| Encrypted backup / restore | Done | Settings → one-click snapshot under `data/backups`; restore replaces live DB while unlocked |
 | People list + CSV / manual add | Done | `POST /api/people/import` + Team paste/file; template download |
 | Role catalog + assign + author | Done | Seeded ladder; Roles page add/edit/delete; CSV/markdown or AI extract from R&R doc |
 | Continuous dossier | Done | Achievements, goals, feedback, documents + visibility |
-| Cycle create + participants | Done | Soft window; no phase wizard |
-| Export / import self & peer JSON | Done | Outside-app send; paste import |
-| Command center | Done | CTA-driven next action |
-| Writing desk | Done | Competencies + validated evidence links; finalize freezes citations **and** subject timeline; reopen requires reason |
+| Concern / underperformance log | Done | Per-person dated concerns + plan; `ai_allowed` default off (Phase 2 opt-in later) |
+| Cycle create + phase wizard | Done | Soft statuses (`self_open` → `closed`); editable window; waive-with-reason on missing self/peer |
+| Export / import self & peer JSON | Done | Pipeline states: pending → exported → returned / waived on command center |
+| Deadline nudges | Done | In-app list near due date + mailto drafts for missing self (OS mail while app open) |
+| Command center | Done | Self/peer pipeline columns + CTA next action |
+| Writing desk | Done | Autosave ~8s; writing-time total with ≤45 min/person signal; OOW evidence tray; finalize freezes citations + timeline |
+| Out-of-window evidence | Done | Late docs stay on the packet in a separate tray (flag `out_of_window_evidence`) |
 | Subject export | Done | HTML (+ Print→PDF tip); requires finalized/shared; strips `private_notes` / `em_only`; redacts peer names in cites |
-| Consistency + bias lint | Partial | Advisory — do not treat as fairness certification |
+| Consistency + bias + faithfulness | Partial | Advisory invention checks (unknown cites, ungrounded sentences, bare metrics) — not fairness certification |
 | Decision log + audit pack | Done* | Append-only triggers; verify + HMAC export in Settings. *Tamper-evident / EM-keyed — not external legal custody (TRUST_MODEL) |
 | Promotion packets | Done | Next-role marks + AI case draft |
 | Backfill + MCP bulk load | Done | Thin = ach+fb+docs+goals &lt; 2; MCP needs explicit unlock / `PRM_PASSWORD` |
 | Settings → AI | Done | Private notes / meeting / document extract egress **enforced** on cloud paths |
-| Desktop CSP / launch token | Done | CSP set; shell IPC removed; `PRM_LAUNCH_TOKEN` + injected header when using `desktop:dev` |
+| Desktop CSP / launch token / API sidecar | Done | CSP set; shell IPC removed; packaged Node + `prm-api.mjs` spawned by Tauri; CI builds Linux/macOS/Windows on `main` |
 
 ## Remaining gaps (honest)
 
-1. **Faithfulness evals** — citation allowlist strips unknown ids; prose invention still possible.
+1. **Faithfulness depth** — heuristics catch common invention patterns; not a full groundedness eval suite.
 2. **External / multi-party audit custody** — local HMAC pack is still EM-controlled; not WORM / HRIS-grade.
-3. **API as Tauri sidecar** — desktop still talks HTTP to a separately started Node API.
-4. **Autosave / writing-time metric** — not implemented.
-5. **Bundle pipeline states** — exported / returned / waived not modeled.
+3. **Concern → AI opt-in** — storage + `ai_allowed` flag exist; digests/drafts do not yet pull opted-in concerns.
+4. **Deadline delivery** — mailto / copy only while the app is open; no Slack or scheduled OS notifications.
 
 ## Explicit non-goals (unchanged)
 
