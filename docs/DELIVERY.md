@@ -6,6 +6,8 @@ Aligned to [TRUST_MODEL.md](./architecture/TRUST_MODEL.md).
 
 ## Phase 0 — Foundations & safety
 
+**Status:** Implemented in-repo (browser+API; Tauri shell compiles).
+
 **Outcome:** Signed-capable app skeleton that can hold real data safely.
 
 - Tauri + Vite UI + IPC (spike: no naked HTTP API)
