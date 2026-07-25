@@ -108,6 +108,8 @@ export const reviews = sqliteTable("reviews", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
   sharedAt: text("shared_at"),
+  /** JSON PacketDTO.timeline frozen at finalize/shared. */
+  frozenTimelineJson: text("frozen_timeline_json"),
 });
 
 export const importBundles = sqliteTable("import_bundles", {

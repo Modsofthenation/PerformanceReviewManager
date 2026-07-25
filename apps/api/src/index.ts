@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { basename } from "node:path";
 import { and, eq, isNull } from "drizzle-orm";
 import {
   achievements,
@@ -66,6 +67,18 @@ import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations
 import { runBiasToneLint } from "./bias.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import { localPeerSynthesize } from "./peerSynth.js";
+import {
+  buildPersonTimeline,
+  collectRatingChanges,
+  evidenceDensityErrors,
+  isShareableVisibility,
+  looksLikeMeetingDoc,
+  redactSnapshotForSubject,
+  resolveEvidenceSnapshot,
+  validateEvidenceLinks,
+  type EvidenceLinkInput,
+  type TimelineEntry,
+} from "./evidenceGates.js";
 
 type Vars = { token: string };
 
@@ -185,7 +198,8 @@ app.get("/api/workspace/status", (c) => {
         const n =
           db.select().from(achievements).where(eq(achievements.personId, p.id)).all().length +
           db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, p.id)).all().length +
-          db.select().from(documents).where(eq(documents.personId, p.id)).all().length;
+          db.select().from(documents).where(eq(documents.personId, p.id)).all().length +
+          db.select().from(goals).where(eq(goals.personId, p.id)).all().length;
         if (n < 2) thinEvidenceCount += 1;
       }
     } catch {
@@ -475,54 +489,32 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
     };
   }
 
-  const timeline: PacketDTO["timeline"] = [];
-  for (const a of achRows) {
-    timeline.push({
-      at: a.occurredAt,
-      kind: "achievement",
-      title: a.title,
-      detail: a.description,
-      sourceId: a.id,
-    });
-  }
-  for (const f of fbRows) {
-    timeline.push({
-      at: f.occurredAt,
-      kind: "feedback",
-      title: `Feedback (${f.kind}) from ${f.fromName ?? "someone"}`,
-      detail: f.body.slice(0, 200),
-      sourceId: f.id,
-    });
-  }
-  for (const d of docRows) {
-    timeline.push({
-      at: d.occurredAt,
-      kind: "document",
-      title: d.title,
-      detail: d.filename,
-      sourceId: d.id,
-    });
-  }
-  for (const g of goalRows) {
-    timeline.push({
-      at: g.createdAt?.slice(0, 10) ?? g.createdAt,
-      kind: "goal",
-      title: g.title,
-      detail: g.status,
-      sourceId: g.id,
-    });
-  }
-  for (const cand of priorCandidates.slice(0, 3)) {
+  const priorEntries: TimelineEntry[] = priorCandidates.slice(0, 3).map((cand) => {
     const p = JSON.parse(cand.review.payloadJson) as Record<string, unknown>;
-    timeline.push({
+    return {
       at: cand.cycle.windowEnd,
       kind: "prior_review",
       title: `${cand.cycle.name} manager review`,
       detail: `Overall ${p.overall ?? "—"} · ${(String(p.summary ?? "")).slice(0, 160)}`,
       sourceId: cand.review.id,
-    });
+    };
+  });
+
+  let timeline: PacketDTO["timeline"] = [];
+  if (
+    manager &&
+    (manager.status === "finalized" || manager.status === "shared") &&
+    manager.frozenTimelineJson
+  ) {
+    try {
+      timeline = JSON.parse(manager.frozenTimelineJson) as PacketDTO["timeline"];
+    } catch {
+      timeline = [];
+    }
   }
-  timeline.sort((a, b) => b.at.localeCompare(a.at));
+  if (!timeline.length) {
+    timeline = buildPersonTimeline(db, personId, { priorEntries }).slice(0, 40);
+  }
 
   const packet: PacketDTO = {
     person: mapPerson(person, a),
@@ -576,50 +568,6 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
   return c.json(packet);
 });
 
-function resolveEvidenceSnapshot(
-  personId: string,
-  sourceType: string,
-  sourceId: string,
-): { title: string; excerpt: string | null; checksum: string | null } | null {
-  const db = getDb();
-  if (sourceType === "achievement") {
-    const row = db.select().from(achievements).where(eq(achievements.id, sourceId)).all()[0];
-    if (!row || row.personId !== personId) return null;
-    return { title: row.title, excerpt: row.description, checksum: null };
-  }
-  if (sourceType === "goal") {
-    const row = db.select().from(goals).where(eq(goals.id, sourceId)).all()[0];
-    if (!row || row.personId !== personId) return null;
-    return { title: row.title, excerpt: row.description, checksum: null };
-  }
-  if (sourceType === "feedback") {
-    const row = db.select().from(feedbackItems).where(eq(feedbackItems.id, sourceId)).all()[0];
-    if (!row || row.toPersonId !== personId) return null;
-    return {
-      title: `Feedback from ${row.fromName ?? "someone"} (${row.kind})`,
-      excerpt: row.body.slice(0, 280),
-      checksum: null,
-    };
-  }
-  if (sourceType === "document") {
-    const row = db.select().from(documents).where(eq(documents.id, sourceId)).all()[0];
-    if (!row || row.personId !== personId) return null;
-    let hash: string | null = null;
-    try {
-      hash = checksum(readDocumentFile(row.storagePath));
-    } catch {
-      hash = null;
-    }
-    return { title: row.title, excerpt: row.filename, checksum: hash };
-  }
-  if (sourceType === "role_expectation") {
-    const row = db.select().from(roleExpectations).where(eq(roleExpectations.id, sourceId)).all()[0];
-    if (!row) return null;
-    return { title: `Expectation (${row.kind})`, excerpt: row.text, checksum: null };
-  }
-  return null;
-}
-
 function inferSourceType(sourceId: string): string {
   if (sourceId.startsWith("ach_")) return "achievement";
   if (sourceId.startsWith("goal_")) return "goal";
@@ -660,26 +608,46 @@ app.put("/api/reviews/manager", async (c) => {
 
   const nextStatus = body.status ?? existing?.status ?? "draft";
   const competencies = (body.payload.competencies ?? {}) as Record<string, number>;
-  const links = body.evidenceLinks ?? [];
+  const links = (body.evidenceLinks ?? []) as EvidenceLinkInput[];
   const prevPayload = existing ? (JSON.parse(existing.payloadJson) as Record<string, unknown>) : {};
   const prevComps = (prevPayload.competencies ?? {}) as Record<string, number>;
   const prevOverall = typeof prevPayload.overall === "number" ? prevPayload.overall : null;
   const nextOverall = typeof body.payload.overall === "number" ? body.payload.overall : null;
   const prevPromo = String(prevPayload.promo_readiness ?? "");
   const nextPromo = String(body.payload.promo_readiness ?? "");
+  const locked = existing && (existing.status === "finalized" || existing.status === "shared");
 
-  const ratingChanges: Array<{ field: string; from: unknown; to: unknown }> = [];
-  if (prevOverall !== null && nextOverall !== null && prevOverall !== nextOverall) {
-    ratingChanges.push({ field: "overall", from: prevOverall, to: nextOverall });
+  if (locked && nextStatus !== "draft") {
+    return c.json(
+      {
+        error: "Finalized reviews are immutable. Reopen to draft with a decision reason before editing.",
+        code: "review_locked",
+      },
+      400,
+    );
   }
-  for (const [key, score] of Object.entries(competencies)) {
-    if (typeof score !== "number") continue;
-    if (prevComps[key] != null && prevComps[key] !== score) {
-      ratingChanges.push({ field: `competency:${key}`, from: prevComps[key], to: score });
+  if (locked && nextStatus === "draft") {
+    if (!(body.decisionReason ?? "").trim()) {
+      return c.json(
+        {
+          error: "Decision reason required to reopen a finalized review.",
+          code: "decision_reason_required",
+        },
+        400,
+      );
     }
   }
-  if (prevPromo && nextPromo && prevPromo !== nextPromo) {
-    ratingChanges.push({ field: "promo_readiness", from: prevPromo, to: nextPromo });
+
+  const ratingChanges = collectRatingChanges({
+    prevOverall,
+    nextOverall,
+    prevComps,
+    nextComps: competencies,
+    prevPromo,
+    nextPromo,
+  });
+  if (locked && nextStatus === "draft") {
+    ratingChanges.push({ field: "status", from: existing!.status, to: "draft" });
   }
 
   if (ratingChanges.length && !(body.decisionReason ?? "").trim()) {
@@ -693,22 +661,25 @@ app.put("/api/reviews/manager", async (c) => {
     );
   }
 
+  if (links.length) {
+    const validated = validateEvidenceLinks(db, body.subjectPersonId, links, {
+      requireShareable: nextStatus === "finalized" || nextStatus === "shared",
+    });
+    if (!validated.ok) {
+      return c.json(
+        {
+          error: `Invalid evidence links (missing, not owned, or em_only): ${validated.invalid.join(", ")}`,
+          code: "evidence_invalid",
+          invalid: validated.invalid,
+        },
+        400,
+      );
+    }
+  }
+
   if (nextStatus === "finalized" || nextStatus === "shared") {
-    const missing: string[] = [];
-    for (const [key, score] of Object.entries(competencies)) {
-      if (typeof score !== "number") continue;
-      if (score === MIDDLE_BAND) continue;
-      const has = links.some((l) => l.targetType === "competency" && l.targetKey === key);
-      if (!has) missing.push(competencyLabel(key));
-    }
     const overall = Number(body.payload.overall ?? MIDDLE_BAND);
-    if (overall !== MIDDLE_BAND) {
-      const hasAny = links.length > 0;
-      if (!hasAny) missing.push("overall rating");
-    }
-    if ((overall === 1 || overall === 5) && links.length < 2) {
-      missing.push("extreme overall (1 or 5) needs ≥2 evidence links");
-    }
+    const missing = evidenceDensityErrors(competencies, overall, links, competencyLabel);
     if (missing.length) {
       return c.json(
         {
@@ -729,6 +700,7 @@ app.put("/api/reviews/manager", async (c) => {
         payloadJson: JSON.stringify(body.payload),
         status: nextStatus,
         updatedAt: ts,
+        frozenTimelineJson: nextStatus === "draft" ? null : existing.frozenTimelineJson,
       })
       .where(eq(reviews.id, existing.id))
       .run();
@@ -809,25 +781,67 @@ app.put("/api/reviews/manager", async (c) => {
       cited.set(`${sourceType}:${cid}`, { sourceType, sourceId: cid });
     }
 
+    let snapCount = 0;
     for (const item of cited.values()) {
-      const snap = resolveEvidenceSnapshot(body.subjectPersonId, item.sourceType, item.sourceId);
+      const snap = resolveEvidenceSnapshot(db, body.subjectPersonId, item.sourceType, item.sourceId);
       if (!snap) continue;
+      // Skip em_only sources from frozen subject-facing citation set
+      if (!isShareableVisibility(snap.visibility)) continue;
+      const redacted = redactSnapshotForSubject({
+        ...snap,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+      });
+      if (!redacted) continue;
       db.insert(citationSnapshots)
         .values({
           id: id("csnap"),
           reviewId,
           sourceType: item.sourceType,
           sourceId: item.sourceId,
-          title: snap.title,
-          excerpt: snap.excerpt,
-          checksum: snap.checksum,
+          title: redacted.title,
+          excerpt: redacted.excerpt,
+          checksum: redacted.checksum,
           createdAt: ts,
         })
         .run();
+      snapCount += 1;
     }
+
+    const priorEntries: TimelineEntry[] = [];
+    const allCycles = db.select().from(cycles).all();
+    for (const cy of allCycles.filter((x) => x.id !== body.cycleId).slice(0, 8)) {
+      const mgr = db
+        .select()
+        .from(reviews)
+        .where(
+          and(eq(reviews.cycleId, cy.id), eq(reviews.subjectPersonId, body.subjectPersonId), eq(reviews.type, "manager")),
+        )
+        .all()
+        .find((r) => r.status === "finalized" || r.status === "shared");
+      if (!mgr) continue;
+      const p = JSON.parse(mgr.payloadJson) as Record<string, unknown>;
+      priorEntries.push({
+        at: cy.windowEnd,
+        kind: "prior_review",
+        title: `${cy.name} manager review`,
+        detail: `Overall ${p.overall ?? "—"}`,
+        sourceId: mgr.id,
+      });
+    }
+    const frozenTimeline = buildPersonTimeline(db, body.subjectPersonId, {
+      subjectFacing: true,
+      priorEntries: priorEntries.slice(0, 3),
+    }).slice(0, 40);
+    db.update(reviews)
+      .set({ frozenTimelineJson: JSON.stringify(frozenTimeline), sharedAt: nextStatus === "shared" ? ts : null })
+      .where(eq(reviews.id, reviewId))
+      .run();
+
     logActivity("review.finalize", "review", reviewId, {
-      snapshots: cited.size,
+      snapshots: snapCount,
       evidenceLinks: links.length,
+      timelineEntries: frozenTimeline.length,
     });
   }
 
@@ -1084,36 +1098,28 @@ app.post("/api/people/:id/documents", async (c) => {
   const form = await c.req.parseBody();
   const file = form.file;
   if (!file || typeof file === "string") return c.json({ error: "file required" }, 400);
-  const allowed = [
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "text/plain",
-    "text/markdown",
-    "text/csv",
-    "image/png",
-    "image/jpeg",
-  ];
   const mime = file.type || "application/octet-stream";
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const extOk = ["pdf", "docx", "pptx", "txt", "md", "csv", "png", "jpg", "jpeg"].includes(ext);
-  if (!extOk && !allowed.includes(mime)) {
-    return c.json({ error: "File type not allowlisted" }, 400);
+  // Extension allowlist is authoritative — do not accept via client Content-Type alone.
+  if (!extOk) {
+    return c.json({ error: "File type not allowlisted (extension)" }, 400);
   }
+  const safeFilename = basename(file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
   const buf = Buffer.from(await file.arrayBuffer());
   if (buf.byteLength > 25 * 1024 * 1024) return c.json({ error: "Max 25MB" }, 400);
 
-  const title = String(form.title || file.name);
+  const title = String(form.title || safeFilename);
   const visibility = String(form.visibility || "em_and_subject");
   const occurredAt = String(form.occurredAt || nowIso().slice(0, 10));
-  const saved = writeEncryptedDocument(file.name, buf);
+  const saved = writeEncryptedDocument(safeFilename, buf);
   const docId = id("doc");
   db.insert(documents)
     .values({
       id: docId,
       personId,
       title,
-      filename: file.name,
+      filename: safeFilename,
       mimeType: mime,
       storagePath: saved.storagePath,
       visibility,
@@ -1131,10 +1137,11 @@ app.get("/api/documents/:id/download", (c) => {
   const doc = db.select().from(documents).where(eq(documents.id, c.req.param("id"))).all()[0];
   if (!doc) return c.json({ error: "Not found" }, 404);
   const data = readDocumentFile(doc.storagePath);
+  const safeName = doc.filename.replace(/["\r\n]/g, "_");
   return new Response(data, {
     headers: {
       "content-type": doc.mimeType || "application/octet-stream",
-      "content-disposition": `attachment; filename="${doc.filename}"`,
+      "content-disposition": `attachment; filename="${safeName}"`,
     },
   });
 });
@@ -1142,6 +1149,9 @@ app.get("/api/documents/:id/download", (c) => {
 function buildEvidenceContext(personId: string, cycleId?: string) {
   const db = getDb();
   const cfg = getAiConfig();
+  const cloudEgress = cfg.enabled && !cfg.localOnly && cfg.provider !== "ollama";
+  const allowPrivateNotes = !cloudEgress || cfg.privateNotesEgress;
+  const allowMeeting = !cloudEgress || cfg.meetingSummaryEgress;
   const allowDocExtract =
     cfg.localOnly || cfg.provider === "ollama" || cfg.documentExtractEgress;
   const dataClassesSent = ["dossier_public"] as string[];
@@ -1173,8 +1183,32 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
   }
   for (const item of ach) lines.push(`Achievement [${item.id}] ${item.occurredAt}: ${item.title}. ${item.description ?? ""}`);
   for (const item of g) lines.push(`Goal [${item.id}] (${item.status}): ${item.title}`);
-  for (const item of fb) lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body}`);
+  for (const item of fb) {
+    if (!allowPrivateNotes && item.visibility === "em_only") {
+      lines.push(`Feedback [${item.id}]: (held back — enable private notes egress or local-only AI)`);
+      continue;
+    }
+    if (item.visibility === "em_only" && allowPrivateNotes && !dataClassesSent.includes("private_notes")) {
+      dataClassesSent.push("private_notes");
+    }
+    lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body}`);
+  }
   for (const d of docs) {
+    const meetingLike = looksLikeMeetingDoc(d.title, d.filename);
+    if (!allowPrivateNotes && d.visibility === "em_only") {
+      lines.push(`Document [${d.id}]: (held back — em_only; enable private notes egress or local-only AI)`);
+      continue;
+    }
+    if (meetingLike && !allowMeeting) {
+      lines.push(`Document [${d.id}]: (held back — meeting/transcript; enable meeting summary egress or local-only AI)`);
+      continue;
+    }
+    if (d.visibility === "em_only" && allowPrivateNotes && !dataClassesSent.includes("private_notes")) {
+      dataClassesSent.push("private_notes");
+    }
+    if (meetingLike && allowMeeting && !dataClassesSent.includes("meeting_summary")) {
+      dataClassesSent.push("meeting_summary");
+    }
     lines.push(`Document [${d.id}] (${d.visibility}): ${d.title} @ ${d.occurredAt}`);
     const ext = (d.filename.split(".").pop() ?? "").toLowerCase();
     const textLike =
@@ -1201,11 +1235,23 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
   for (const p of revs.filter((r) => r.type === "peer")) {
     lines.push(`Peer-review [${p.id}] author=${p.authorName}: ${p.payloadJson}`);
   }
+  const mgr = revs.find((r) => r.type === "manager" && r.status !== "superseded");
+  if (mgr) {
+    const payload = JSON.parse(mgr.payloadJson) as Record<string, unknown>;
+    if (allowPrivateNotes && payload.private_notes) {
+      lines.push(`Private manager notes: ${String(payload.private_notes)}`);
+      if (!dataClassesSent.includes("private_notes")) dataClassesSent.push("private_notes");
+    } else if (payload.private_notes && !allowPrivateNotes) {
+      lines.push(`Private manager notes: (held back — enable private notes egress or local-only AI)`);
+    }
+  }
   const citations = [
     ...ach.map((x) => x.id),
     ...g.map((x) => x.id),
-    ...fb.map((x) => x.id),
-    ...docs.map((x) => x.id),
+    ...fb.filter((x) => allowPrivateNotes || x.visibility !== "em_only").map((x) => x.id),
+    ...docs
+      .filter((d) => (allowPrivateNotes || d.visibility !== "em_only") && (allowMeeting || !looksLikeMeetingDoc(d.title, d.filename)))
+      .map((x) => x.id),
     ...(role?.expectations.map((e) => e.id) ?? []),
     ...(next?.expectations.map((e) => e.id) ?? []),
   ];
@@ -1575,6 +1621,7 @@ app.post("/api/ai/chat", async (c) => {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     personId?: string | null;
     cycleId?: string | null;
+    confirmWorkspaceScope?: boolean;
   }>();
   const cfg = getAiConfig();
   if (!cfg.enabled) return c.json({ error: "Enable AI in Settings" }, 400);
@@ -1601,6 +1648,16 @@ app.post("/api/ai/chat", async (c) => {
 
   const personId = body.personId || undefined;
   const cycleId = body.cycleId || undefined;
+  if (!personId && !body.confirmWorkspaceScope) {
+    return c.json(
+      {
+        error:
+          "Workspace-wide chat sends multi-person dossier data to the model. Pass confirmWorkspaceScope: true or set personId.",
+        code: "workspace_scope_confirmation_required",
+      },
+      400,
+    );
+  }
   if (personId) {
     const person = getDb().select().from(people).where(eq(people.id, personId)).all()[0];
     if (!person) return c.json({ error: "Person not found" }, 404);
@@ -2018,7 +2075,7 @@ app.get("/api/workspace/thin-dossiers", (c) => {
     const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, p.id)).all().length;
     const docs = db.select().from(documents).where(eq(documents.personId, p.id)).all().length;
     const goalsN = db.select().from(goals).where(eq(goals.personId, p.id)).all().length;
-    const evidenceCount = ach + fb + docs;
+    const evidenceCount = ach + fb + docs + goalsN;
     return {
       personId: p.id,
       name: p.name,
@@ -2053,6 +2110,12 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
     .all()
     .find((r) => r.status !== "superseded");
   if (!person || !manager) return c.json({ error: "Manager review required" }, 400);
+  if (manager.status !== "finalized" && manager.status !== "shared") {
+    return c.json(
+      { error: "Finalize the manager review before exporting a subject packet.", code: "not_finalized" },
+      400,
+    );
+  }
   const payload = JSON.parse(manager.payloadJson) as Record<string, unknown>;
   const { private_notes, promo_readiness, ...shared } = payload;
   void private_notes;
@@ -2073,7 +2136,12 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
     .from(citationSnapshots)
     .where(eq(citationSnapshots.reviewId, manager.id))
     .all()
-    .map((s) => ({ title: s.title, excerpt: s.excerpt, sourceId: s.sourceId }));
+    .map((s) => ({
+      title: s.title,
+      excerpt: s.excerpt,
+      sourceId: s.sourceId,
+      sourceType: s.sourceType,
+    }));
   const competencies = (shared.competencies ?? {}) as Record<string, number>;
   const competencyLabels = Object.fromEntries(COMPETENCY_CATALOG.map((x) => [x.key, x.name]));
   const exportedAt = nowIso();
@@ -2113,29 +2181,27 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
     };
   }
 
-  const timeline: Array<{ at: string; kind: string; title: string; detail?: string | null }> = [];
-  for (const aRow of db.select().from(achievements).where(eq(achievements.personId, personId)).all()) {
-    timeline.push({ at: aRow.occurredAt, kind: "achievement", title: aRow.title, detail: aRow.description });
+  let timelineSlice: Array<{ at: string; kind: string; title: string; detail?: string | null }> = [];
+  if (manager.frozenTimelineJson) {
+    try {
+      timelineSlice = JSON.parse(manager.frozenTimelineJson) as typeof timelineSlice;
+    } catch {
+      timelineSlice = [];
+    }
   }
-  for (const f of db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, personId)).all()) {
-    timeline.push({
-      at: f.occurredAt,
-      kind: "feedback",
-      title: `Feedback (${f.kind})`,
-      detail: f.body.slice(0, 160),
+  if (!timelineSlice.length) {
+    const priorEntries = priorCandidates.slice(0, 3).map((cand) => {
+      const p = JSON.parse(cand.review.payloadJson) as Record<string, unknown>;
+      return {
+        at: cand.cycle.windowEnd,
+        kind: "prior_review",
+        title: `${cand.cycle.name} manager review`,
+        detail: `Overall ${p.overall ?? "—"}`,
+        sourceId: cand.review.id,
+      };
     });
+    timelineSlice = buildPersonTimeline(db, personId, { subjectFacing: true, priorEntries }).slice(0, 24);
   }
-  for (const cand of priorCandidates.slice(0, 3)) {
-    const p = JSON.parse(cand.review.payloadJson) as Record<string, unknown>;
-    timeline.push({
-      at: cand.cycle.windowEnd,
-      kind: "prior_review",
-      title: `${cand.cycle.name} manager review`,
-      detail: `Overall ${p.overall ?? "—"}`,
-    });
-  }
-  timeline.sort((a, b) => b.at.localeCompare(a.at));
-  const timelineSlice = timeline.slice(0, 24);
 
   if (format === "html" || format === "pdf") {
     const html = renderSubjectPacketHtml({
@@ -2166,7 +2232,8 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
 
   return c.json({
     subject: person.name,
-    notice: "Author names for peer input are hidden in this shared packet — not cryptographically anonymous.",
+    notice:
+      "Author names for peer input are hidden in this shared packet — not cryptographically anonymous. PDF = browser Print → Save as PDF.",
     summary: shared.summary,
     strengths: shared.strengths,
     growth_areas: shared.growth_areas,

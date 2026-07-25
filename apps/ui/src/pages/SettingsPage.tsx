@@ -196,12 +196,15 @@ export function SettingsPage() {
           </label>
         </div>
         <h3>Private-tier cloud egress</h3>
-        <p className="muted">Default deny. Enabling sends that class to the cloud provider under your API key contract.</p>
+        <p className="muted">
+          Default deny on cloud providers. Local-only / Ollama ignore these and may still use local context.
+          Unticked classes are held back from digests, drafts, and chat.
+        </p>
         {(
           [
-            ["privateNotesEgress", "Private notes"],
-            ["meetingSummaryEgress", "Meeting summaries"],
-            ["documentExtractEgress", "Document extracts"],
+            ["privateNotesEgress", "Private notes & em_only feedback/docs"],
+            ["meetingSummaryEgress", "Meeting / 1:1 / transcript-like documents"],
+            ["documentExtractEgress", "Text document body extracts"],
           ] as const
         ).map(([key, label]) => (
           <div className="field" key={key}>

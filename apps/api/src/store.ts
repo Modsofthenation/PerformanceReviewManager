@@ -190,13 +190,13 @@ export function deriveWorkspaceSecret(password: string, salt: string) {
 export function createSession(password: string, salt: string) {
   sessionToken = nanoid(32);
   workspaceSecret = deriveWorkspaceSecret(password, salt);
+  // Persist token only — never write the workspace AES key to disk.
+  // API restart requires re-unlock (secret stays in-process memory).
   writeFileSync(
     SESSION_PATH,
     JSON.stringify({
       token: sessionToken,
       createdAt: new Date().toISOString(),
-      // store secret wrapped — session file is mode 0600; cleared on lock
-      secret: workspaceSecret.toString("base64"),
       salt,
     }),
     { mode: 0o600 },
@@ -219,7 +219,17 @@ export function loadSessionFromDisk() {
       salt?: string;
     };
     sessionToken = raw.token;
-    if (raw.secret) workspaceSecret = Buffer.from(raw.secret, "base64");
+    // Legacy sessions may still contain a secret; ignore it and force re-unlock.
+    if (raw.secret) {
+      try {
+        unlinkSync(SESSION_PATH);
+      } catch {
+        /* ignore */
+      }
+      sessionToken = null;
+      workspaceSecret = null;
+      return null;
+    }
     return sessionToken;
   } catch {
     return null;
@@ -227,11 +237,10 @@ export function loadSessionFromDisk() {
 }
 
 export function getSessionToken() {
-  return sessionToken ?? loadSessionFromDisk();
+  return sessionToken;
 }
 
 export function getWorkspaceSecret() {
-  if (!workspaceSecret) loadSessionFromDisk();
   return workspaceSecret;
 }
 
@@ -241,7 +250,7 @@ export function setWorkspaceSecret(secret: Buffer) {
 
 export function requireSession(token: string | undefined) {
   const current = getSessionToken();
-  return Boolean(current && token && current === token && existsSync(DB_PATH));
+  return Boolean(current && token && current === token && workspaceSecret && existsSync(DB_PATH));
 }
 
 /** Initialize vault + open plaintext DB for first-time create/seed. */
@@ -406,9 +415,17 @@ export function logActivity(action: string, entityType?: string, entityId?: stri
   return hash;
 }
 
-/** Ensure DB is open if session exists (dev server restart). */
+/** Ensure DB is open only when this process holds the in-memory secret (post-unlock). */
 export function ensureOpenFromSession() {
-  loadSessionFromDisk();
+  // Drop legacy sessions that stored the AES key on disk.
+  if (existsSync(SESSION_PATH)) {
+    try {
+      const raw = JSON.parse(readFileSync(SESSION_PATH, "utf8")) as { secret?: string };
+      if (raw.secret) unlinkSync(SESSION_PATH);
+    } catch {
+      /* ignore */
+    }
+  }
   if (sessionToken && workspaceSecret && existsSync(DB_PATH) && !dbHandle) {
     const opened = openDatabase(DB_PATH);
     sqliteHandle = opened.sqlite;

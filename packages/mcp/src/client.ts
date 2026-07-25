@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { readFileSync, realpathSync } from "node:fs";
+import { basename, resolve, sep } from "node:path";
 
 export type PrmClientOptions = {
   baseUrl?: string;
@@ -18,18 +18,36 @@ export class PrmApiError extends Error {
   }
 }
 
+function assertUploadPathAllowed(filePath: string) {
+  const resolved = realpathSync(resolve(filePath));
+  const roots = (process.env.PRM_UPLOAD_ROOTS ?? "")
+    .split(":")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((r) => realpathSync(resolve(r)));
+  const defaults = [realpathSync(resolve(process.cwd())), realpathSync("/tmp")];
+  const allow = [...defaults, ...roots];
+  const ok = allow.some((root) => resolved === root || resolved.startsWith(root + sep));
+  if (!ok) {
+    throw new Error(
+      `filePath not under allowed roots (cwd, /tmp, or PRM_UPLOAD_ROOTS): ${resolved}`,
+    );
+  }
+  return resolved;
+}
+
 /**
  * Thin HTTP client for the local PRM API (http://127.0.0.1:8787).
  * Handles unlock + token reuse so MCP tools can mutate the vault.
  */
 export class PrmClient {
   readonly baseUrl: string;
-  private password: string;
+  private password: string | null;
   private token: string | null;
 
   constructor(opts: PrmClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? process.env.PRM_API_URL ?? "http://127.0.0.1:8787").replace(/\/$/, "");
-    this.password = opts.password ?? process.env.PRM_PASSWORD ?? "workbench";
+    this.password = opts.password ?? process.env.PRM_PASSWORD ?? null;
     this.token = opts.token ?? process.env.PRM_TOKEN ?? null;
   }
 
@@ -42,16 +60,25 @@ export class PrmClient {
   }
 
   async unlock(password?: string) {
+    const pw = password ?? this.password;
+    if (!pw) {
+      throw new Error(
+        "Password required. Call prm_unlock with password, or set PRM_PASSWORD (no demo default).",
+      );
+    }
     const res = await this.requestJson<{ token: string; name?: string }>("POST", "/api/workspace/unlock", {
       auth: false,
-      body: { password: password ?? this.password },
+      body: { password: pw },
     });
     this.token = res.token;
-    if (password) this.password = password;
+    this.password = pw;
     return res;
   }
 
-  /** Unlock if needed; no-op when already authorized. */
+  /**
+   * Reuse an existing token when the vault is already unlocked.
+   * Does not auto-unlock with a default password — call prm_unlock explicitly.
+   */
   async ensureUnlocked() {
     const s = await this.status();
     if (!s.initialized) {
@@ -65,8 +92,11 @@ export class PrmClient {
         this.token = null;
       }
     }
-    const unlocked = await this.unlock();
-    return { token: unlocked.token, reused: false as const, name: unlocked.name };
+    if (this.password) {
+      const unlocked = await this.unlock();
+      return { token: unlocked.token, reused: false as const, name: unlocked.name };
+    }
+    throw new Error("Vault locked. Call prm_unlock with the workspace password (or set PRM_PASSWORD).");
   }
 
   async listPeople() {
@@ -158,8 +188,9 @@ export class PrmClient {
     await this.ensureUnlocked();
     if (!this.token) throw new Error("Not unlocked");
 
-    const bytes = readFileSync(opts.filePath);
-    const filename = basename(opts.filePath);
+    const safePath = assertUploadPathAllowed(opts.filePath);
+    const bytes = readFileSync(safePath);
+    const filename = basename(safePath);
     const form = new FormData();
     form.append("file", new Blob([new Uint8Array(bytes)]), filename);
     if (opts.title) form.append("title", opts.title);

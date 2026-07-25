@@ -12,6 +12,7 @@
     "build": "pnpm -r build",
     "db:seed": "pnpm --filter @prm/api seed",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @prm/api test",
     "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "engines": {
