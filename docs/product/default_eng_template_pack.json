@@ -141,9 +141,16 @@
           "type": "text",
           "key": "summary",
           "label": "Executive summary",
-          "prompt": "2–3 paragraphs the IC will read first. Be specific.",
+          "prompt": "2–3 paragraphs the IC will read first. Judge against their assigned role expectations. Be specific.",
           "required": true,
           "min_length": 200
+        },
+        {
+          "type": "role_fit",
+          "key": "role_fit",
+          "label": "Fit to current role responsibilities",
+          "prompt": "Assess against the assigned RoleDefinition (uploaded R&R). Attach evidence per key expectation.",
+          "required": true
         },
         {
           "type": "competency_scores",
@@ -167,6 +174,13 @@
           "type": "goals_review",
           "key": "goals",
           "label": "Goals this cycle"
+        },
+        {
+          "type": "next_level_gap",
+          "key": "next_level_gap",
+          "label": "Comparison to next progression",
+          "prompt": "For each expectation on the target next RoleDefinition, mark demonstrating / emerging / not_yet and link evidence. This is separate from the performance rating.",
+          "required": true
         },
         {
           "type": "text",
@@ -193,6 +207,51 @@
           "key": "ack",
           "label": "IC acknowledgment",
           "phase": "post_share"
+        }
+      ]
+    },
+    "promotion": {
+      "name": "Promotion packet",
+      "requires_role_framework": true,
+      "blocks": [
+        {
+          "type": "text",
+          "key": "case_summary",
+          "label": "Promotion case summary",
+          "prompt": "Why this person for the target next role now. Map to next RoleDefinition, not generic praise.",
+          "required": true,
+          "min_length": 200
+        },
+        {
+          "type": "next_level_gap",
+          "key": "next_role_expectations",
+          "label": "Evidence vs next-role expectations",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "scope_examples",
+          "label": "Examples of next-level scope already demonstrated",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "remaining_gaps",
+          "label": "Remaining gaps and mitigation plan",
+          "required": true
+        },
+        {
+          "type": "promo_signal",
+          "key": "recommendation",
+          "label": "Recommendation",
+          "options": ["ready", "not_yet"],
+          "required": true
+        },
+        {
+          "type": "private_text",
+          "key": "committee_notes",
+          "label": "Private sponsor / committee notes",
+          "visibility": "manager_hr_director"
         }
       ]
     },
