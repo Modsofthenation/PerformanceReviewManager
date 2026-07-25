@@ -36,3 +36,4 @@ See `apps/desktop/README.md`.
 ## Docs
 
 Product/architecture under `/docs` (trust model, delivery, local stack).
+Core loop evaluation & capture gaps: [`docs/CORE_LOOP_EVAL.md`](./docs/CORE_LOOP_EVAL.md).

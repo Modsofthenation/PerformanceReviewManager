@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
+import { NextStep, PageHeader } from "../components/PageChrome";
 
 export function TeamPage() {
   const [people, setPeople] = useState<PersonDTO[]>([]);
@@ -31,17 +32,41 @@ export function TeamPage() {
 
   const directs = people.filter((p) => p.managerId);
   const em = people.find((p) => !p.managerId);
+  const unassigned = directs.filter((p) => !p.roleDefinitionId);
+  const thin = directs.filter((p) => !p.roleDefinitionId || !p.targetNextRoleDefinitionId);
 
   return (
     <div className="stack">
-      <div>
-        <h1>Team</h1>
-        <p>People are dossier subjects — they do not need app accounts. EM: {em?.name ?? "—"}</p>
-      </div>
+      <PageHeader
+        title="Team"
+        job="Open a dossier to capture evidence, or add someone new. People are subjects — they do not need app accounts."
+        primary={unassigned[0] ? <Link className="btn" to="/roles">Assign missing roles</Link> : undefined}
+        secondary={<a className="btn secondary" href="#add-person">Add person</a>}
+      />
+
+      {unassigned.length > 0 && (
+        <NextStep
+          tone="warn"
+          label={`${unassigned.length} direct${unassigned.length === 1 ? "" : "s"} need a role`}
+          detail="Role definitions are the bar for reviews and promotions. Assign current (+ optional next) before writing."
+          action={<Link className="btn" to="/roles">Assign roles</Link>}
+        />
+      )}
+
+      {unassigned.length === 0 && directs[0] && (
+        <NextStep
+          tone="brand"
+          label={`Capture evidence: ${directs[0].name}`}
+          detail="Add achievements, feedback, goals, and documents year-round so cycle writing stays under 45 minutes."
+          action={<Link className="btn" to={`/team/${directs[0].id}`}>Open dossier</Link>}
+        />
+      )}
+
       <div className="panel">
+        <p className="muted" style={{ marginTop: 0 }}>EM: {em?.name ?? "—"} · {directs.length} directs</p>
         <table className="table">
           <thead>
-            <tr><th>Name</th><th>Title</th><th>Level</th><th>Role</th><th>Next</th><th></th></tr>
+            <tr><th>Name</th><th>Title</th><th>Level</th><th>Role</th><th>Next</th><th>Your move</th></tr>
           </thead>
           <tbody>
             {directs.map((p) => (
@@ -51,14 +76,25 @@ export function TeamPage() {
                 <td>{p.levelKey}</td>
                 <td>{p.roleTitle ?? <span className="flag">unassigned</span>}</td>
                 <td className="muted">{p.targetNextRoleTitle ?? "—"}</td>
-                <td><Link to={`/team/${p.id}`}>Dossier</Link></td>
+                <td>
+                  {!p.roleDefinitionId ? (
+                    <Link className="btn" to="/roles">Assign role</Link>
+                  ) : (
+                    <Link className="btn" to={`/team/${p.id}`}>Open dossier</Link>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {thin.length === 0 && directs.length > 0 && (
+          <p className="muted" style={{ marginBottom: 0, marginTop: "0.75rem" }}>All directs have roles. Keep dossiers fresh from each person’s page.</p>
+        )}
       </div>
-      <form className="panel" onSubmit={addPerson}>
+
+      <form className="panel" id="add-person" onSubmit={addPerson}>
         <h2>Add person</h2>
+        <p className="muted">Creates a dossier subject under you. Assign a role next.</p>
         <div className="grid-2">
           <div className="field"><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} required /></div>
           <div className="field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
@@ -69,7 +105,9 @@ export function TeamPage() {
             </select>
           </div>
         </div>
-        <button className="btn">Add</button>
+        <div className="cta-primary-row">
+          <button className="btn">Add to team</button>
+        </div>
       </form>
     </div>
   );

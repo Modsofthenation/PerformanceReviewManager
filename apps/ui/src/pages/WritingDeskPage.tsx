@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { api } from "../lib/api";
+import { NextStep, PageHeader } from "../components/PageChrome";
 
 export function WritingDeskPage() {
   const { cycleId, personId } = useParams();
@@ -53,6 +54,8 @@ export function WritingDeskPage() {
   }, [showGaps, packet?.nextRole?.id]);
 
   const flags = packet?.flags ?? [];
+  const reviewStatus = packet?.managerReview?.status ?? "missing";
+  const finalized = reviewStatus === "finalized" || reviewStatus === "shared";
 
   async function save(nextStatus = "draft") {
     if (!cycleId || !personId) return;
@@ -85,18 +88,84 @@ export function WritingDeskPage() {
 
   return (
     <div className="stack">
-      <div className="row">
-        <div>
-          <h1>{packet.person.name}</h1>
-          <p>
-            {packet.currentRole?.title ?? "No role"}
-            {packet.nextRole ? ` → ${packet.nextRole.title}` : ""} ·{" "}
-            <Link to={`/team/${packet.person.id}`}>Dossier</Link>
-          </p>
-        </div>
-        <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
-        <button className="btn" onClick={() => save("finalized")}>Finalize</button>
-      </div>
+      <PageHeader
+        title={packet.person.name}
+        job={`${packet.currentRole?.title ?? "No role"}${packet.nextRole ? ` → ${packet.nextRole.title}` : ""} · Draft against evidence, then finalize and preview what the IC will see.`}
+        primary={
+          finalized ? (
+            <button
+              className="btn"
+              onClick={async () => {
+                const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
+                setSubjectExport(exp);
+              }}
+            >
+              Preview subject export
+            </button>
+          ) : (
+            <button className="btn" onClick={() => save("finalized")}>Finalize review</button>
+          )
+        }
+        secondary={
+          <>
+            <Link className="btn ghost" to={`/team/${packet.person.id}`}>Dossier</Link>
+            {!finalized && (
+              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
+            )}
+          </>
+        }
+      />
+
+      {!packet.currentRole ? (
+        <NextStep
+          tone="warn"
+          label="Assign a role before finalizing"
+          detail="Ratings should be judged against a published RoleDefinition."
+          action={<Link className="btn" to="/roles">Assign role</Link>}
+        />
+      ) : !packet.selfReview ? (
+        <NextStep
+          tone="warn"
+          label="Self-review still missing"
+          detail="You can draft now, but import the self bundle when it arrives — or waive later with a reason (coming soon)."
+          action={<Link className="btn" to="/cycles">Import self bundle</Link>}
+        />
+      ) : finalized ? (
+        <NextStep
+          tone="ok"
+          label="Review finalized"
+          detail="Preview the subject export (private notes omitted). Open a promotion packet if readiness is ready/not yet."
+          action={
+            <>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
+                  setSubjectExport(exp);
+                }}
+              >
+                Preview subject export
+              </button>
+              {(promo === "ready" || promo === "not_yet") && (
+                <Link className="btn secondary" to="/promotions">Open promotions</Link>
+              )}
+            </>
+          }
+        />
+      ) : (
+        <NextStep
+          tone="brand"
+          label="Draft → Save → Finalize"
+          detail="Fill role fit and narrative from the packet on the left. Use AI drafts as starting points, then Finalize when ready to share."
+          action={
+            <>
+              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
+              <button className="btn" onClick={() => save("finalized")}>Finalize review</button>
+            </>
+          }
+        />
+      )}
+
       {flags.length > 0 && (
         <div>{flags.map((f) => <span className="flag" key={f}>{f}</span>)}</div>
       )}
@@ -117,10 +186,10 @@ export function WritingDeskPage() {
                   setDigest(res.outputText);
                 }}
               >
-                Generate
+                Generate digest
               </button>
             </div>
-            <div className="digest">{digest ?? "Generate a grounded local digest from dossier + imports."}</div>
+            <div className="digest">{digest ?? "Generate a grounded digest from dossier + imports before drafting."}</div>
           </div>
           <div className="panel">
             <h2>Current role expectations</h2>
@@ -247,7 +316,7 @@ export function WritingDeskPage() {
                 >
                   AI gap analysis
                 </button>
-                <Link className="btn secondary" to="/promotions">Promotion packet</Link>
+                <Link className="btn secondary" to="/promotions">Start promotion packet</Link>
               </div>
               {nextExpectations.map((e) => (
                 <div key={e.id} className="field">
@@ -268,16 +337,24 @@ export function WritingDeskPage() {
             <label>Private notes (em_only — omitted from subject export)</label>
             <textarea value={privateNotes} onChange={(e) => setPrivateNotes(e.target.value)} />
           </div>
-          <button
-            className="btn secondary"
-            onClick={async () => {
-              await save("finalized");
-              const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
-              setSubjectExport(exp);
-            }}
-          >
-            Preview subject export
-          </button>
+          <div className="cta-primary-row">
+            {!finalized && (
+              <>
+                <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
+                <button className="btn" onClick={() => save("finalized")}>Finalize review</button>
+              </>
+            )}
+            <button
+              className="btn secondary"
+              onClick={async () => {
+                await save(finalized ? "finalized" : "draft");
+                const exp = await api(`/api/exports/subject/${cycleId}/${personId}`);
+                setSubjectExport(exp);
+              }}
+            >
+              Preview subject export
+            </button>
+          </div>
           {subjectExport && (
             <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre>
           )}
