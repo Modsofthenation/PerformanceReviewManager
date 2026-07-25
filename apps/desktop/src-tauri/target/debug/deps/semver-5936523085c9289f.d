@@ -1,0 +1,11 @@
+/workspace/apps/desktop/src-tauri/target/debug/deps/semver-5936523085c9289f.d: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/display.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/error.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/eval.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/identifier.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/impls.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/parse.rs
+
+/workspace/apps/desktop/src-tauri/target/debug/deps/libsemver-5936523085c9289f.rmeta: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/display.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/error.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/eval.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/identifier.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/impls.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/parse.rs
+
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/lib.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/display.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/error.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/eval.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/identifier.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/impls.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.28/src/parse.rs:

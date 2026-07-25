@@ -2,38 +2,37 @@
 
 Local **solo EM workbench** for evidence-backed performance reviews and promotion cases.
 
-## Quick start
+## Quick start (browser + local API)
 
 ```bash
 pnpm install
+pnpm rebuild better-sqlite3   # if native module missing
 pnpm dev
 ```
 
 - UI: http://localhost:5173  
 - API: http://127.0.0.1:8787  
+- Default seed password: `workbench`  
+- **Lock & encrypt** seals SQLite + files at rest (`prm.sqlite.enc`)
 
-On first launch, create a workspace (or accept the seeded demo). Default seed password: `workbench`.
+## Desktop (Tauri)
 
 ```bash
-pnpm db:seed   # optional CLI seed if DB empty
+pnpm desktop:dev      # opens native window (needs WebView + Rust)
+pnpm desktop:build    # platform installers
 ```
 
-## What's implemented (v1 slice)
+See `apps/desktop/README.md`.
 
-- Encrypted-at-rest **workspace password** gate + session token auth on API
-- People / team dossier (goals, achievements, feedback)
-- Role framework with **stable expectation IDs** + person assignment + next progression
-- Cycles + **self/peer JSON bundle** export/import
-- Writing desk: packet, role fit, conditional next-level gaps, private notes, subject export preview
-- Settings → AI (provider, key storage, private-tier egress toggles)
-- Local grounded evidence digest (cloud drafting hook-ready)
+## Features in this slice
 
-## Stack
-
-pnpm monorepo · Vite/React UI · Hono API on `127.0.0.1` · SQLite · `@prm/shared` types  
-
-Tauri desktop shell is the packaging target next; the app runs fully in browser+local API today.
+- Encrypted vault (AES-256-GCM) for DB + dossier files on lock  
+- People / roles / cycles / writing desk  
+- Document uploads on person dossier  
+- Self/peer JSON bundles  
+- Promotion packets UI  
+- Settings → AI with cloud drafting (Anthropic / OpenAI / Ollama) + local digest fallback  
 
 ## Docs
 
-See `/docs` for product/architecture (trust model, domain, delivery).
+Product/architecture under `/docs` (trust model, delivery, local stack).

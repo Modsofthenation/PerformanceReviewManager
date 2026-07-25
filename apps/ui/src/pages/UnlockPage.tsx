@@ -44,8 +44,9 @@ export function UnlockPage({
       <form className="panel unlock-card" onSubmit={submit}>
         <h1>{status.initialized ? "Unlock workbench" : "Create workbench"}</h1>
         <p>
-          Solo EM performance review manager. Encrypted workspace password gates access.
-          Self/peer input arrives via import bundles — ICs do not log in.
+          Solo EM performance review manager. Your password unlocks an encrypted vault
+          (SQLite + files). Self/peer input arrives via import bundles — ICs do not log in.
+          {status.encryptedAtRest ? " Vault is currently sealed on disk." : ""}
         </p>
         {!status.initialized && (
           <div className="field">

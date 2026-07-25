@@ -6,6 +6,8 @@
     "dev": "pnpm --parallel --filter @prm/api --filter @prm/ui dev",
     "dev:api": "pnpm --filter @prm/api dev",
     "dev:ui": "pnpm --filter @prm/ui dev",
+    "desktop:dev": "pnpm --filter @prm/desktop dev",
+    "desktop:build": "pnpm --filter @prm/desktop build",
     "build": "pnpm -r build",
     "db:seed": "pnpm --filter @prm/api seed",
     "typecheck": "pnpm -r typecheck"

@@ -120,6 +120,19 @@ export function SettingsPage() {
           </div>
         ))}
         <button className="btn">Save AI settings</button>
+        <button
+          type="button"
+          className="btn secondary"
+          onClick={async () => {
+            const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
+              method: "POST",
+              body: "{}",
+            });
+            setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
+          }}
+        >
+          Test connection
+        </button>
         {msg && <p className="muted">{msg}</p>}
       </form>
     </div>

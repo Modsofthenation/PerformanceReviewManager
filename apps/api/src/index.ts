@@ -4,7 +4,6 @@ import { cors } from "hono/cors";
 import { and, eq, isNull } from "drizzle-orm";
 import {
   achievements,
-  aiGenerations,
   aiSettings,
   cycleParticipants,
   cycles,
@@ -14,33 +13,34 @@ import {
   importBundles,
   nextLevelAssessments,
   people,
+  promotionCases,
   reviews,
   roleAssignments,
   roleDefinitions,
   roleExpectations,
-  roleFrameworkVersions,
   workspace,
 } from "@prm/db";
 import type { PacketDTO, PersonDTO, RoleDefinitionDTO, WorkspaceStatus } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
 import {
   checksum,
-  clearSession,
-  createSession,
   encryptSecret,
+  encryptionStatus,
   getDb,
   getSessionToken,
   getWorkspaceSecret,
-  hashPassword,
   id,
   isInitialized,
+  lockVault,
   logActivity,
   nowIso,
   requireSession,
-  setWorkspaceSecret,
-  deriveWorkspaceSecret,
-  verifyPassword,
+  bootstrapVault,
+  unlockVault,
+  writeEncryptedDocument,
+  readDocumentFile,
 } from "./store.js";
+import { buildSystemPrompt, getAiConfig, localDigest, runChat, storeGeneration } from "./ai.js";
 
 type Vars = { token: string };
 
@@ -139,20 +139,33 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 
 app.get("/api/workspace/status", (c) => {
   const initialized = isInitialized();
+  const enc = encryptionStatus();
   const unlocked = Boolean(getSessionToken() && requireSession(getSessionToken() ?? undefined));
   let name: string | null = null;
   let personCount = 0;
   let hasAiKey = false;
   let aiProvider: string | null = null;
-  if (initialized) {
-    const db = getDb();
-    name = db.select().from(workspace).limit(1).all()[0]?.name ?? null;
-    personCount = db.select().from(people).all().length;
-    const ai = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
-    hasAiKey = Boolean(ai?.apiKeyEncrypted);
-    aiProvider = ai?.provider ?? null;
+  if (initialized && unlocked) {
+    try {
+      const db = getDb();
+      name = db.select().from(workspace).limit(1).all()[0]?.name ?? null;
+      personCount = db.select().from(people).all().length;
+      const ai = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
+      hasAiKey = Boolean(ai?.apiKeyEncrypted);
+      aiProvider = ai?.provider ?? null;
+    } catch {
+      /* locked */
+    }
   }
-  const body: WorkspaceStatus = { initialized, unlocked, name, personCount, hasAiKey, aiProvider };
+  const body: WorkspaceStatus & { encryptedAtRest: boolean } = {
+    initialized,
+    unlocked,
+    name,
+    personCount,
+    hasAiKey,
+    aiProvider,
+    encryptedAtRest: enc.encryptedAtRest,
+  };
   return c.json(body);
 });
 
@@ -162,42 +175,43 @@ app.post("/api/workspace/init", async (c) => {
   const password = body.password || "workbench";
   if (body.seed !== false) {
     const result = await seedWorkspace({ name: body.name, password });
-    return c.json({ ...result, token: getSessionToken() });
+    return c.json({ ...result, token: getSessionToken(), encryptedAtRest: false });
   }
+  const { hash, salt } = bootstrapVault(password);
   const db = getDb();
-  const { hash, salt } = hashPassword(password);
   const wsId = id("ws");
-  db.insert(workspace).values({
-    id: wsId,
-    name: body.name || "My Team",
-    createdAt: nowIso(),
-    settingsJson: "{}",
-    passwordHash: hash,
-    passwordSalt: salt,
-  }).run();
+  db.insert(workspace)
+    .values({
+      id: wsId,
+      name: body.name || "My Team",
+      createdAt: nowIso(),
+      settingsJson: "{}",
+      passwordHash: hash,
+      passwordSalt: salt,
+    })
+    .run();
   db.insert(aiSettings).values({ id: "default", enabled: 0, provider: "anthropic" }).run();
-  const token = createSession(password, salt);
   logActivity("workspace.init", "workspace", wsId);
-  return c.json({ workspaceId: wsId, token });
+  return c.json({ workspaceId: wsId, token: getSessionToken() });
 });
 
 app.post("/api/workspace/unlock", async (c) => {
   if (!isInitialized()) return c.json({ error: "Not initialized" }, 400);
   const { password } = await c.req.json<{ password: string }>();
-  const db = getDb();
-  const ws = db.select().from(workspace).limit(1).all()[0];
-  if (!verifyPassword(password, ws.passwordHash, ws.passwordSalt)) {
-    return c.json({ error: "Invalid password" }, 401);
+  try {
+    const token = unlockVault(password);
+    const db = getDb();
+    const ws = db.select().from(workspace).limit(1).all()[0];
+    logActivity("workspace.unlock", "workspace", ws?.id);
+    return c.json({ token, name: ws?.name, encryptedAtRest: false });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Unlock failed" }, 401);
   }
-  const token = createSession(password, ws.passwordSalt);
-  setWorkspaceSecret(deriveWorkspaceSecret(password, ws.passwordSalt));
-  logActivity("workspace.unlock", "workspace", ws.id);
-  return c.json({ token, name: ws.name });
 });
 
 app.post("/api/workspace/lock", (c) => {
-  clearSession();
-  return c.json({ ok: true });
+  lockVault();
+  return c.json({ ok: true, encryptedAtRest: true });
 });
 
 app.get("/api/people", (c) => {
@@ -680,70 +694,427 @@ app.put("/api/ai/settings", async (c) => {
   return c.json({ ok: true });
 });
 
-app.post("/api/ai/digest", async (c) => {
-  const body = await c.req.json<{ cycleId: string; personId: string }>();
+app.post("/api/people/:id/documents", async (c) => {
+  const personId = c.req.param("id");
   const db = getDb();
-  const settings = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
-  const person = db.select().from(people).where(eq(people.id, body.personId)).all()[0];
-  const a = assignmentFor(body.personId);
+  const person = db.select().from(people).where(eq(people.id, personId)).all()[0];
+  if (!person) return c.json({ error: "Not found" }, 404);
+
+  const contentType = c.req.header("content-type") ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return c.json({ error: "Expected multipart form upload" }, 400);
+  }
+  const form = await c.req.parseBody();
+  const file = form.file;
+  if (!file || typeof file === "string") return c.json({ error: "file required" }, 400);
+  const allowed = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "image/png",
+    "image/jpeg",
+  ];
+  const mime = file.type || "application/octet-stream";
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const extOk = ["pdf", "docx", "pptx", "txt", "md", "csv", "png", "jpg", "jpeg"].includes(ext);
+  if (!extOk && !allowed.includes(mime)) {
+    return c.json({ error: "File type not allowlisted" }, 400);
+  }
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.byteLength > 25 * 1024 * 1024) return c.json({ error: "Max 25MB" }, 400);
+
+  const title = String(form.title || file.name);
+  const visibility = String(form.visibility || "em_and_subject");
+  const occurredAt = String(form.occurredAt || nowIso().slice(0, 10));
+  const saved = writeEncryptedDocument(file.name, buf);
+  const docId = id("doc");
+  db.insert(documents)
+    .values({
+      id: docId,
+      personId,
+      title,
+      filename: file.name,
+      mimeType: mime,
+      storagePath: saved.storagePath,
+      visibility,
+      occurredAt,
+      scanStatus: "allowlist_ok",
+      createdAt: nowIso(),
+    })
+    .run();
+  logActivity("document.upload", "document", docId, { personId, bytes: saved.byteSize });
+  return c.json({ id: docId, title, byteSize: saved.byteSize, checksum: checksum(buf) });
+});
+
+app.get("/api/documents/:id/download", (c) => {
+  const db = getDb();
+  const doc = db.select().from(documents).where(eq(documents.id, c.req.param("id"))).all()[0];
+  if (!doc) return c.json({ error: "Not found" }, 404);
+  const data = readDocumentFile(doc.storagePath);
+  return new Response(data, {
+    headers: {
+      "content-type": doc.mimeType || "application/octet-stream",
+      "content-disposition": `attachment; filename="${doc.filename}"`,
+    },
+  });
+});
+
+function buildEvidenceContext(personId: string, cycleId?: string) {
+  const db = getDb();
+  const person = db.select().from(people).where(eq(people.id, personId)).all()[0];
+  const a = assignmentFor(personId);
   const role = loadRole(a?.roleDefinitionId);
   const next = loadRole(a?.targetNextRoleDefinitionId);
-  const ach = db.select().from(achievements).where(eq(achievements.personId, body.personId)).all();
-  const g = db.select().from(goals).where(eq(goals.personId, body.personId)).all();
-  const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, body.personId)).all();
-  const revs = db
-    .select()
-    .from(reviews)
-    .where(and(eq(reviews.cycleId, body.cycleId), eq(reviews.subjectPersonId, body.personId)))
-    .all();
-
-  // Local grounded digest (no cloud call required). If API key present + enabled, still use local synthesis for v1 reliability.
-  const bullets: string[] = [];
-  bullets.push(`Subject: ${person?.name} — role bar: ${role?.title ?? "unassigned"}${next ? ` → next: ${next.title}` : ""}.`);
+  const ach = db.select().from(achievements).where(eq(achievements.personId, personId)).all();
+  const g = db.select().from(goals).where(eq(goals.personId, personId)).all();
+  const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, personId)).all();
+  const docs = db.select().from(documents).where(eq(documents.personId, personId)).all();
+  const revs = cycleId
+    ? db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.cycleId, cycleId), eq(reviews.subjectPersonId, personId)))
+        .all()
+    : [];
+  const lines: string[] = [];
+  lines.push(`Subject: ${person?.name} (${person?.title ?? ""})`);
+  lines.push(`Current role: ${role?.title ?? "unassigned"} [${role?.id ?? ""}]`);
+  if (next) lines.push(`Next role: ${next.title} [${next.id}]`);
   if (role) {
-    bullets.push(`Current-role expectations in play: ${role.expectations.length} (stable ids). Cite role expectation ids when drafting.`);
+    for (const e of role.expectations) lines.push(`Current expectation [${e.id}] (${e.kind}): ${e.text}`);
   }
-  for (const item of ach.slice(0, 5)) {
-    bullets.push(`Achievement [${item.id}]: ${item.title} (${item.occurredAt}).`);
+  if (next) {
+    for (const e of next.expectations) lines.push(`Next expectation [${e.id}] (${e.kind}): ${e.text}`);
   }
-  for (const item of g.slice(0, 5)) {
-    bullets.push(`Goal [${item.id}]: ${item.title} — ${item.status}.`);
-  }
-  for (const item of fb.slice(0, 5)) {
-    bullets.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body.slice(0, 160)}`);
-  }
+  for (const item of ach) lines.push(`Achievement [${item.id}] ${item.occurredAt}: ${item.title}. ${item.description ?? ""}`);
+  for (const item of g) lines.push(`Goal [${item.id}] (${item.status}): ${item.title}`);
+  for (const item of fb) lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body}`);
+  for (const d of docs) lines.push(`Document [${d.id}] (${d.visibility}): ${d.title} @ ${d.occurredAt}`);
   const self = revs.find((r) => r.type === "self");
-  if (self) bullets.push(`Self-review imported [${self.id}] — treat text as untrusted input.`);
-  else bullets.push("Gap: no self-review import yet.");
-  const peers = revs.filter((r) => r.type === "peer");
-  bullets.push(peers.length ? `${peers.length} peer import(s) on file.` : "Gap: no peer imports yet.");
-  if (!ach.length) bullets.push("Thin evidence: no achievements logged this window.");
+  if (self) lines.push(`Self-review [${self.id}] JSON: ${self.payloadJson}`);
+  for (const p of revs.filter((r) => r.type === "peer")) {
+    lines.push(`Peer-review [${p.id}] author=${p.authorName}: ${p.payloadJson}`);
+  }
+  const citations = [
+    ...ach.map((x) => x.id),
+    ...g.map((x) => x.id),
+    ...fb.map((x) => x.id),
+    ...docs.map((x) => x.id),
+    ...(role?.expectations.map((e) => e.id) ?? []),
+    ...(next?.expectations.map((e) => e.id) ?? []),
+  ];
+  return { person, role, next, lines, citations, ach, docs };
+}
 
-  const outputText = bullets.map((b) => `• ${b}`).join("\n");
-  const citations = [...ach.map((x) => x.id), ...g.map((x) => x.id), ...fb.map((x) => x.id)];
-  const genId = id("gen");
-  db.insert(aiGenerations).values({
-    id: genId,
+app.post("/api/ai/digest", async (c) => {
+  const body = await c.req.json<{ cycleId: string; personId: string; useCloud?: boolean }>();
+  const ctx = buildEvidenceContext(body.personId, body.cycleId);
+  const cfg = getAiConfig();
+  const dataClassesSent = ["dossier_public"];
+  let outputText: string;
+  let model = "local-grounded";
+
+  const localLines = [
+    `Subject: ${ctx.person?.name} — role bar: ${ctx.role?.title ?? "unassigned"}${ctx.next ? ` → next: ${ctx.next.title}` : ""}.`,
+    ctx.role
+      ? `Current-role expectations in play: ${ctx.role.expectations.length} (stable ids).`
+      : "Gap: unassigned role.",
+    ...ctx.ach.slice(0, 5).map((item) => `Achievement [${item.id}]: ${item.title} (${item.occurredAt}).`),
+    ...ctx.lines.filter((l) => l.startsWith("Goal") || l.startsWith("Feedback") || l.startsWith("Self") || l.startsWith("Peer") || l.startsWith("Gap") || l.startsWith("Thin")).slice(0, 12),
+  ];
+
+  if (body.useCloud !== false && cfg.enabled && (cfg.hasApiKey || cfg.localOnly || cfg.provider === "ollama")) {
+    try {
+      const result = await runChat("evidence_digest", [
+        { role: "system", content: buildSystemPrompt() },
+        {
+          role: "user",
+          content: `Produce an 8–12 bullet evidence digest for the manager writing desk.\nCite ids.\n\nEVIDENCE:\n${ctx.lines.join("\n")}`,
+        },
+      ]);
+      outputText = result.text;
+      model = result.model;
+    } catch (e) {
+      outputText = `${localDigest(localLines)}\n\n(Cloud draft failed: ${e instanceof Error ? e.message : "error"} — showing local digest.)`;
+    }
+  } else {
+    outputText = localDigest(localLines);
+  }
+
+  const generationId = storeGeneration({
     feature: "evidence_digest",
     subjectPersonId: body.personId,
     cycleId: body.cycleId,
-    model: settings?.enabled ? `${settings.provider}:local-grounded` : "local-grounded",
+    model,
     outputText,
-    citationsJson: JSON.stringify(citations),
-    dataClassesSentJson: JSON.stringify(["dossier_public"]),
-    createdAt: nowIso(),
-  }).run();
-
-  return c.json({
-    generationId: genId,
-    outputText,
-    citations,
-    dataClassesSent: ["dossier_public"],
-    note:
-      settings?.enabled && settings.apiKeyEncrypted
-        ? "Cloud key on file — v1 digest still uses local grounded synthesis; cloud drafting can be layered next."
-        : "Configure an API key in Settings → AI for cloud providers; local grounded digest always available.",
+    citations: ctx.citations,
+    dataClassesSent,
   });
+  return c.json({ generationId, outputText, citations: ctx.citations, dataClassesSent, model });
+});
+
+app.post("/api/ai/draft-section", async (c) => {
+  const body = await c.req.json<{
+    cycleId: string;
+    personId: string;
+    section: "summary" | "strengths" | "growth_areas" | "dev_plan" | "role_fit";
+  }>();
+  const cfg = getAiConfig();
+  if (!cfg.enabled) return c.json({ error: "Enable AI in Settings" }, 400);
+  const ctx = buildEvidenceContext(body.personId, body.cycleId);
+  try {
+    const result = await runChat("draft_section", [
+      { role: "system", content: buildSystemPrompt() },
+      {
+        role: "user",
+        content: `Draft the manager review section "${body.section}" (2–3 short paragraphs or bullets).
+Ground every claim in evidence ids. Section purpose:
+- summary: overall narrative vs current role
+- strengths: specific strengths
+- growth_areas: specific growth
+- dev_plan: next-cycle focus
+- role_fit: assessment vs current RoleDefinition expectations
+
+EVIDENCE:
+${ctx.lines.join("\n")}`,
+      },
+    ]);
+    const generationId = storeGeneration({
+      feature: "draft_section",
+      subjectPersonId: body.personId,
+      cycleId: body.cycleId,
+      model: result.model,
+      outputText: result.text,
+      citations: ctx.citations,
+      dataClassesSent: ["dossier_public"],
+    });
+    return c.json({ generationId, outputText: result.text, section: body.section, model: result.model, citations: ctx.citations });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
+  }
+});
+
+app.post("/api/ai/role-gap", async (c) => {
+  const body = await c.req.json<{ cycleId: string; personId: string }>();
+  const cfg = getAiConfig();
+  if (!cfg.enabled) return c.json({ error: "Enable AI in Settings" }, 400);
+  const ctx = buildEvidenceContext(body.personId, body.cycleId);
+  if (!ctx.next) return c.json({ error: "No target next role assigned" }, 400);
+  try {
+    const result = await runChat("role_gap", [
+      { role: "system", content: buildSystemPrompt() },
+      {
+        role: "user",
+        content: `For each NEXT-role expectation id, classify demonstrating|emerging|not_yet with a one-line rationale and citations.
+Return markdown list: - [rexp_id] mark — rationale [citations]
+
+EVIDENCE:
+${ctx.lines.join("\n")}`,
+      },
+    ]);
+    const generationId = storeGeneration({
+      feature: "role_gap",
+      subjectPersonId: body.personId,
+      cycleId: body.cycleId,
+      model: result.model,
+      outputText: result.text,
+      citations: ctx.citations,
+      dataClassesSent: ["dossier_public"],
+    });
+    return c.json({ generationId, outputText: result.text, model: result.model });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
+  }
+});
+
+app.post("/api/ai/test", async (c) => {
+  const cfg = getAiConfig();
+  try {
+    if (cfg.localOnly || cfg.provider === "ollama") {
+      const text = await runChat("evidence_digest", [
+        { role: "system", content: "Reply with exactly: OK" },
+        { role: "user", content: "ping" },
+      ]);
+      return c.json({ ok: true, model: text.model, sample: text.text.slice(0, 80) });
+    }
+    if (!cfg.hasApiKey) return c.json({ ok: false, error: "No API key" }, 400);
+    const text = await runChat("evidence_digest", [
+      { role: "system", content: "Reply with exactly: OK" },
+      { role: "user", content: "ping" },
+    ]);
+    return c.json({ ok: true, model: text.model, sample: text.text.slice(0, 80) });
+  } catch (e) {
+    return c.json({ ok: false, error: e instanceof Error ? e.message : "failed" }, 500);
+  }
+});
+
+app.get("/api/promotions", (c) => {
+  const db = getDb();
+  const rows = db.select().from(promotionCases).all();
+  return c.json(
+    rows.map((r) => {
+      const person = db.select().from(people).where(eq(people.id, r.personId)).all()[0];
+      const current = loadRole(r.currentRoleDefinitionId);
+      const target = loadRole(r.targetRoleDefinitionId);
+      return {
+        id: r.id,
+        status: r.status,
+        personId: r.personId,
+        personName: person?.name,
+        currentRole: current?.title,
+        targetRole: target?.title,
+        cycleId: r.cycleId,
+        reviewId: r.reviewId,
+        createdAt: r.createdAt,
+      };
+    }),
+  );
+});
+
+app.post("/api/promotions", async (c) => {
+  const body = await c.req.json<{ personId: string; cycleId?: string }>();
+  const db = getDb();
+  const a = assignmentFor(body.personId);
+  if (!a?.roleDefinitionId || !a.targetNextRoleDefinitionId) {
+    return c.json({ error: "Person needs current role and target next role" }, 400);
+  }
+  const caseId = id("promo");
+  const ts = nowIso();
+  const reviewId = id("rev");
+  db.insert(reviews)
+    .values({
+      id: reviewId,
+      cycleId: body.cycleId ?? "none",
+      subjectPersonId: body.personId,
+      type: "promotion",
+      status: "draft",
+      authorName: "Manager",
+      payloadJson: JSON.stringify({
+        case_summary: "",
+        scope_examples: "",
+        remaining_gaps: "",
+        recommendation: "not_yet",
+      }),
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .run();
+  const next = loadRole(a.targetNextRoleDefinitionId);
+  for (const e of next?.expectations ?? []) {
+    db.insert(nextLevelAssessments)
+      .values({ id: id("nla"), reviewId, roleExpectationId: e.id, mark: "emerging" })
+      .run();
+  }
+  db.insert(promotionCases)
+    .values({
+      id: caseId,
+      personId: body.personId,
+      cycleId: body.cycleId ?? null,
+      currentRoleDefinitionId: a.roleDefinitionId,
+      targetRoleDefinitionId: a.targetNextRoleDefinitionId,
+      reviewId,
+      status: "draft",
+      createdAt: ts,
+    })
+    .run();
+  logActivity("promotion.create", "promotion_case", caseId);
+  return c.json({ id: caseId, reviewId });
+});
+
+app.get("/api/promotions/:id", (c) => {
+  const db = getDb();
+  const row = db.select().from(promotionCases).where(eq(promotionCases.id, c.req.param("id"))).all()[0];
+  if (!row) return c.json({ error: "Not found" }, 404);
+  const person = db.select().from(people).where(eq(people.id, row.personId)).all()[0];
+  const review = row.reviewId
+    ? db.select().from(reviews).where(eq(reviews.id, row.reviewId)).all()[0]
+    : null;
+  const assessments = row.reviewId
+    ? db.select().from(nextLevelAssessments).where(eq(nextLevelAssessments.reviewId, row.reviewId)).all()
+    : [];
+  return c.json({
+    ...row,
+    person: person ? mapPerson(person, assignmentFor(person.id)) : null,
+    currentRole: loadRole(row.currentRoleDefinitionId),
+    targetRole: loadRole(row.targetRoleDefinitionId),
+    review: review
+      ? {
+          id: review.id,
+          status: review.status,
+          payload: JSON.parse(review.payloadJson),
+        }
+      : null,
+    assessments,
+  });
+});
+
+app.put("/api/promotions/:id", async (c) => {
+  const body = await c.req.json<{
+    status?: string;
+    payload?: Record<string, unknown>;
+    assessments?: Array<{ roleExpectationId: string; mark: string }>;
+  }>();
+  const db = getDb();
+  const row = db.select().from(promotionCases).where(eq(promotionCases.id, c.req.param("id"))).all()[0];
+  if (!row?.reviewId) return c.json({ error: "Not found" }, 404);
+  if (body.status) {
+    db.update(promotionCases).set({ status: body.status }).where(eq(promotionCases.id, row.id)).run();
+  }
+  if (body.payload) {
+    db.update(reviews)
+      .set({ payloadJson: JSON.stringify(body.payload), updatedAt: nowIso(), status: body.status === "submitted" ? "submitted" : "draft" })
+      .where(eq(reviews.id, row.reviewId))
+      .run();
+  }
+  if (body.assessments) {
+    const old = db.select().from(nextLevelAssessments).where(eq(nextLevelAssessments.reviewId, row.reviewId)).all();
+    for (const o of old) db.delete(nextLevelAssessments).where(eq(nextLevelAssessments.id, o.id)).run();
+    for (const a of body.assessments) {
+      db.insert(nextLevelAssessments)
+        .values({ id: id("nla"), reviewId: row.reviewId, roleExpectationId: a.roleExpectationId, mark: a.mark })
+        .run();
+    }
+  }
+  return c.json({ ok: true });
+});
+
+app.post("/api/ai/promotion-draft", async (c) => {
+  const body = await c.req.json<{ promotionId: string }>();
+  const db = getDb();
+  const row = db.select().from(promotionCases).where(eq(promotionCases.id, body.promotionId)).all()[0];
+  if (!row) return c.json({ error: "Not found" }, 404);
+  const cfg = getAiConfig();
+  if (!cfg.enabled) return c.json({ error: "Enable AI in Settings" }, 400);
+  const ctx = buildEvidenceContext(row.personId, row.cycleId ?? undefined);
+  try {
+    const result = await runChat("promotion_draft", [
+      { role: "system", content: buildSystemPrompt() },
+      {
+        role: "user",
+        content: `Draft a promotion case against the NEXT role only.
+Return JSON with keys: case_summary, scope_examples, remaining_gaps, recommendation (ready|not_yet).
+Map evidence to next-role expectations.
+
+EVIDENCE:
+${ctx.lines.join("\n")}`,
+      },
+    ]);
+    const generationId = storeGeneration({
+      feature: "promotion_draft",
+      subjectPersonId: row.personId,
+      cycleId: row.cycleId ?? undefined,
+      model: result.model,
+      outputText: result.text,
+      citations: ctx.citations,
+      dataClassesSent: ["dossier_public"],
+    });
+    return c.json({ generationId, outputText: result.text, model: result.model });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
+  }
 });
 
 app.get("/api/exports/subject/:cycleId/:personId", (c) => {

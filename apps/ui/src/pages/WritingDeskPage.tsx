@@ -161,15 +161,60 @@ export function WritingDeskPage() {
             <textarea value={roleFit} onChange={(e) => setRoleFit(e.target.value)} placeholder="Against current RoleDefinition…" />
           </div>
           <div className="field">
-            <label>Summary</label>
+            <label className="row" style={{ justifyContent: "space-between" }}>
+              <span>Summary</span>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={async () => {
+                  const res = await api<{ outputText: string }>("/api/ai/draft-section", {
+                    method: "POST",
+                    body: JSON.stringify({ cycleId, personId, section: "summary" }),
+                  });
+                  setSummary(res.outputText);
+                }}
+              >
+                AI draft
+              </button>
+            </label>
             <textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
           </div>
           <div className="field">
-            <label>Strengths</label>
+            <label className="row" style={{ justifyContent: "space-between" }}>
+              <span>Strengths</span>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={async () => {
+                  const res = await api<{ outputText: string }>("/api/ai/draft-section", {
+                    method: "POST",
+                    body: JSON.stringify({ cycleId, personId, section: "strengths" }),
+                  });
+                  setStrengths(res.outputText);
+                }}
+              >
+                AI draft
+              </button>
+            </label>
             <textarea value={strengths} onChange={(e) => setStrengths(e.target.value)} />
           </div>
           <div className="field">
-            <label>Growth areas</label>
+            <label className="row" style={{ justifyContent: "space-between" }}>
+              <span>Growth areas</span>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={async () => {
+                  const res = await api<{ outputText: string }>("/api/ai/draft-section", {
+                    method: "POST",
+                    body: JSON.stringify({ cycleId, personId, section: "growth_areas" }),
+                  });
+                  setGrowth(res.outputText);
+                }}
+              >
+                AI draft
+              </button>
+            </label>
             <textarea value={growth} onChange={(e) => setGrowth(e.target.value)} />
           </div>
           <div className="field">
@@ -187,7 +232,23 @@ export function WritingDeskPage() {
           </div>
           {showGaps && (
             <div className="stack">
-              <h3>Next-level gaps ({packet.nextRole?.title ?? "pick next role"})</h3>
+              <div className="row">
+                <h3 style={{ flex: 1 }}>Next-level gaps ({packet.nextRole?.title ?? "pick next role"})</h3>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={async () => {
+                    const res = await api<{ outputText: string }>("/api/ai/role-gap", {
+                      method: "POST",
+                      body: JSON.stringify({ cycleId, personId }),
+                    });
+                    setDigest((d) => `${d ?? ""}\n\n— Role gap —\n${res.outputText}`);
+                  }}
+                >
+                  AI gap analysis
+                </button>
+                <Link className="btn secondary" to="/promotions">Promotion packet</Link>
+              </div>
               {nextExpectations.map((e) => (
                 <div key={e.id} className="field">
                   <label>{e.text}</label>

@@ -1,0 +1,8 @@
+/workspace/apps/desktop/src-tauri/target/debug/deps/lock_api-a725f8519c91f1ca.d: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/mutex.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/remutex.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/rwlock.rs
+
+/workspace/apps/desktop/src-tauri/target/debug/deps/liblock_api-a725f8519c91f1ca.rmeta: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/mutex.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/remutex.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/rwlock.rs
+
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/lib.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/mutex.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/remutex.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lock_api-0.4.14/src/rwlock.rs:

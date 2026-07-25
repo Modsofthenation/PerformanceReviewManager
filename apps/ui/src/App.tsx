@@ -10,6 +10,8 @@ import { RolesPage } from "./pages/RolesPage";
 import { CyclesPage } from "./pages/CyclesPage";
 import { WritingDeskPage } from "./pages/WritingDeskPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { PromotionsPage } from "./pages/PromotionsPage";
+import { PromotionDetailPage } from "./pages/PromotionDetailPage";
 
 export function App() {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
@@ -54,12 +56,16 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <h1 className="brand">PRM</h1>
-        <div className="brand-sub">{status.name} · solo EM workbench</div>
+        <div className="brand-sub">
+          {status.name} · solo EM workbench
+          {status.encryptedAtRest ? " · vault sealed" : " · vault open"}
+        </div>
         <nav className="nav">
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/team">Team</NavLink>
           <NavLink to="/roles">Roles</NavLink>
           <NavLink to="/cycles">Cycles</NavLink>
+          <NavLink to="/promotions">Promotions</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
         <div style={{ marginTop: "2rem" }}>
@@ -71,7 +77,7 @@ export function App() {
               await refresh();
             }}
           >
-            Lock workspace
+            Lock & encrypt
           </button>
         </div>
       </aside>
@@ -83,6 +89,8 @@ export function App() {
           <Route path="/roles" element={<RolesPage />} />
           <Route path="/cycles" element={<CyclesPage />} />
           <Route path="/cycles/:cycleId/write/:personId" element={<WritingDeskPage />} />
+          <Route path="/promotions" element={<PromotionsPage />} />
+          <Route path="/promotions/:id" element={<PromotionDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

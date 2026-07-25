@@ -16,9 +16,8 @@ import {
   workspace,
 } from "@prm/db";
 import {
-  createSession,
+  bootstrapVault,
   getDb,
-  hashPassword,
   id,
   logActivity,
   nowIso,
@@ -101,14 +100,18 @@ export async function seedWorkspace(opts: {
   password?: string;
   emName?: string;
 } = {}) {
+  const password = opts.password ?? "workbench";
+  const { hash, salt } = bootstrapVault(password);
   const db = getDb();
   const existing = db.select().from(workspace).limit(1).all();
-  if (existing.length) {
+  if (existing.length > 1) {
+    throw new Error("Workspace already initialized");
+  }
+  // bootstrap creates empty DB; workspace row should not exist yet
+  if (existing.length === 1) {
     throw new Error("Workspace already initialized");
   }
 
-  const password = opts.password ?? "workbench";
-  const { hash, salt } = hashPassword(password);
   const wsId = id("ws");
   const accountId = id("acct");
   const createdAt = nowIso();
@@ -281,7 +284,6 @@ export async function seedWorkspace(opts: {
     }).run();
   }
 
-  createSession(password, salt);
   logActivity("workspace.seeded", "workspace", wsId, { people: TEAM.length, dataDir: paths.root });
 
   return {

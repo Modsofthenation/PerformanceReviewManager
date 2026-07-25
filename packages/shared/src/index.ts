@@ -83,4 +83,5 @@ export interface WorkspaceStatus {
   personCount: number;
   hasAiKey: boolean;
   aiProvider: string | null;
+  encryptedAtRest?: boolean;
 }
