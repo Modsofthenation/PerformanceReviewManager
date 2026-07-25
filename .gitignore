@@ -4,6 +4,8 @@ data/*.sqlite
 data/*.sqlite-*
 data/files
 data/.unlock
+data/.session
+data/
 .DS_Store
 *.log
 .env
