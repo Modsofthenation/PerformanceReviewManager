@@ -457,12 +457,22 @@ li { margin-bottom: 0.4rem; line-height: 1.55; color: var(--ink-soft); }
 .theme-float .btn { width: auto; margin: 0; min-width: 8.5rem; }
 
 /* ---------- AI chat ---------- */
-.chat-page { min-height: calc(100vh - 4rem); }
+.chat-page {
+  /* Keep composer in the first viewport — don’t push Send below the fold. */
+  height: calc(100vh - 6rem);
+  max-height: calc(100vh - 6rem);
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-page > *:not(.chat-shell) {
+  flex-shrink: 0;
+}
 .chat-scope-row { gap: 1rem; align-items: end; flex-wrap: wrap; }
 .chat-shell {
   display: flex;
   flex-direction: column;
-  min-height: min(62vh, 720px);
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
 }
@@ -546,10 +556,11 @@ li { margin-bottom: 0.4rem; line-height: 1.55; color: var(--ink-soft); }
 .chat-composer {
   display: flex;
   gap: 0.75rem;
-  align-items: end;
+  align-items: flex-end;
   padding: 0.9rem 1.1rem 1.05rem;
   border-top: 1px solid var(--line);
   background: var(--panel-alt);
+  flex-shrink: 0;
 }
 .chat-composer .btn { flex-shrink: 0; min-height: 42px; }
 .chat-error {
@@ -729,6 +740,11 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
   .sidebar-actions { margin-top: 1rem; }
   .main { padding: 1.5rem 1.25rem 3rem; }
   .grid-2, .writing { grid-template-columns: 1fr; }
+  .chat-page {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
   .chat-shell { min-height: 50vh; }
   .chat-composer { flex-direction: column; align-items: stretch; }
 }
