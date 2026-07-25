@@ -1,0 +1,19 @@
+{
+  "name": "performance-review-manager",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @prm/api --filter @prm/ui dev",
+    "dev:api": "pnpm --filter @prm/api dev",
+    "dev:ui": "pnpm --filter @prm/ui dev",
+    "build": "pnpm -r build",
+    "db:seed": "pnpm --filter @prm/api seed",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  }
+}
