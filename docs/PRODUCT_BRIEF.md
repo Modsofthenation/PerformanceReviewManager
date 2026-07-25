@@ -31,6 +31,6 @@ Comp planning, stack-rank machinery, Slack DM surveillance, replacing HRIS.
 
 ## Build order
 
-Foundations → templates/dossier/cycle → calibration/history → AI → integrations → enterprise hardening.
+Local desktop foundations (Tauri + SQLite) → templates/dossier/cycle → calibration/history → AI → integrations → hardening.
 
-See [DELIVERY.md](./DELIVERY.md) for phases and [FEATURES.md](./product/FEATURES.md) for the full catalog.
+See [DELIVERY.md](./DELIVERY.md) for phases, [LOCAL_STACK.md](./architecture/LOCAL_STACK.md) for runtime stack, and [FEATURES.md](./product/FEATURES.md) for the full catalog.
