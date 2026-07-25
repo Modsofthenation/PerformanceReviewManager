@@ -40,7 +40,13 @@ async function callAnthropic(apiKey: string, model: string, messages: ChatMessag
   return json.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
 }
 
-async function callOpenAI(apiKey: string, model: string, messages: ChatMessage[], baseUrl = "https://api.openai.com/v1") {
+async function callOpenAI(
+  apiKey: string,
+  model: string,
+  messages: ChatMessage[],
+  baseUrl = "https://api.openai.com/v1",
+  label = "OpenAI",
+) {
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
@@ -55,7 +61,7 @@ async function callOpenAI(apiKey: string, model: string, messages: ChatMessage[]
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OpenAI error: ${res.status} ${text.slice(0, 300)}`);
+    throw new Error(`${label} error: ${res.status} ${text.slice(0, 300)}`);
   }
   const json = (await res.json()) as { choices: Array<{ message: { content: string } }> };
   return json.choices[0]?.message?.content ?? "";
@@ -75,10 +81,24 @@ async function callOllama(baseUrl: string, model: string, messages: ChatMessage[
   return json.message?.content ?? "";
 }
 
+const DEFAULT_OLLAMA_BASE = "http://127.0.0.1:11434";
+
+export function defaultCursorBaseUrl(): string {
+  return (process.env.CURSOR_API_BASE_URL?.trim() || "http://127.0.0.1:18789/v1").replace(/\/$/, "");
+}
+
+/** Resolve Cursor OpenAI-compatible base URL; ignore leftover Ollama default. */
+export function resolveCursorBaseUrl(stored: string | null | undefined): string {
+  const raw = (stored ?? "").trim().replace(/\/$/, "");
+  if (raw && raw !== DEFAULT_OLLAMA_BASE.replace(/\/$/, "")) return raw;
+  return defaultCursorBaseUrl();
+}
+
 export function getAiConfig() {
   const db = getDb();
   const row = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
   const secret = getWorkspaceSecret();
+  const provider = row?.provider ?? "anthropic";
   let apiKey: string | null = null;
   if (row?.apiKeyEncrypted && secret) {
     try {
@@ -87,18 +107,23 @@ export function getAiConfig() {
       apiKey = null;
     }
   }
+  if (!apiKey && provider === "cursor") {
+    apiKey = process.env.CURSOR_API_KEY?.trim() || null;
+  }
   return {
     enabled: Boolean(row?.enabled),
-    provider: row?.provider ?? "anthropic",
-    modelDigest: row?.modelDigest ?? "claude-sonnet-4-5",
-    modelDraft: row?.modelDraft ?? "claude-sonnet-4-5",
+    provider,
+    modelDigest: row?.modelDigest ?? (provider === "cursor" ? "composer-2.5" : "claude-sonnet-4-5"),
+    modelDraft: row?.modelDraft ?? (provider === "cursor" ? "composer-2.5" : "claude-sonnet-4-5"),
     localOnly: Boolean(row?.localOnly),
-    ollamaBaseUrl: row?.ollamaBaseUrl ?? "http://127.0.0.1:11434",
+    ollamaBaseUrl: row?.ollamaBaseUrl ?? DEFAULT_OLLAMA_BASE,
+    cursorBaseUrl: resolveCursorBaseUrl(row?.ollamaBaseUrl),
     privateNotesEgress: Boolean(row?.privateNotesEgress),
     meetingSummaryEgress: Boolean(row?.meetingSummaryEgress),
     documentExtractEgress: Boolean(row?.documentExtractEgress),
     apiKey,
     hasApiKey: Boolean(apiKey),
+    apiKeyFromEnv: provider === "cursor" && !row?.apiKeyEncrypted && Boolean(process.env.CURSOR_API_KEY?.trim()),
   };
 }
 
@@ -112,11 +137,27 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
     const text = await callOllama(cfg.ollamaBaseUrl, cfg.modelDraft || "llama3.1", messages);
     return { text, model: `ollama:${cfg.modelDraft || "llama3.1"}`, provider: "ollama" as const };
   }
-  if (!cfg.apiKey) throw new Error("No API key configured");
+  if (!cfg.apiKey) {
+    throw new Error(
+      cfg.provider === "cursor"
+        ? "No Cursor API key — paste one in Settings or set CURSOR_API_KEY"
+        : "No API key configured",
+    );
+  }
   const model = feature === "evidence_digest" ? cfg.modelDigest : cfg.modelDraft;
   if (cfg.provider === "openai") {
     const text = await callOpenAI(cfg.apiKey, model || "gpt-4o-mini", messages);
     return { text, model: `openai:${model}`, provider: "openai" as const };
+  }
+  if (cfg.provider === "cursor") {
+    const text = await callOpenAI(
+      cfg.apiKey,
+      model || "composer-2.5",
+      messages,
+      cfg.cursorBaseUrl,
+      "Cursor",
+    );
+    return { text, model: `cursor:${model || "composer-2.5"}`, provider: "cursor" as const };
   }
   const text = await callAnthropic(cfg.apiKey, model || "claude-sonnet-4-5", messages, maxTokens);
   return { text, model: `anthropic:${model}`, provider: "anthropic" as const };

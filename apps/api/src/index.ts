@@ -65,6 +65,7 @@ import {
   buildSystemPrompt,
   getAiConfig,
   localDigest,
+  resolveCursorBaseUrl,
   runChat,
   storeGeneration,
   type ChatMessage,
@@ -1567,17 +1568,22 @@ app.post("/api/people/:id/feedback", async (c) => {
 app.get("/api/ai/settings", (c) => {
   const db = getDb();
   const row = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
+  const provider = row?.provider ?? "anthropic";
+  const hasStoredKey = Boolean(row?.apiKeyEncrypted);
+  const hasEnvCursorKey = provider === "cursor" && Boolean(process.env.CURSOR_API_KEY?.trim());
   return c.json({
     enabled: Boolean(row?.enabled),
-    provider: row?.provider ?? "anthropic",
+    provider,
     modelDigest: row?.modelDigest,
     modelDraft: row?.modelDraft,
     localOnly: Boolean(row?.localOnly),
     ollamaBaseUrl: row?.ollamaBaseUrl,
+    cursorBaseUrl: resolveCursorBaseUrl(row?.ollamaBaseUrl),
     privateNotesEgress: Boolean(row?.privateNotesEgress),
     meetingSummaryEgress: Boolean(row?.meetingSummaryEgress),
     documentExtractEgress: Boolean(row?.documentExtractEgress),
-    hasApiKey: Boolean(row?.apiKeyEncrypted),
+    hasApiKey: hasStoredKey || hasEnvCursorKey,
+    apiKeyFromEnv: !hasStoredKey && hasEnvCursorKey,
   });
 });
 
