@@ -2,61 +2,64 @@
 
 ## Goals
 
-- Multi-tenant SaaS suitable for mid-size eng orgs (50–2000 employees) first
+- **Local-first desktop app** on Linux, Windows, and macOS (primary v1) — see [LOCAL_STACK.md](./LOCAL_STACK.md)
 - Strong permission boundaries (more important than clever microservices)
 - Fast manager UX for packet assembly and writing
-- Pluggable AI provider with full auditability
-- HRIS/IdP as source of truth for people; this app as source of truth for reviews
+- Pluggable AI provider (cloud BYO key and/or local Ollama) with full auditability
+- Optional integrations (HRIS/IdP/GitHub/Drive); app remains source of truth for reviews offline
+
+Hosted multi-tenant SaaS is a **future adapter swap**, not the v1 packaging target.
 
 ---
 
-## Recommended stack (v1)
+## Recommended stack (v1 — local cross-platform)
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Web app | Next.js (App Router) + TypeScript | Fast product iteration, good SSR for packet views |
-| API | Next.js route handlers + tRPC or REST | Single deployable for v1; extract later if needed |
-| DB | PostgreSQL | Relational integrity for cycles/reviews/permissions |
-| ORM | Prisma or Drizzle | Migrations + type safety |
-| Auth | SSO via OIDC (Google/Microsoft/Okta) | Enterprise default |
-| Jobs | Queue (e.g. Inngest / BullMQ) | Reminders, HRIS sync, AI long runs, signal import |
-| File/object | S3-compatible | Attachments, PDF exports |
-| Search | Postgres full-text → OpenSearch later | Permission-aware search |
-| AI | Provider-agnostic SDK (OpenAI/Anthropic) | Swap models; log everything |
-| Email/Slack | Resend + Slack Bolt | Notifications |
-| Hosting | Container on Fly/Render/AWS | Standard |
+| Desktop shell | **Tauri 2** | Native Win/Mac/Linux installers; small footprint |
+| UI | **React + TypeScript + Vite** | Ideal for local SPA inside Tauri webview |
+| API | **Hono (TS) sidecar on 127.0.0.1** | Domain/AI/doc libs in TypeScript; no public bind by default |
+| DB | **SQLite + Drizzle** | Zero local ops; single-file backup/portability |
+| Auth | Local profiles + OS keychain | Start without SSO; secrets not in plaintext DB |
+| Jobs | In-process scheduler in API | No Redis |
+| File/object | OS app-data directory | Documents, frameworks, exports on disk |
+| Search | SQLite FTS5 | Sufficient for dossier/review search |
+| AI | BYO OpenAI/Anthropic + optional **Ollama** | Online quality + offline path |
+| Notifications | OS notifications + optional email/Slack later | Local-first |
+| Packaging | Tauri bundles (dmg / msi / AppImage|deb) | Normal desktop distribution |
 
-**Monolith-first:** one app + worker until calibration AI or sync load forces splits.
+**Detail, data paths, LAN mode, and rejected alternatives:** [LOCAL_STACK.md](./LOCAL_STACK.md).
+
+### Future hosted variant (not v1)
+
+| Layer | Hosted swap |
+|-------|-------------|
+| UI/API | Next.js or same React+Hono behind HTTPS |
+| DB | PostgreSQL |
+| Files | S3-compatible |
+| Auth | OIDC SSO |
+| Jobs | Queue (BullMQ/Inngest) |
+| Shell | Browser only |
+
+Keep `packages/policy`, `packet`, `ai`, and schema portable across both.
 
 ---
 
-## High-level diagram
+## High-level diagram (local)
 
 ```
-                    ┌─────────────┐
-                    │  IdP / SSO  │
-                    └──────┬──────┘
-                           │
-┌──────────┐         ┌─────▼──────┐         ┌──────────────┐
-│ Slack    │────────▶│  Web App   │◀────────│  HRIS sync   │
-│ Email    │         │  + API     │         │  worker      │
-└──────────┘         └─────┬──────┘         └──────────────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │ Postgres │ │  Queue   │ │ Object   │
-        └──────────┘ └────┬─────┘ │ Store    │
-                          │       └──────────┘
-                          ▼
-                    ┌──────────┐     ┌────────────┐
-                    │ AI worker│────▶│ LLM API    │
-                    └──────────┘     └────────────┘
-                          │
-                          ▼
-                    GitHub/Linear
-                    signal importers
+┌─────────────────────────────────────────────┐
+│  Tauri (Linux / Windows / macOS)            │
+│     React UI  ──▶  Hono API (localhost)     │
+│                      │                      │
+│              SQLite  FS  Keychain           │
+└───────────┬───────────────────┬─────────────┘
+            ▼                   ▼
+     Cloud AI APIs          Ollama (opt)
+     Drive/GitHub (opt)
 ```
+
+Legacy SaaS-shaped topology (IdP, Postgres, S3, workers) remains valid for a later hosted mode; local v1 does not require it.
 
 ---
 
@@ -70,7 +73,7 @@
 | `manager` | All IC caps on self + full write on direct reports’ manager reviews; read peer feedback on directs; command center |
 | `director` | Manager caps on subtree; calibration sessions; distribution analytics |
 | `hrbp` | Cycle config, unlocks, audit access, org-wide completion, legal export |
-| `admin` | SSO/settings, integrations, retention, AI policy |
+| `admin` | Workspace settings, integrations, retention, AI policy |
 
 ### Object ACLs (enforced in query layer)
 
@@ -89,8 +92,8 @@ canRunAiOnPacket(actor, subject, cycle) → boolean
 - Private blocks: stripped in serializer, not merely hidden in UI
 - AI context packager uses same ACL as human reader (AI never sees more than requester)
 
-### Row-level strategy
-Postgres + application policies for v1. Add RLS later for defense-in-depth on sensitive tables (`reviews`, `ai_generations`, `audit_events`).
+### Persistence strategy
+Application-level policies in `packages/policy` for v1 (SQLite). Same functions port to Postgres RLS in a future hosted mode.
 
 ---
 
@@ -170,44 +173,49 @@ Postgres + application policies for v1. Add RLS later for defense-in-depth on se
 
 ## Integrations
 
-### HRIS (Workday, BambooHR, HiBob, CSV)
-Nightly sync: employees, managers, levels, terminations.  
-Manual override with `source=manual` and sync-conflict UI.
+All integrations are **optional** on the local app. CSV/manual entry is enough to run a full cycle.
+
+### People import (CSV / manual) — P0
+Primary local path: import directs, levels, managers from CSV; edit in-app.
+
+### HRIS (Workday, BambooHR, HiBob) — P1/P2
+Optional sync when credentials available; same shape as CSV import.
 
 ### GitHub / GitLab
-OAuth app installation → weekly job per user producing `IntegrationSignal` summaries.  
-**Consent:** org admin enables; individuals can hide personal repos.
+OAuth → jobs producing `IntegrationSignal` summaries.  
+**Consent:** workspace admin enables; tokens in OS keychain.
 
 ### Linear / Jira
 Link issues/epics to Goals; import completion into check-ins.
 
 ### Google Drive / Meet transcripts (opt-in)
-Workspace OAuth with least-privilege Drive scope for transcript files the importer is pointed at (explicit file pick or designated folder).  
-Flow: select transcript → worker extracts text → produce `MeetingSummary` (themes, actions, capped quotes) → optional raw blob with short TTL → never auto-attach to IC-visible packet.  
-Manual `.vtt`/`.txt` upload supported without Google connect.
+Workspace OAuth with least-privilege Drive scope, **or** local file picker for `.vtt`/`.txt`/Drive-downloaded transcripts (no Google required).  
+Flow: select transcript → worker extracts text → produce `MeetingSummary` → optional raw blob with short TTL → never auto-attach to IC-visible packet.
 
 ### Slack
-Notify deadlines; `/prm praise @user …` creates FeedbackItem; deep links to packet.
+Optional later; local v1 uses in-app + OS notifications.
 
 ---
 
-## Reliability & security
+## Reliability & security (local)
 
-- Encrypt attachments and transcript blobs at rest; TLS in transit
-- Malware scan before document is `clean` / downloadable
-- Secrets in KMS/vault
-- Rate-limit AI endpoints and transcript imports per org
-- PII minimization in logs (no review body, document text, or transcript content in app logs)
-- Backup + point-in-time recovery on Postgres
-- Feature flags for AI, document upload, and Meet/Drive import per org
+- App-data directory with restrictive FS permissions; optional SQLCipher/encrypted documents for sensitive workspaces (P1)
+- Document allowlists + size caps; optional ClamAV on Linux
+- Secrets (API keys, OAuth) in **OS keychain**, not SQLite
+- Local API bound to `127.0.0.1` by default
+- Rate-limit AI and transcript imports per workspace
+- PII minimization in logs (no review body, document text, or transcript content)
+- One-click backup/restore of `db/` + `files/`
+- Feature flags for AI, document upload, and Meet/Drive import
 
 ---
 
-## Multi-tenancy
+## Workspace model (local v1)
 
-`organization_id` on every tenant table.  
-Subdomain or path tenant resolution after SSO.  
-No cross-tenant AI batching.
+Single **workspace** per install (not multi-tenant SaaS).  
+`organization_id` may still exist as a constant workspace id for schema portability.  
+Export/import workspace archive for moving between machines.  
+Future hosted mode introduces true multi-tenant `organization_id` isolation.
 
 ---
 

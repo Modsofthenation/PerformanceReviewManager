@@ -6,16 +6,18 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 
 ## Phase 0 — Foundations
 
-**Outcome:** Auth’d multi-tenant app with people hierarchy and role framework.
+**Outcome:** Installable local app shell with people hierarchy and role framework.
 
-- Org, users, SSO, roles
+- Tauri + Vite UI + Hono API sidecar skeleton
+- SQLite schema + app-data file layout
+- Local profiles + keychain for secrets
 - Employment profiles + manager tree
 - Level ladder seed data
 - **Role framework upload + RoleDefinition editor + person role assignment**
 - Audit log skeleton
 - Design system + app shell (Command Center empty state)
 
-**Exit criteria:** Admin can invite users; manager sees directs; each direct can be tagged with a RoleDefinition from an uploaded framework.
+**Exit criteria:** App runs on Linux, Windows, and macOS from a single codebase; manager sees directs; each direct can be tagged with a RoleDefinition from an uploaded framework.
 
 ---
 
@@ -99,14 +101,18 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 ## Suggested implementation modules (code layout)
 
 ```
-apps/web/                 # Next.js UI + API
-packages/db/              # schema, migrations
+apps/desktop/             # Tauri 2 shell (Rust)
+apps/ui/                  # React + Vite + TypeScript
+apps/api/                 # Hono local API sidecar
+packages/db/              # Drizzle schema + SQLite migrations
 packages/policy/          # ACL pure functions
 packages/packet/          # assembly + redaction
-packages/ai/              # providers, prompts, evals
-packages/integrations/    # hris, github, slack
+packages/ai/              # providers (cloud + Ollama), prompts, evals
+packages/integrations/    # csv, github, drive, …
 docs/                     # this plan
 ```
+
+Dev: `pnpm dev` (UI + API). Ship: Tauri build wrapping both.
 
 ---
 
@@ -133,7 +139,7 @@ Track from Phase 1 onward:
 | Peer anonymity to IC | On by default |
 | AI score suggestions | Off until Phase 3 evals pass; drafts on first |
 | Comp module | Never in-core; deep-link only |
-| Stack | Next.js + Postgres + queue + SSO |
+| Stack | **Tauri 2 + React/Vite/TS + Hono + SQLite** (local Win/Mac/Linux); see `docs/architecture/LOCAL_STACK.md` |
 
 ---
 

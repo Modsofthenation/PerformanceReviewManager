@@ -25,6 +25,7 @@ Product and technical plan for a review platform that covers:
 | [docs/product/EM_WORKFLOWS.md](docs/product/EM_WORKFLOWS.md) | End-to-end manager workflows and UX |
 | [docs/data/DOMAIN_MODEL.md](docs/data/DOMAIN_MODEL.md) | Canonical entities, relationships, retention |
 | [docs/architecture/SYSTEM.md](docs/architecture/SYSTEM.md) | Stack, services, permissions, integrations |
+| [docs/architecture/LOCAL_STACK.md](docs/architecture/LOCAL_STACK.md) | Local Win/Mac/Linux desktop stack (Tauri, SQLite, …) |
 | [docs/ai/AI_INTEGRATION.md](docs/ai/AI_INTEGRATION.md) | AI capabilities, prompts boundaries, safety |
 | [docs/DELIVERY.md](docs/DELIVERY.md) | Phased build order and success metrics |
 
