@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
- * One-off gallery capture for README. Usage:
- *   node scripts/capture-screenshots.mjs
- * Expects UI on localhost:5175 (or UI_URL) and API unlocked via password.
+ * Gallery capture for README. Usage:
+ *   pnpm screenshots
+ *   UI_URL=http://localhost:5173 PRM_PASSWORD=workbench pnpm screenshots
+ * Expects UI + API running (defaults: UI :5173, API :8787).
  */
 import fs from "node:fs";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
 
-const UI = process.env.UI_URL || "http://localhost:5175";
+const UI = process.env.UI_URL || "http://localhost:5173";
 const API = process.env.API_URL || "http://127.0.0.1:8787";
 const PASSWORD = process.env.PRM_PASSWORD || "workbench";
 const OUT = path.resolve("docs/screenshots");
@@ -87,9 +88,10 @@ async function main() {
     ["07-writing-desk", `/cycles/${cycle.id}/write/${person.id}`],
     ["08-promotions", "/promotions"],
     ["10-consistency", "/consistency"],
-    ["11-backfill", "/backfill"],
-    ["12-chat", "/chat"],
-    ["13-settings", "/settings"],
+    ["11-team-performance", "/team-performance"],
+    ["12-backfill", "/backfill"],
+    ["13-chat", "/chat"],
+    ["14-settings", "/settings"],
   ];
   if (promo?.id) routes.splice(6, 0, ["09-promotion-detail", `/promotions/${promo.id}`]);
 
@@ -101,6 +103,9 @@ async function main() {
       await page.evaluate(() => {
         document.querySelector(".chat-composer")?.scrollIntoView({ block: "end" });
       });
+    }
+    if (route === "/team-performance") {
+      await page.waitForSelector(".tp-metrics, .tp-grid, h2", { timeout: 15000 });
     }
     await new Promise((r) => setTimeout(r, 450));
     await shot(page, name);

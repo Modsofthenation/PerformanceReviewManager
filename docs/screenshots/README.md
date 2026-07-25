@@ -10,3 +10,5 @@ pnpm screenshots
 ```
 
 Requires system Chrome (`google-chrome-stable`) and root `puppeteer-core`.
+
+Numbering matches the README Screens section (`01` unlock through `14` settings), including `11-team-performance`.
