@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useTheme } from "../hooks/useTheme";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 type AiSettings = {
@@ -20,6 +21,7 @@ export function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { theme, setTheme } = useTheme();
 
   async function load() {
     try {
@@ -56,7 +58,7 @@ export function SettingsPage() {
     <div className="stack">
       <PageHeader
         title="Settings"
-        job="Configure AI co-pilot keys and private-tier egress. Keys stay encrypted with the workspace secret."
+        job="Appearance, AI co-pilot keys, and private-tier egress. Keys stay encrypted with the workspace secret."
         primary={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         secondary={
           <button
@@ -74,6 +76,22 @@ export function SettingsPage() {
           </button>
         }
       />
+
+      <div className="panel">
+        <h2>Appearance</h2>
+        <p className="muted">Theme preference is stored in this browser and defaults to dark.</p>
+        <div className="field">
+          <label htmlFor="theme-select">Color theme</label>
+          <select
+            id="theme-select"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value === "light" ? "light" : "dark")}
+          >
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+      </div>
 
       {needsKey ? (
         <NextStep

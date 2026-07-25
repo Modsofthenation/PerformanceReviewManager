@@ -2,6 +2,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { WorkspaceStatus } from "@prm/shared";
 import { api, getToken, setToken } from "./lib/api";
+import { useTheme } from "./hooks/useTheme";
 import { UnlockPage } from "./pages/UnlockPage";
 import { HomePage } from "./pages/HomePage";
 import { TeamPage } from "./pages/TeamPage";
@@ -17,6 +18,7 @@ import { ChatPage } from "./pages/ChatPage";
 export function App() {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { theme, toggle } = useTheme();
 
   async function refresh() {
     try {
@@ -32,6 +34,18 @@ export function App() {
     refresh();
   }, []);
 
+  const themeToggle = (
+    <button
+      type="button"
+      className="btn ghost theme-toggle"
+      onClick={toggle}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {theme === "dark" ? "Light mode" : "Dark mode"}
+    </button>
+  );
+
   if (error) {
     return (
       <div className="unlock-screen">
@@ -40,6 +54,7 @@ export function App() {
           <p>Start the API on port 8787 (`pnpm dev:api`), then refresh.</p>
           <p className="mono">{error}</p>
           <button className="btn" onClick={refresh}>Retry</button>
+          <div style={{ marginTop: "0.75rem" }}>{themeToggle}</div>
         </div>
       </div>
     );
@@ -50,7 +65,12 @@ export function App() {
   const unlocked = Boolean(getToken()) && status.unlocked;
 
   if (!status.initialized || !unlocked) {
-    return <UnlockPage status={status} onUnlocked={async (token) => { setToken(token); await refresh(); }} />;
+    return (
+      <>
+        <UnlockPage status={status} onUnlocked={async (token) => { setToken(token); await refresh(); }} />
+        <div className="theme-float">{themeToggle}</div>
+      </>
+    );
   }
 
   return (
@@ -70,7 +90,8 @@ export function App() {
           <NavLink to="/chat">AI Chat</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
-        <div style={{ marginTop: "2rem" }}>
+        <div className="sidebar-actions">
+          {themeToggle}
           <button
             className="btn ghost"
             onClick={async () => {
