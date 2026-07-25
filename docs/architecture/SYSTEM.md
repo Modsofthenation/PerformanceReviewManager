@@ -102,12 +102,23 @@ Postgres + application policies for v1. Add RLS later for defense-in-depth on se
 - `GET /cycles/:id/command-center` — EM view
 - `POST /cycles/:id/participants/:userId/waive-self`
 
+### Role framework
+- `POST /role-frameworks` — create pack
+- `POST /role-frameworks/:id/versions` — upload source doc + draft structure
+- `PUT /role-framework-versions/:id/roles` — edit RoleDefinitions / progression graph
+- `POST /role-framework-versions/:id/publish`
+- `PUT /people/:id/role-assignment` — tag person with RoleDefinition (+ optional target next)
+- `POST /role-assignments/bulk` — team tagging
+- `GET /people/:id/role-comparison` — current vs next RoleDefinition diff
+
 ### Reviews
 - `GET /packets/:cycleId/:subjectId` — assembled packet (ACL)
 - `PUT /reviews/:id` — save draft payload
 - `POST /reviews/:id/submit`
 - `POST /reviews/:id/unlock` — reason required
 - `GET /reviews/:id/preview-subject`
+- `POST /promotion-cases` — start promotion packet from role comparison
+- `GET /promotion-cases/:id`
 
 ### Evidence
 - `CRUD /goals`, `/feedback`, `/achievements`
@@ -127,6 +138,8 @@ Postgres + application policies for v1. Add RLS later for defense-in-depth on se
 - `POST /ai/draft-section`
 - `POST /ai/bias-lint`
 - `POST /ai/peer-synthesize`
+- `POST /ai/role-gap-analysis` — evidence vs current + next RoleDefinition
+- `POST /ai/promotion-draft` — grounded promo packet sections
 - All return `generation_id`; client explicitly applies text into draft
 
 ### History
@@ -139,20 +152,19 @@ Postgres + application policies for v1. Add RLS later for defense-in-depth on se
 
 `PacketService.assemble(cycleId, subjectId, viewer)` returns:
 
-1. Subject profile snapshot (level, role at cycle time)
-2. Self review
-3. Peer reviews (redacted per viewer)
-4. Upward aggregate (if any)
-5. Goals in window + check-ins
-6. Achievements & feedback in window
-7. Evidence documents visible to viewer (metadata; text extract only if AI/ACL allows)
-8. Meeting summaries visible to viewer (default: manager-only)
-9. Integration signal summaries
-10. Prior cycle manager summary (ratings + shared text)
-11. Current manager draft (if viewer allowed)
-12. Flags: thin evidence, self-delta, promo, overdue peers
-
-Assembly is the backbone for both UI and AI context.
+1. Subject profile snapshot (level, **assigned RoleDefinition**, target next role at cycle time)
+2. **Role comparison slice** — current vs next responsibilities/expectations (evaluation basis)
+3. Self review
+4. Peer reviews (redacted per viewer)
+5. Upward aggregate (if any)
+6. Goals in window + check-ins
+7. Achievements & feedback in window
+8. Evidence documents visible to viewer (metadata; text extract only if AI/ACL allows)
+9. Meeting summaries visible to viewer (default: manager-only)
+10. Integration signal summaries
+11. Prior cycle manager summary (ratings + shared text)
+12. Current manager draft / promotion draft (if viewer allowed)
+13. Flags: thin evidence, self-delta, promo, overdue peers, **unassigned role**, **missing next-role target**
 
 ---
 

@@ -53,10 +53,11 @@ Provides structured feedback within a window; never sees manager ratings unless 
 
 1. **Evidence over eloquence.** Prefer linked artifacts to adjectives.
 2. **One source of truth per cycle.** Drafts live in the tool; Google Docs are an export, not the system of record.
-3. **Separation of concerns.** Performance judgment ≠ compensation decision ≠ promotion packet (linked, not conflated).
-4. **Bias is a product risk.** Detect pattern skew (gendered language, recency bias, similar-to-me) and surface it before finalize.
-5. **Manager time is the scarce resource.** Optimize for EM throughput and quality, not form completeness theater.
-6. **History compounds.** Every cycle should make the next one easier and fairer.
+3. **Separation of concerns.** Performance judgment ≠ compensation decision ≠ promotion packet (linked via the same role framework, not conflated into one score).
+4. **Role docs are the bar.** Uploaded engineering responsibilities/expectations define current-role evaluation and next-progression comparison.
+5. **Bias is a product risk.** Detect pattern skew (gendered language, recency bias, similar-to-me) and surface it before finalize.
+6. **Manager time is the scarce resource.** Optimize for EM throughput and quality, not form completeness theater.
+7. **History compounds.** Every cycle should make the next one easier and fairer.
 
 ## What we refuse to become
 

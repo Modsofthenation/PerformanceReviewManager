@@ -10,10 +10,12 @@ Canonical entities for Performance Review Manager. Names are implementation-read
 Organization
   ├── User / Membership (roles)
   ├── LevelLadder / Level
+  ├── RoleFramework / RoleFrameworkVersion / RoleDefinition / RoleAssignment
   ├── Competency / CompetencyAnchor
   ├── Template / TemplateVersion / FormBlock
   ├── Cycle / CycleParticipant / Phase
-  ├── Review (Self | Peer | Manager | Upward)
+  ├── Review (Self | Peer | Manager | Upward | Promotion)
+  ├── PromotionCase
   ├── Rating / EvidenceLink
   ├── Goal / GoalCheckIn
   ├── FeedbackItem
@@ -35,13 +37,65 @@ Tenant root. Settings: rating scale defaults, anonymity defaults, AI enabled, re
 ### User & Membership
 - `User`: identity (email, name, external SSO id)
 - `Membership`: org-scoped role (`ic`, `manager`, `director`, `hrbp`, `admin`), status
-- `EmploymentProfile`: job title, `level_id`, `manager_user_id`, department, location, hire_date, employment_status
+- `EmploymentProfile`: job title, `level_id`, `manager_user_id`, department, location, hire_date, employment_status  
+  (job title is display-only; **evaluation role** comes from `RoleAssignment`)
 
 Manager edges are versioned with `effective_from` / `effective_to` so historical reviews remain attributable.
 
 ### LevelLadder & Level
 Example ladder: `Engineering IC` with levels IC1–IC6; `Engineering Manager` M1–M3.  
-Levels drive template assignment and calibration cohort defaults.
+Levels drive template assignment and calibration cohort defaults.  
+**Prefer RoleDefinition** (below) when the org has uploaded a framework — Level is the coarse key; RoleDefinition is the evaluation text.
+
+### RoleFramework & RoleDefinition (uploaded R&R)
+
+Source of truth for “what good looks like” and “what the next level requires.”
+
+#### RoleFramework
+Named pack (e.g. `Engineering Career Framework 2026`). Has many versions.
+
+#### RoleFrameworkVersion
+Immutable published snapshot. Created from an uploaded document (PDF/DOCX/MD) plus structured editing.
+
+| Field | Notes |
+|-------|-------|
+| `source_document_id` | Optional link to uploaded original file |
+| `published_at`, `published_by` | |
+| `status` | `draft` \| `published` \| `archived` |
+
+#### RoleDefinition
+One role row inside a framework version (e.g. `IC3 Software Engineer`, `IC4 Senior Software Engineer`, `M1 Engineering Manager`).
+
+| Field | Notes |
+|-------|-------|
+| `framework_version_id` | Parent |
+| `key` | Stable within framework (`eng_ic3`) |
+| `title` | Display title |
+| `track` | `ic` \| `manager` \| `other` |
+| `level_id` | Link to Level ladder |
+| `summary` | Short blurb |
+| `responsibilities[]` | Ordered strings / rich blocks from R&R doc |
+| `expectations[]` | “What success looks like” bullets |
+| `competency_keys[]` | Mapped competencies |
+| `impact_examples[]` | Optional |
+| `next_role_keys[]` | Progression targets within same framework version |
+| `source_span_refs[]` | Optional pointers back into source document sections |
+
+#### RoleAssignment
+Tags a person with a role definition over time.
+
+| Field | Notes |
+|-------|-------|
+| `user_id` | Subject |
+| `role_definition_id` | Current role bar |
+| `framework_version_id` | Denormalized for integrity |
+| `effective_from` / `effective_to` | History-preserving |
+| `assigned_by` | EM or HRBP |
+| `target_next_role_definition_id` | Optional override when multiple next paths exist |
+
+**Cycle pin:** `CycleParticipant` stores `role_definition_id` and `target_next_role_definition_id` snapshots so mid-cycle framework edits do not rewrite in-flight evaluations.
+
+**Evaluation rule:** Manager review scoring UX and AI context load `current RoleDefinition` for “meets role” and `target next RoleDefinition` for progression/promo comparison.
 
 ### Competency
 Reusable skill/behavior dimension.
@@ -54,11 +108,12 @@ Reusable skill/behavior dimension.
 | `category` | technical / delivery / collaboration / leadership |
 
 ### CompetencyAnchor
-Behavioral description of what rating `N` means at `level_id` for `competency_id`. Shown in writing desk and used by AI for rubric suggestions.
+Behavioral description of what rating `N` means at `level_id` for `competency_id`. Shown in writing desk and used by AI for rubric suggestions.  
+When a RoleDefinition maps the competency, **role expectation text wins** as the primary anchor; CompetencyAnchor is fallback.
 
 ### Template & TemplateVersion
-- `Template`: named form family (`ic_self_v`, `eng_manager_review`)
-- `TemplateVersion`: immutable JSON schema of blocks + linked competency set + scale
+- `Template`: named form family (`ic_self_v`, `eng_manager_review`, `eng_promotion_packet`)
+- `TemplateVersion`: immutable JSON schema of blocks + linked competency set + scale + optional `requires_role_framework`
 - Cycles store `template_version_id` (pin)
 
 ### FormBlock (inside TemplateVersion)
@@ -68,9 +123,21 @@ Discriminated union:
 - `competency_scores` — which competencies, require evidence below/above threshold
 - `overall_rating`
 - `goals_review`
+- `role_fit` — assessment vs current RoleDefinition responsibilities/expectations
+- `next_level_gap` — checklist vs target next RoleDefinition (`demonstrating` \| `emerging` \| `not_yet` + evidence)
 - `promo_signal` — Ready / Not yet / Too early / Not applicable
 - `acknowledgment`
 - `private_text` — manager-only
+
+### PromotionCase (optional companion to Review type `promotion`)
+| Field | Notes |
+|-------|-------|
+| `subject_user_id`, `cycle_id?` | |
+| `current_role_definition_id` | |
+| `target_role_definition_id` | Next progression |
+| `review_id` | Linked promotion-template review |
+| `status` | `draft` \| `submitted` \| `in_committee` \| `approved` \| `declined` \| `withdrawn` |
+| `decision_notes` | Skip-level / committee |
 
 ---
 
@@ -88,14 +155,15 @@ Discriminated union:
 | `status` | see Features doc |
 
 ### CycleParticipant
-Materialized person-in-cycle row: assigned templates, manager_at_cycle_time, status per phase, eligibility (`full` | `check_in` | `excluded`).
+Materialized person-in-cycle row: assigned templates, manager_at_cycle_time, status per phase, eligibility (`full` | `check_in` | `excluded`),  
+`role_definition_id` + `target_next_role_definition_id` snapshots from RoleAssignment at cycle launch (editable by EM with audit until manager submit).
 
 ### Review
 One submitted (or draft) form instance.
 
 | Field | Notes |
 |-------|-------|
-| `type` | `self` \| `peer` \| `manager` \| `upward` |
+| `type` | `self` \| `peer` \| `manager` \| `upward` \| `promotion` |
 | `cycle_id`, `subject_user_id` | Who is being reviewed |
 | `author_user_id` | Null/system for aggregated upward |
 | `template_version_id` | |

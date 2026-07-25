@@ -6,7 +6,9 @@
 |----------|---------|
 | **Home** | Cycle command center or dossier health |
 | **Team** | Direct reports list → person dossier |
+| **Roles** | Upload/edit career framework; assign roles to people |
 | **Cycles** | Active + past cycles |
+| **Promotions** | Promo packets & next-level comparisons |
 | **Calibration** | Sessions for cohorts you own/participate in |
 | **Templates** | Visible to HRBP/Admin primarily; managers read-only anchors |
 | **Settings** | Profile, notification prefs |
@@ -24,19 +26,23 @@ IC nav is thinner: Home (tasks), My reviews, Goals, Give feedback.
 - CTA: Continue writing (next incomplete packet)
 
 ### 2. Person dossier
-Tabs: Overview · Goals · Feedback · Achievements · Reviews · Trends  
-Overview = latest rating, open goals, evidence freshness meter, AI pattern insight (if enabled).
+Tabs: Overview · Role · Goals · Feedback · Achievements · Reviews · Promotions · Trends  
+Overview = assigned role + next progression, latest rating, open goals, evidence freshness meter, AI pattern insight (if enabled).  
+**Role** tab = full RoleDefinition, side-by-side next role, assignment history.
 
 ### 3. Writing desk
-Split packet / draft (see EM_WORKFLOWS). Sticky submit bar with validation (missing required, lint warnings).
+Split packet / draft (see EM_WORKFLOWS). Sticky role comparison strip (current → next). Sticky submit bar with validation (missing required, unassigned role warning, lint warnings).
 
-### 4. Calibration room
-Left: histogram + filters. Center: card grid. Right: selected person detail + decision composer.
+### 4. Role framework admin
+Upload R&R document → structure RoleDefinitions → set progression links → publish version → bulk-assign team.
 
-### 5. Template editor
+### 5. Calibration room
+Left: histogram + filters. Center: card grid. Right: selected person detail + decision composer. Promo mode filters to candidates sharing the same target RoleDefinition.
+
+### 6. Template editor
 Block list builder, live preview, publish version modal with diff vs previous.
 
-### 6. Cycle wizard
+### 7. Cycle wizard
 4 steps: Basics → Population → Templates & policies → Timeline → Review & launch.
 
 ---

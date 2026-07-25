@@ -52,27 +52,46 @@ These are the canonical flows the product is designed around. Every screen exist
 ```
 ┌─────────────────────────┬──────────────────────────────┐
 │ Left: Packet            │ Right: Draft                 │
-│ • Self-review           │ • Overall rating             │
+│ • Role: current → next  │ • Overall rating             │
+│ • Self-review           │ • Role-fit vs R&R doc        │
 │ • Peer themes (AI)      │ • Competency scores          │
 │ • Goals status          │ • Strengths / Growth         │
-│ • Evidence (windowed)   │ • Dev plan / next goals      │
-│ • Last cycle snapshot   │ • Private notes              │
+│ • Evidence (windowed)   │ • Next-level gap checklist   │
+│ • Last cycle snapshot   │ • Dev plan / next goals      │
+│                         │ • Private notes              │
 │                         │ • AI assist rail             │
 └─────────────────────────┴──────────────────────────────┘
 ```
 
 ### Steps
 
-1. Open person → read **AI evidence digest** (2 min).
-2. Skim self-review; flag disagreements.
-3. Read peer synthesis; open raw peers where conflict exists.
-4. Score competencies; attach ≥1 evidence item on non-middle scores.
-5. Ask AI for **strengths draft** and **growth draft** grounded in selected evidence; edit heavily.
-6. Set overall rating; resolve consistency warnings.
-7. Mark promo readiness (Ready / Not yet / Too early) separately from performance.
-8. Preview IC view → Submit to calibration (or Finalize if no calib).
+1. Confirm **RoleAssignment** (current + target next). If missing, assign before scoring.
+2. Open person → read **AI evidence digest** grounded in RoleDefinition (2 min).
+3. Skim self-review; flag disagreements.
+4. Read peer synthesis; open raw peers where conflict exists.
+5. Score **role fit** and competencies against **current** RoleDefinition; attach ≥1 evidence item on non-middle scores.
+6. Complete **next-level gap checklist** against target RoleDefinition (separate from performance rating).
+7. Ask AI for **strengths / growth drafts** and optional **promo gap analysis**; edit heavily.
+8. Set overall rating; resolve consistency warnings.
+9. Mark promo readiness (Ready / Not yet / Too early) separately from performance — or open **Promotion packet** template.
+10. Preview IC view → Submit to calibration (or Finalize if no calib).
 
-**Keyboard:** `J/K` next person, `E` attach evidence, `G` generate section, `P` preview.
+**Keyboard:** `J/K` next person, `E` attach evidence, `G` generate section, `R` role comparison, `P` preview.
+
+---
+
+## Workflow D2 — Promotion packet
+
+**Trigger:** Strong performer / explicit promo interest  
+**Owner:** EM (+ skip-level)  
+**Outcome:** Evidence-mapped case against **next RoleDefinition**
+
+1. Select target next role (from progression graph or override).
+2. System generates expectation checklist from that RoleDefinition.
+3. EM links dossier evidence to each next-level expectation (`demonstrating` / `emerging` / `not_yet`).
+4. AI drafts case summary **only from mapped evidence**; lists unmet expectations explicitly.
+5. Submit to promo calibration / committee; decision logged on `PromotionCase`.
+6. If not ready: convert gaps into next-cycle Goals automatically.
 
 ---
 

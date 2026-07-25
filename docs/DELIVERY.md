@@ -6,15 +6,16 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 
 ## Phase 0 — Foundations
 
-**Outcome:** Auth’d multi-tenant app with people hierarchy.
+**Outcome:** Auth’d multi-tenant app with people hierarchy and role framework.
 
 - Org, users, SSO, roles
 - Employment profiles + manager tree
 - Level ladder seed data
+- **Role framework upload + RoleDefinition editor + person role assignment**
 - Audit log skeleton
 - Design system + app shell (Command Center empty state)
 
-**Exit criteria:** Admin can invite users; manager sees directs.
+**Exit criteria:** Admin can invite users; manager sees directs; each direct can be tagged with a RoleDefinition from an uploaded framework.
 
 ---
 
@@ -23,16 +24,17 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 **Outcome:** Runnable review without AI or integrations.
 
 - Competency library + opinionated eng template pack
-- Template versioning
+- Template versioning (**including promotion packet template**)
 - Goals, achievements, feedback CRUD
 - **Document evidence uploads** (scan → store → ACL → cite on ratings)
+- **Current vs next role comparison** on writing desk (from RoleAssignment)
 - Cycle wizard + participants + phases
-- Self / peer / manager review forms
+- Self / peer / manager review forms (+ role_fit / next_level_gap blocks)
 - Writing desk packet assembly (no AI)
 - Submit / share / acknowledge
 - Person timeline (basic)
 
-**Exit criteria:** EM completes a 5-person mock cycle end-to-end with evidence links, including at least one uploaded document cited on a rating.
+**Exit criteria:** EM completes a 5-person mock cycle with evidence links, uploaded documents, and ratings judged against assigned RoleDefinitions; can open a promotion checklist vs next role.
 
 ---
 
@@ -57,11 +59,12 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 
 - Context packager + AiGeneration store
 - Evidence digest, peer synthesize, draft section, bias lint
+- **Role gap analysis + promotion draft** (grounded in RoleDefinition)
 - Citation chips + accept-into-draft UX
 - Eval harness + feature flags
 - Org AI policy controls
 
-**Exit criteria:** Faithfulness evals pass; pilot EMs report ≤45 min median write time.
+**Exit criteria:** Faithfulness evals pass; gap analysis refuses when role unassigned; pilot EMs report ≤45 min median write time.
 
 ---
 

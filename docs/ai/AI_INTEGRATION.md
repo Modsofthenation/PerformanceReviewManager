@@ -23,10 +23,12 @@ AI exists to **compress evidence into judgment support**, not to replace the man
 | Evidence digest | Packet slice | 8–12 bullets + thin-evidence warning | No (display only) |
 | Peer synthesizer | Peer reviews | Themes, frequency, dissent callouts | No |
 | Draft section | Section key + selected evidence ids + tone | Markdown draft + citations | No |
-| Rubric suggest | Competency + anchors + evidence | Suggested score + rationale + citations | No |
+| Rubric suggest | Competency + **RoleDefinition anchors** + evidence | Suggested score + rationale + citations | No |
+| **Role gap analysis** | Current + next RoleDefinition + dossier | Meets-current checklist + next-level gaps with citations | No |
+| **Promotion draft** | Target RoleDefinition + evidence + gap analysis | Promo packet sections grounded in next-role expectations | No |
 | Bias / tone lint | Draft text | Findings with spans + rewrites | Optional apply rewrite |
 | Consistency challenger | Multiple drafts in cohort | Questions for calib | Display |
-| Next-cycle goals | Growth areas + role level | 3 SMART goal drafts | No |
+| Next-cycle goals | Growth areas + **next RoleDefinition gaps** | 3 SMART goal drafts | No |
 | Calib talking points | Person packet + rating | 3 bullets for meeting | Display |
 | Chat-with-dossier (P2) | Question + packet | Answer + citations | N/A |
 
@@ -38,9 +40,20 @@ Before any LLM call, build a **ContextPackage**:
 
 ```json
 {
-  "subject": {"name": "Maya Chen", "level": "IC4", "role": "Backend Engineer"},
+  "subject": {"name": "Maya Chen", "level": "IC4", "role_definition_key": "eng_ic4", "role_title": "Senior Software Engineer"},
   "cycle": {"name": "H1 2026", "window": ["2026-01-01", "2026-06-30"]},
-  "competencies": [{"key": "ownership", "anchors": {"3": "...", "4": "..."}}],
+  "current_role": {
+    "id": "role:eng_ic4",
+    "responsibilities": ["..."],
+    "expectations": ["..."]
+  },
+  "next_role": {
+    "id": "role:eng_ic5",
+    "title": "Staff Software Engineer",
+    "responsibilities": ["..."],
+    "expectations": ["..."]
+  },
+  "competencies": [{"key": "ownership", "anchors": {"3": "...", "4": "..."}, "role_expectation": "..."}],
   "self_review": {"summary": "...", "scores": {...}},
   "peers": [{"anonymous_id": "P1", "strengths": "...", "growth": "..."}],
   "goals": [{"id": "goal:3", "title": "...", "status": "done"}],
@@ -72,7 +85,13 @@ System: Write in the manager’s selected tone (direct / warm / formal). Use fir
 Check for: gendered communal/agentic skew, age-coded language, ability assumptions, vagueness (“great attitude”) without behavior, recency-only references when older evidence exists, inflated certainty.
 
 ### Rubric suggest
-Compare evidence to level-specific anchors; propose score; list confirming and disconfirming evidence; confidence `low|medium|high`. If confidence low, do not propose a number — ask for more evidence.
+Compare evidence to **RoleDefinition expectations** (primary) and level-specific competency anchors (fallback); propose score; list confirming and disconfirming evidence; confidence `low|medium|high`. If confidence low, do not propose a number — ask for more evidence.
+
+### Role gap analysis
+For each current-role expectation: cite evidence that supports/undercuts “meeting the bar.” For each next-role expectation: classify `demonstrating` | `emerging` | `not_yet` with citations. Never invent responsibilities not present in the RoleDefinition.
+
+### Promotion draft
+Write only against the **target next RoleDefinition**. Structure: case summary, evidence mapped to next-role expectations, explicit gaps, recommended development actions. Refuse if no RoleAssignment / next role is configured.
 
 ---
 
@@ -137,3 +156,5 @@ Gate launches on faithfulness ≥ threshold on golden set of anonymized syntheti
 - Provide comp recommendations (“pay them more”) — out of scope; link to a separate process
 - Ingest or cite raw Meet transcripts in drafts (summaries only)
 - Include `private_manager` documents or meeting summaries in subject-visible previews
+- Evaluate against a generic ladder when a RoleDefinition is assigned — **uploaded R&R wins**
+- Claim promo readiness without mapping evidence to next-role expectations

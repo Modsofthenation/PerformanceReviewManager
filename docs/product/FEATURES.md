@@ -11,8 +11,28 @@ Features are grouped by product surface. Priority tags: **P0** (must ship for us
 | People profiles (role, level, manager, start date, location) | P0 | Sync from HRIS/IdP when available; manual edit fallback |
 | Reporting hierarchy | P0 | Directs + skip-level views |
 | Teams / eng ladders (IC1–IC6, M1–M3) | P0 | Levels drive template selection and calibration cohorts |
+| **Role framework library** | P0 | Upload/manage engineering roles & responsibilities docs — see §1.1 |
+| **Person ↔ role assignment** | P0 | Tag each person with a framework role (+ level); basis for evaluation |
 | Access roles (IC, EM, Director, HRBP, Admin) | P0 | Permission matrix in architecture doc |
 | Manager change / reorg handling | P1 | Mid-cycle ownership rules; history preserved under person |
+
+### 1.1 Role & responsibilities framework (evaluation basis)
+
+Company engineering role docs are a **first-class input** to reviews and promotions — not optional flavor text. Expectations for “meets / exceeds” and “ready for next level” are derived from the assigned role definition and its next progression.
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| Upload role framework documents | P0 | PDF/DOCX/MD/CSV; e.g. “Engineering Career Framework”, per-track R&R packs |
+| Parse / structure into RoleDefinitions | P0 | Manual structured edit required for v1 accuracy; AI-assisted extraction optional (P1) to prefill responsibilities, expectations, competencies |
+| Role catalog | P0 | Track (IC/EM), level (IC3…), title, summary, responsibilities[], expectations[], competencies[], examples of impact |
+| Progression graph | P0 | Each role links to `next_role_ids[]` (e.g. IC3 → IC4; IC5 → IC5 Staff or M1) |
+| Versioning | P0 | Publishing a framework version is immutable; people assignments pin a version for a cycle |
+| Assign role to person | P0 | EM/HRBP tags each teammate with `role_definition_id` (+ effective dates); shown on dossier & packet |
+| Bulk assign from team view | P1 | Tag directs quickly after framework upload |
+| Diff current vs next role | P0 | Side-by-side responsibilities / expectations used in writing desk & promo templates |
+| Framework as scoring basis | P0 | Competency anchors and AI evaluations must prefer assigned RoleDefinition text over generic ladder copy when present |
+
+**Rule:** If a person has an assigned role framework entry, performance comparison and promotion readiness use **that document’s expectations** (current role) and **next progression’s expectations** — not a generic rubric alone.
 
 ---
 
@@ -24,7 +44,7 @@ Templates are the **contract** for what a review collects and how it is scored.
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Template types: Self, Peer, Manager, Upward, Calibration notes | P0 | Same competency set can power multiple form types |
+| Template types: Self, Peer, Manager, Upward, **Promotion packet**, Calibration notes | P0 | Same role framework + competency set can power review and promo forms |
 | Sections: free text, rubric scores, multi-select, goals review, acknowledgment | P0 | Composable blocks |
 | Competency library (company + eng-specific) | P0 | e.g. Execution, Ownership, Collaboration, Technical depth, Impact, Leadership |
 | Rating scales (configurable) | P0 | Default: 1–5 labeled (Does not meet → Far exceeds); support 4-point forced-choice |
@@ -55,17 +75,37 @@ Ship these so EMs aren’t staring at an empty builder:
 - Confidence / working-relationship length
 
 **Manager review**
-- Overall rating + summary
-- Competency ratings with evidence
+- Overall rating + summary **against assigned role expectations**
+- Competency ratings with evidence (anchors from RoleDefinition when present)
+- **Current-role fit** vs responsibilities in framework doc
 - Strengths / growth areas (balanced)
 - Goal assessment (met / partial / missed + why)
-- Next-cycle focus & development plan
+- **Next-level gap panel** (read-only from progression) + development plan
 - Promo readiness signal (separate from performance rating)
 - Private manager notes (never shared with IC)
 
 **Upward feedback (optional cycle component)**
 - Manager supportiveness, clarity, growth investment, fairness
 - Always aggregated before manager sees it (n≥3 rule)
+
+### 2.3 Promotion templates & next-progression comparison
+
+Performance reviews judge **current role**. Promotion packets judge **readiness for the next role** defined in the framework. Linked, not conflated.
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| Promotion template type | P0 | Structured packet: case summary, evidence vs next-role expectations, gaps, sponsor notes |
+| Auto-load next role | P0 | From person’s assigned role → `next_role_ids`; manager picks target if multiple paths (e.g. Staff vs M1) |
+| Expectation checklist | P0 | Each next-role responsibility/expectation becomes a row: `demonstrating` \| `emerging` \| `not_yet` + evidence links |
+| Side-by-side comparison UI | P0 | Current RoleDefinition vs Next RoleDefinition; highlight delta responsibilities |
+| Performance-vs-progression view | P0 | On writing desk: “meeting current IC3 bar?” vs “operating at IC4 scope?” as separate judgments |
+| Promotion cycle or attach-to-review | P1 | Standalone promo window *or* generate promo draft from a strong manager review |
+| Calibration for promo | P1 | Cohort of promo candidates; compare evidence density against same next-role bar |
+| AI promo draft / gap analysis | P0 | Grounded only in RoleDefinition + dossier evidence; lists missing next-level signals explicitly |
+| Export promo packet | P1 | PDF for promo committee / skip-level |
+
+**Evaluation basis (non-negotiable):**  
+Uploaded/structured role & responsibilities content is the **source of truth** for both (a) whether someone meets their current role and (b) how they compare to the next progression. Generic competencies fill gaps only where the role doc is silent.
 
 ---
 
@@ -146,12 +186,14 @@ Overlapping phases allowed (e.g. peers still open while early manager drafts beg
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Person packet view | P0 | Self + peers + goals + evidence + last cycle side panel |
-| Rubric scoring with anchors | P0 | Hover/expand behavioral anchors |
-| Evidence picker per competency | P0 | Search dossier; attach to score |
+| Person packet view | P0 | Self + peers + goals + evidence + **role comparison** + last cycle |
+| Rubric scoring with anchors | P0 | From RoleDefinition first, competency anchors fallback |
+| Role-fit + next-level gap panel | P0 | Current vs next RoleDefinition checklist with evidence |
+| Evidence picker per competency | P0 | Search dossier; attach to score / expectation row |
 | Overall rating consistency hint | P1 | Warn if overall << / >> competency average without rationale |
 | Private scratchpad | P0 | Not in shared packet |
 | Compare to last cycle | P0 | Diff ratings & themes |
+| Open promotion packet | P0 | Prefill from gap panel when promo_signal ≠ not_applicable |
 | Share preview (IC view) | P0 | Exactly what IC will see |
 | Discussion mode | P1 | After share: IC acknowledgment + optional comment |
 
@@ -191,13 +233,15 @@ Overlapping phases allowed (e.g. peers still open while early manager drafts beg
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Evidence digest for a person/cycle | P0 | Bullet synthesis of dossier + self + peers |
+| Evidence digest for a person/cycle | P0 | Bullet synthesis of dossier + self + peers (+ selected docs / meeting summaries) |
 | Draft section writer | P0 | Strengths / growth / summary from selected evidence |
+| Role gap analysis | P0 | Evidence vs current + next RoleDefinition expectations |
+| Promotion draft writer | P0 | Grounded promo packet from next-role checklist |
 | Rubric suggestion (non-binding) | P1 | Suggested scores with citations; manager must confirm |
 | Bias & tone lint | P0 | Gendered language, certainty skew, vagueness |
 | Consistency challenger | P1 | “You called both ‘strong ownership’ but evidence differs” |
 | Peer feedback synthesizer | P0 | Cluster themes; preserve dissent |
-| Goal drafting for next cycle | P1 | From growth areas |
+| Goal drafting for next cycle | P1 | From growth areas **and next-role gaps** |
 | Calibration talking points | P1 | Per person 3-bullet readout |
 | Chat-with-dossier (scoped) | P2 | Q&A over one person’s packet only |
 
