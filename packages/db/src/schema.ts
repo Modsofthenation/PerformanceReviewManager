@@ -152,6 +152,8 @@ export const feedbackItems = sqliteTable("feedback_items", {
   visibility: text("visibility").notNull().default("em_and_subject"),
   occurredAt: text("occurred_at").notNull(),
   createdAt: text("created_at").notNull(),
+  /** JSON string array of 1:1 / coaching theme tags. */
+  themesJson: text("themes_json").notNull().default("[]"),
 });
 
 export const documents = sqliteTable("documents", {

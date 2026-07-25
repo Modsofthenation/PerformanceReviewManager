@@ -71,7 +71,7 @@ Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 | Document uploads | P0 | PDF/DOCX/PPTX/images/CSV → app-data; allowlist + size caps; `scan_status` = allowlist/not_scanned unless real scanner configured |
 | External URLs | P0 | |
 | Meet / transcript → MeetingSummary | P1 | Opt-in; default private-to-EM; notice that “private” ≠ undiscoverable legally |
-| 1:1 theme tags | P1 | Without transcripts |
+| 1:1 theme tags | P1 | Feedback notes; themes feed AI digests |
 | Integration signals (GitHub/Linear) | P2 | Optional |
 | Private vs shareable | P0 | Controls **share/export** inclusion; EM always sees workspace data |
 | Evidence snapshots at finalize | P0 | Cited title/checksum/excerpt frozen into review |
@@ -136,7 +136,7 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 | Competency sparklines (manager ratings only) | P0 | Filter by review type |
 | Stagnation hints | P1 | Local heuristics |
 | Search finalized reviews | P1 | FTS on workspace |
-| Workspace stats (time, evidence %) | P0 | On-device only |
+| Workspace stats (time, evidence %) | P0 | Cycle dashboard on Home — writing time, coverage %, thin dossiers |
 | Adverse-impact reporting | — | Hosted-only |
 
 ---

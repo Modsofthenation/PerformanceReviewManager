@@ -317,4 +317,41 @@ export interface BiasFinding {
   category: string;
   message: string;
   excerpt?: string;
+  /** Optional writing-desk action: cite evidence, soften absolute language, or strip a bad cite. */
+  suggestedFix?: {
+    action: "cite" | "soften" | "strip_cite";
+    label: string;
+    newText?: string;
+    citeId?: string;
+  };
+}
+
+export interface CycleStatsDTO {
+  cycleId: string;
+  cycleName: string;
+  participantCount: number;
+  thinDossierCount: number;
+  writing: {
+    peopleWithTime: number;
+    totalSeconds: number;
+    avgSeconds: number;
+    under45MinCount: number;
+    under45MinPct: number;
+  };
+  evidence: {
+    peopleWithDraft: number;
+    avgLinkedSources: number;
+    /** Share of non-middle competency/overall scores that have ≥1 evidence link (0–100). */
+    coveragePct: number;
+  };
+  people: Array<{
+    personId: string;
+    personName: string;
+    writingSeconds: number;
+    under45Min: boolean;
+    evidenceCount: number;
+    thin: boolean;
+    linkedSources: number;
+    managerStatus: string;
+  }>;
 }

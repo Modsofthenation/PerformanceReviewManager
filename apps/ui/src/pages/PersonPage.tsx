@@ -11,7 +11,7 @@ export function PersonPage() {
   const [dossier, setDossier] = useState<{
     goals: Array<{ id: string; title: string; status: string }>;
     achievements: Array<{ id: string; title: string; occurredAt: string; description: string | null }>;
-    feedback: Array<{ id: string; fromName: string | null; body: string; kind: string }>;
+    feedback: Array<{ id: string; fromName: string | null; body: string; kind: string; themes?: string[] }>;
     documents: Array<{ id: string; title: string; filename: string; visibility: string; occurredAt: string }>;
   } | null>(null);
   const [achTitle, setAchTitle] = useState("");
@@ -19,6 +19,7 @@ export function PersonPage() {
   const [fbBody, setFbBody] = useState("");
   const [fbFrom, setFbFrom] = useState("");
   const [fbKind, setFbKind] = useState("coaching");
+  const [fbThemes, setFbThemes] = useState("");
   const [docTitle, setDocTitle] = useState("");
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docMsg, setDocMsg] = useState<string | null>(null);
@@ -149,18 +150,34 @@ export function PersonPage() {
         <p className="muted">EM-entered notes from 1:1s, partners, or incidents. Author names stay on your workspace.</p>
         {dossier.feedback.length === 0 && <p className="muted">No feedback yet — capture a coaching or praise note.</p>}
         {dossier.feedback.map((f) => (
-          <p key={f.id}><strong>{f.fromName ?? "Someone"}</strong> ({f.kind}): {f.body}</p>
+          <p key={f.id}>
+            <strong>{f.fromName ?? "Someone"}</strong> ({f.kind})
+            {f.themes && f.themes.length > 0 ? (
+              <span className="muted"> · {f.themes.join(", ")}</span>
+            ) : null}
+            : {f.body}
+          </p>
         ))}
         <form
           className="stack"
           onSubmit={async (e) => {
             e.preventDefault();
+            const themes = fbThemes
+              .split(/[,;]/)
+              .map((t) => t.trim())
+              .filter(Boolean);
             await api(`/api/people/${id}/feedback`, {
               method: "POST",
-              body: JSON.stringify({ body: fbBody, fromName: fbFrom || undefined, kind: fbKind }),
+              body: JSON.stringify({
+                body: fbBody,
+                fromName: fbFrom || undefined,
+                kind: fbKind,
+                themes: themes.length ? themes : undefined,
+              }),
             });
             setFbBody("");
             setFbFrom("");
+            setFbThemes("");
             setCaptureMsg("Feedback saved");
             await load();
           }}
@@ -173,11 +190,19 @@ export function PersonPage() {
             <div className="field">
               <label>Kind</label>
               <select value={fbKind} onChange={(e) => setFbKind(e.target.value)}>
-                <option value="coaching">Coaching</option>
+                <option value="coaching">Coaching / 1:1</option>
                 <option value="praise">Praise</option>
                 <option value="incident">Incident</option>
               </select>
             </div>
+          </div>
+          <div className="field">
+            <label>1:1 themes (comma-separated)</label>
+            <input
+              value={fbThemes}
+              onChange={(e) => setFbThemes(e.target.value)}
+              placeholder="growth, stakeholder mgmt, on-call"
+            />
           </div>
           <div className="field">
             <label>Note</label>
@@ -265,19 +290,38 @@ export function PersonPage() {
                   <p className="muted" style={{ margin: "2px 0" }}>Expectation: {c.expectationText}</p>
                 )}
                 {c.planText && <p className="muted" style={{ margin: "2px 0" }}>Plan: {c.planText}</p>}
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={async () => {
-                    await api(`/api/concerns/${c.id}`, {
-                      method: "PATCH",
-                      body: JSON.stringify({ status: c.status === "open" ? "closed" : "open" }),
-                    });
-                    await load();
-                  }}
-                >
-                  Mark {c.status === "open" ? "closed" : "open"}
-                </button>
+                <p className="muted" style={{ margin: "2px 0" }}>
+                  {c.occurredAt}
+                  {c.aiAllowed ? " · AI opted in" : " · AI off"}
+                </p>
+                <div className="row" style={{ gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={async () => {
+                      await api(`/api/concerns/${c.id}`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ status: c.status === "open" ? "closed" : "open" }),
+                      });
+                      await load();
+                    }}
+                  >
+                    Mark {c.status === "open" ? "closed" : "open"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={async () => {
+                      await api(`/api/concerns/${c.id}`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ aiAllowed: !c.aiAllowed }),
+                      });
+                      await load();
+                    }}
+                  >
+                    {c.aiAllowed ? "Exclude from AI" : "Allow in AI digests"}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

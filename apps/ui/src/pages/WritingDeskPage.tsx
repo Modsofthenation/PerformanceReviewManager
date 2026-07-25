@@ -922,7 +922,7 @@ export function WritingDeskPage() {
 
           <div className="panel" style={{ background: "var(--panel-alt)" }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <h3 style={{ margin: 0 }}>Bias / tone lint</h3>
+              <h3 style={{ margin: 0 }}>Bias / faithfulness lint</h3>
               <button
                 type="button"
                 className="btn secondary"
@@ -941,13 +941,54 @@ export function WritingDeskPage() {
                 Run lint
               </button>
             </div>
-            <p className="muted">Advisory only — ephemeral findings, not stored on the review.</p>
+            <p className="muted">
+              Advisory only — ephemeral findings. Use cite/soften to patch draft text in place.
+            </p>
             {biasFindings && (
               <ul className="bias-list">
                 {biasFindings.map((f) => (
                   <li key={f.id} className={`bias-${f.severity}`}>
                     <strong>{f.category}</strong> — {f.message}
                     {f.excerpt ? <span className="muted"> (“{f.excerpt}”)</span> : null}
+                    {f.suggestedFix && !finalized && f.excerpt ? (
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        style={{ marginLeft: 8 }}
+                        onClick={() => {
+                          const fix = f.suggestedFix!;
+                          const excerpt = f.excerpt!;
+                          const apply = (field: string, setter: (v: string) => void) => {
+                            if (!field.includes(excerpt)) return false;
+                            let next = field;
+                            if (fix.action === "strip_cite") {
+                              next = field.replace(excerpt, "").replace(/  +/g, " ").replace(/ \./g, ".");
+                            } else if (fix.newText) {
+                              next = field.replace(excerpt, fix.newText);
+                            } else {
+                              return false;
+                            }
+                            markDirty();
+                            setter(next);
+                            return true;
+                          };
+                          const applied =
+                            apply(summary, setSummary) ||
+                            apply(strengths, setStrengths) ||
+                            apply(growth, setGrowth) ||
+                            apply(devPlan, setDevPlan) ||
+                            apply(roleFit, setRoleFit);
+                          if (applied) {
+                            setBiasFindings((prev) => (prev ? prev.filter((x) => x.id !== f.id) : prev));
+                            setStatus(`Applied: ${fix.label}`);
+                          } else {
+                            setError("Could not find that excerpt in the draft fields — it may have changed.");
+                          }
+                        }}
+                      >
+                        {f.suggestedFix.label}
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -985,7 +1026,7 @@ export function WritingDeskPage() {
               Preview JSON
             </button>
           </div>
-          {subjectExport && <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre>}
+          {subjectExport != null ? <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre> : null}
         </div>
       </div>
     </div>

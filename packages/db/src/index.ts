@@ -158,7 +158,8 @@ CREATE TABLE IF NOT EXISTS feedback_items (
   body TEXT NOT NULL,
   visibility TEXT NOT NULL DEFAULT 'em_and_subject',
   occurred_at TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  themes_json TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -273,6 +274,11 @@ export function openDatabase(dbPath: string): { sqlite: Database.Database; db: D
   // Additive migrations for existing workspaces
   try {
     sqlite.exec("ALTER TABLE reviews ADD COLUMN frozen_timeline_json TEXT");
+  } catch {
+    /* column exists */
+  }
+  try {
+    sqlite.exec("ALTER TABLE feedback_items ADD COLUMN themes_json TEXT NOT NULL DEFAULT '[]'");
   } catch {
     /* column exists */
   }
