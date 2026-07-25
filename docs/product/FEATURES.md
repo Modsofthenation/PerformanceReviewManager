@@ -138,6 +138,7 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 | Stagnation hints | P1 | Local heuristics |
 | Search finalized reviews | P1 | FTS on workspace |
 | Workspace stats (time, evidence %) | P0 | Cycle dashboard on Home — writing time, coverage %, thin dossiers |
+| Team performance graphs | P0 | `/team-performance` — rating histogram, competency averages, writing buckets, themes, prior-cycle deltas |
 | Adverse-impact reporting | — | Hosted-only |
 
 ---

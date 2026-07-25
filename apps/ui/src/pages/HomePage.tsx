@@ -240,6 +240,12 @@ export function HomePage() {
                 </>
               ) : null}
             </div>
+            <div>
+              <div className="muted">Charts</div>
+              <Link to={cycleId ? `/team-performance?cycleId=${cycleId}` : "/team-performance"}>
+                Team performance
+              </Link>
+            </div>
           </div>
         </div>
       )}

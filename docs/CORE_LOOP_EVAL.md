@@ -25,6 +25,7 @@ upload role R&R → tag people → year-round dossier
 | Export / import self & peer JSON | Done | Pipeline states: pending → exported → returned / waived on command center |
 | Deadline nudges | Done | In-app list near due date + mailto drafts for missing self (OS mail while app open) |
 | Command center | Done | Self/peer pipeline columns + cycle dashboard (writing time, evidence %, thin dossiers) |
+| Team performance graphs | Done | Rating histogram, competency averages, evidence scatter, writing/promo/theme bars, prior-cycle deltas |
 | Writing desk | Done | Autosave ~8s; writing-time total with ≤45 min/person signal; OOW evidence tray; finalize freezes citations + timeline |
 | Out-of-window evidence | Done | Late docs stay on the packet in a separate tray (flag `out_of_window_evidence`) |
 | Subject export | Done | HTML (+ Print→PDF tip); requires finalized/shared; strips `private_notes` / `em_only`; redacts peer names in cites |

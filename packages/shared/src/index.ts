@@ -395,3 +395,47 @@ export interface CycleStatsDTO {
     managerStatus: string;
   }>;
 }
+
+/** Cycle-scoped team analytics for the Team performance page. */
+export interface TeamPerformancePersonDTO {
+  personId: string;
+  personName: string;
+  levelKey: string | null;
+  overall: number | null;
+  /** Prior-cycle overall when a previous cycle exists; null if unrated then. */
+  priorOverall: number | null;
+  competencies: Record<string, number>;
+  promoReadiness: string | null;
+  writingSeconds: number;
+  evidenceCount: number;
+  linkedSources: number;
+  thin: boolean;
+  managerStatus: string;
+}
+
+export interface TeamPerformanceDTO {
+  cycleId: string;
+  cycleName: string;
+  priorCycle: { cycleId: string; cycleName: string } | null;
+  participantCount: number;
+  ratedCount: number;
+  avgOverall: number | null;
+  distribution: Record<string, number>;
+  competencies: Array<{
+    key: string;
+    label: string;
+    avg: number | null;
+    ratedCount: number;
+  }>;
+  promoReadiness: Record<string, number>;
+  writingBuckets: Array<{ id: string; label: string; count: number }>;
+  evidence: {
+    coveragePct: number;
+    avgLinkedSources: number;
+    thinDossierCount: number;
+  };
+  levels: Array<{ levelKey: string; count: number }>;
+  themes: Array<{ theme: string; count: number }>;
+  openConcerns: number;
+  people: TeamPerformancePersonDTO[];
+}

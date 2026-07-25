@@ -47,9 +47,12 @@ import type {
   IntegrationSettingsDTO,
   IntegrationSyncResult,
   PersonExternalLinkDTO,
+  TeamPerformanceDTO,
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
+import { buildTeamPerformance } from "./teamPerformance.js";
+import type { TeamPerformancePersonInput } from "./teamPerformance.js";
 import {
   checksum,
   encryptSecret,
@@ -3281,6 +3284,142 @@ app.post("/api/ai/bias-lint", async (c) => {
     runFaithfulnessLint(text, allowlist),
   );
   return c.json({ findings, ephemeral: true });
+});
+
+app.get("/api/team-performance", (c) => {
+  const cycleId = c.req.query("cycleId");
+  const db = getDb();
+  const allCycles = db.select().from(cycles).all().sort((a, b) => b.windowStart.localeCompare(a.windowStart));
+  const cycle = cycleId ? allCycles.find((x) => x.id === cycleId) : allCycles[0];
+  if (!cycle) return c.json({ error: "No cycle found" }, 404);
+
+  const priorCycle =
+    allCycles.find((x) => x.windowStart < cycle.windowStart && x.id !== cycle.id) ?? null;
+
+  const participants = db.select().from(cycleParticipants).where(eq(cycleParticipants.cycleId, cycle.id)).all();
+  const peopleInputs: TeamPerformancePersonInput[] = [];
+
+  for (const cp of participants) {
+    const person = db.select().from(people).where(eq(people.id, cp.personId)).all()[0];
+    if (!person) continue;
+
+    const ach = db.select().from(achievements).where(eq(achievements.personId, person.id)).all().length;
+    const fbRows = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, person.id)).all();
+    const docs = db.select().from(documents).where(eq(documents.personId, person.id)).all().length;
+    const goalsN = db.select().from(goals).where(eq(goals.personId, person.id)).all().length;
+    const evidenceCount = ach + fbRows.length + docs + goalsN;
+    const themes: string[] = [];
+    for (const f of fbRows) {
+      try {
+        const parsed = JSON.parse(f.themesJson || "[]") as string[];
+        for (const t of parsed) if (typeof t === "string" && t.trim()) themes.push(t.trim());
+      } catch {
+        /* ignore */
+      }
+    }
+    const openConcerns = db
+      .select()
+      .from(concernLogs)
+      .where(eq(concernLogs.personId, person.id))
+      .all()
+      .filter((row) => row.status === "open").length;
+
+    const manager = db
+      .select()
+      .from(reviews)
+      .where(and(eq(reviews.cycleId, cycle.id), eq(reviews.subjectPersonId, person.id), eq(reviews.type, "manager")))
+      .all()
+      .find((r) => r.status !== "superseded");
+
+    let overall: number | null = null;
+    let competencies: Record<string, number> = {};
+    let promoReadiness: string | null = null;
+    let writingSeconds = 0;
+    let linkedSources = 0;
+    let coverageHits = 0;
+    let coverageNeed = 0;
+    let managerStatus = "not_started";
+
+    if (manager) {
+      managerStatus = manager.status;
+      try {
+        const payload = JSON.parse(manager.payloadJson) as Record<string, unknown>;
+        overall = typeof payload.overall === "number" ? payload.overall : null;
+        competencies = (payload.competencies ?? {}) as Record<string, number>;
+        promoReadiness = typeof payload.promo_readiness === "string" ? payload.promo_readiness : null;
+        if (typeof payload.writing_seconds_total === "number") writingSeconds = payload.writing_seconds_total;
+        const links = db.select().from(evidenceLinks).where(eq(evidenceLinks.reviewId, manager.id)).all();
+        linkedSources = new Set(links.map((l) => l.sourceId)).size;
+        const scored: Array<{ key: string; score: number }> = [
+          ...Object.entries(competencies).map(([key, score]) => ({ key, score })),
+          ...(overall != null ? [{ key: "overall", score: overall }] : []),
+        ];
+        for (const s of scored) {
+          if (s.score === MIDDLE_BAND) continue;
+          coverageNeed += 1;
+          const has = links.some(
+            (l) =>
+              (s.key === "overall" && l.targetType === "overall") ||
+              (l.targetType === "competency" && l.targetKey === s.key),
+          );
+          if (has) coverageHits += 1;
+        }
+      } catch {
+        /* ignore bad payload */
+      }
+    }
+
+    let priorOverall: number | null = null;
+    if (priorCycle) {
+      const priorManager = db
+        .select()
+        .from(reviews)
+        .where(
+          and(
+            eq(reviews.cycleId, priorCycle.id),
+            eq(reviews.subjectPersonId, person.id),
+            eq(reviews.type, "manager"),
+          ),
+        )
+        .all()
+        .find((r) => r.status !== "superseded");
+      if (priorManager) {
+        try {
+          const payload = JSON.parse(priorManager.payloadJson) as Record<string, unknown>;
+          priorOverall = typeof payload.overall === "number" ? payload.overall : null;
+        } catch {
+          priorOverall = null;
+        }
+      }
+    }
+
+    peopleInputs.push({
+      personId: person.id,
+      personName: person.name,
+      levelKey: person.levelKey,
+      overall,
+      priorOverall,
+      competencies,
+      promoReadiness,
+      writingSeconds,
+      evidenceCount,
+      linkedSources,
+      thin: evidenceCount < 2,
+      managerStatus,
+      coverageHits,
+      coverageNeed,
+      themes,
+      openConcerns,
+    });
+  }
+
+  const result: TeamPerformanceDTO = buildTeamPerformance({
+    cycleId: cycle.id,
+    cycleName: cycle.name,
+    priorCycle: priorCycle ? { cycleId: priorCycle.id, cycleName: priorCycle.name } : null,
+    people: peopleInputs,
+  });
+  return c.json(result);
 });
 
 app.get("/api/consistency", (c) => {
