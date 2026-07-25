@@ -245,6 +245,8 @@ export function HomePage() {
               <Link to={cycleId ? `/team-performance?cycleId=${cycleId}` : "/team-performance"}>
                 Team performance
               </Link>
+              {" · "}
+              <Link to="/sprint-pulse">Sprint pulse</Link>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { CycleDTO, TeamPerformanceDTO } from "@prm/shared";
+import type { CycleCompareDTO, CycleDTO, RatingTrendsDTO, TeamPerformanceDTO } from "@prm/shared";
 import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
@@ -153,18 +153,60 @@ function EvidenceScatter({
   );
 }
 
+function TrendSparkline({
+  points,
+  label,
+}: {
+  points: Array<{ value: number | null; cycleName: string }>;
+  label: string;
+}) {
+  const w = 160;
+  const h = 36;
+  const vals = points.map((p) => p.value).filter((v): v is number => v != null);
+  if (vals.length < 1) return <span className="muted">—</span>;
+  const min = 1;
+  const max = 5;
+  const coords = points
+    .map((p, i) => {
+      if (p.value == null) return null;
+      const x = points.length === 1 ? w / 2 : (i / (points.length - 1)) * (w - 8) + 4;
+      const y = h - 4 - ((p.value - min) / (max - min)) * (h - 8);
+      return `${x},${y}`;
+    })
+    .filter(Boolean);
+  return (
+    <svg className="tp-trend" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label}>
+      <polyline points={coords.join(" ")} className="tp-trend-line" fill="none" />
+      {points.map((p, i) => {
+        if (p.value == null) return null;
+        const x = points.length === 1 ? w / 2 : (i / (points.length - 1)) * (w - 8) + 4;
+        const y = h - 4 - ((p.value - min) / (max - min)) * (h - 8);
+        return <circle key={p.cycleName} cx={x} cy={y} r={2.5} className="tp-trend-dot" />;
+      })}
+    </svg>
+  );
+}
+
 export function TeamPerformancePage() {
   const [params, setParams] = useSearchParams();
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
   const [data, setData] = useState<TeamPerformanceDTO | null>(null);
+  const [trends, setTrends] = useState<RatingTrendsDTO | null>(null);
+  const [compare, setCompare] = useState<CycleCompareDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const cycleId = params.get("cycleId") ?? "";
 
   async function load(cid?: string) {
     try {
       const qs = cid ? `?cycleId=${encodeURIComponent(cid)}` : "";
-      const res = await api<TeamPerformanceDTO>(`/api/team-performance${qs}`);
+      const [res, trendRes, compareRes] = await Promise.all([
+        api<TeamPerformanceDTO>(`/api/team-performance${qs}`),
+        api<RatingTrendsDTO>("/api/rating-trends"),
+        api<CycleCompareDTO>(`/api/cycle-compare${qs}`),
+      ]);
       setData(res);
+      setTrends(trendRes);
+      setCompare(compareRes);
       setError(null);
       if (!cid && res.cycleId) setParams({ cycleId: res.cycleId }, { replace: true });
     } catch (e) {
@@ -205,9 +247,14 @@ export function TeamPerformancePage() {
         job="See rating shape, competency averages, writing effort, and coaching themes across the cycle."
         primary={
           data ? (
-            <Link className="btn secondary" to={`/consistency?cycleId=${data.cycleId}`}>
-              Consistency view
-            </Link>
+            <>
+              <Link className="btn secondary" to="/sprint-pulse">
+                Sprint pulse
+              </Link>
+              <Link className="btn secondary" to={`/consistency?cycleId=${data.cycleId}`}>
+                Consistency view
+              </Link>
+            </>
           ) : undefined
         }
       />
@@ -451,6 +498,127 @@ export function TeamPerformancePage() {
               </table>
             </div>
           </div>
+
+          {trends && trends.cycles.length > 0 && (
+            <div className="tp-grid">
+              <div className="panel stack tp-span-2">
+                <h2 style={{ margin: 0 }}>Rating trends across cycles</h2>
+                <p className="muted" style={{ margin: 0 }}>
+                  Team averages (manager ratings). Spot stagnation or sudden jumps before the next packet.
+                </p>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Series</th>
+                        <th>Sparkline</th>
+                        {trends.cycles.map((c) => (
+                          <th key={c.cycleId}>{c.cycleName}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trends.team.map((series) => (
+                        <tr key={series.key}>
+                          <td>{series.label}</td>
+                          <td>
+                            <TrendSparkline
+                              label={series.label}
+                              points={series.points.map((p) => ({
+                                value: p.value,
+                                cycleName: p.cycleName,
+                              }))}
+                            />
+                          </td>
+                          {series.points.map((p) => (
+                            <td key={p.cycleId}>{p.value ?? "—"}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {compare && (
+            <div className="panel stack">
+              <h2 style={{ margin: 0 }}>Cycle compare</h2>
+              <p className="muted" style={{ margin: 0 }}>
+                {compare.prior
+                  ? `${compare.prior.cycleName} → ${compare.current.cycleName}`
+                  : `${compare.current.cycleName} (no prior cycle yet)`}
+              </p>
+              {compare.prior ? (
+                <div className="tp-grid">
+                  <div className="stack">
+                    <h3 style={{ margin: 0 }}>Distribution shift</h3>
+                    <div className="consistency-bars">
+                      {["1", "2", "3", "4", "5", "unset"].map((bucket) => {
+                        const cur = compare.current.distribution[bucket] ?? 0;
+                        const prev = compare.prior?.distribution[bucket] ?? 0;
+                        const max = Math.max(1, cur, prev);
+                        return (
+                          <div key={bucket} className="consistency-bar-row tp-bar-row">
+                            <div className="consistency-bar-label">{bucket === "unset" ? "—" : bucket}</div>
+                            <div className="consistency-bar-track compare-track">
+                              <div className="compare-fill prior" style={{ width: `${(prev / max) * 100}%` }} />
+                              <div className="compare-fill current" style={{ width: `${(cur / max) * 100}%` }} />
+                            </div>
+                            <div className="consistency-bar-count">
+                              {prev}→{cur}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="muted" style={{ margin: 0 }}>
+                      Avg overall {compare.prior.avgOverall ?? "—"} → {compare.current.avgOverall ?? "—"}
+                    </p>
+                  </div>
+                  <div className="stack">
+                    <h3 style={{ margin: 0 }}>Movers (±1+)</h3>
+                    {compare.movers.length === 0 ? (
+                      <p className="muted">No overall moves between cycles.</p>
+                    ) : (
+                      <ul className="timeline-list">
+                        {compare.movers.map((m) => (
+                          <li key={m.personId}>
+                            <Link to={`/team/${m.personId}`}>{m.personName}</Link>{" "}
+                            <span className={m.delta && m.delta > 0 ? "tp-up" : "tp-down"}>
+                              {m.from ?? "—"} → {m.to ?? "—"} ({m.delta && m.delta > 0 ? "+" : ""}
+                              {m.delta})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <h3 style={{ margin: "0.75rem 0 0" }}>Repeat thin dossiers</h3>
+                    {compare.repeatThin.length === 0 ? (
+                      <p className="muted">None repeating from the prior cycle.</p>
+                    ) : (
+                      <ul className="timeline-list">
+                        {compare.repeatThin.map((p) => (
+                          <li key={p.personId}>
+                            <Link to={`/team/${p.personId}`}>{p.personName}</Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <h3 style={{ margin: "0.75rem 0 0" }}>Theme drift</h3>
+                    <p className="muted" style={{ margin: 0 }}>
+                      Appeared: {compare.themeDrift.appeared.join(", ") || "—"}
+                      <br />
+                      Disappeared: {compare.themeDrift.disappeared.join(", ") || "—"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="muted">Add another cycle with ratings to unlock compare.</p>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

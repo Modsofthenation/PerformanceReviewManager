@@ -439,3 +439,114 @@ export interface TeamPerformanceDTO {
   openConcerns: number;
   people: TeamPerformancePersonDTO[];
 }
+
+export interface TimelineEntryDTO {
+  at: string;
+  kind: string;
+  title: string;
+  detail?: string | null;
+  sourceId?: string;
+}
+
+/** Mid-cycle coaching pulse for an arbitrary date window (not a formal review cycle). */
+export interface SprintPulsePersonDTO {
+  personId: string;
+  personName: string;
+  levelKey: string | null;
+  achievements: number;
+  jira: number;
+  bitbucket: number;
+  feedback: number;
+  documents: number;
+  openConcerns: number;
+  themes: string[];
+  /** Evidence dated in-window vs older on the dossier. */
+  inWindowEvidence: number;
+  olderEvidence: number;
+  /** Manager draft links whose sources sit outside the window (stale cites). */
+  linkedInWindow: number;
+  linkedStale: number;
+  staleOnlyCites: boolean;
+}
+
+export interface SprintPulseDTO {
+  from: string;
+  to: string;
+  preset: string;
+  summary: {
+    people: number;
+    achievements: number;
+    jira: number;
+    bitbucket: number;
+    feedback: number;
+    documents: number;
+    openConcerns: number;
+    staleCitePeople: number;
+  };
+  themes: Array<{ theme: string; count: number }>;
+  people: SprintPulsePersonDTO[];
+}
+
+export interface PersonTimelineDTO {
+  personId: string;
+  personName: string;
+  entries: TimelineEntryDTO[];
+}
+
+export interface RatingTrendPointDTO {
+  cycleId: string;
+  cycleName: string;
+  windowEnd: string;
+  value: number | null;
+}
+
+export interface RatingTrendsDTO {
+  cycles: Array<{ cycleId: string; cycleName: string; windowEnd: string }>;
+  /** Team averages over cycles (overall + competencies that appear). */
+  team: Array<{
+    key: string;
+    label: string;
+    points: RatingTrendPointDTO[];
+  }>;
+  people: Array<{
+    personId: string;
+    personName: string;
+    overall: RatingTrendPointDTO[];
+    competencies: Record<string, RatingTrendPointDTO[]>;
+  }>;
+}
+
+export interface CycleCompareDTO {
+  current: {
+    cycleId: string;
+    cycleName: string;
+    distribution: Record<string, number>;
+    avgOverall: number | null;
+    ratedCount: number;
+    thinCount: number;
+    themes: Array<{ theme: string; count: number }>;
+  };
+  prior: {
+    cycleId: string;
+    cycleName: string;
+    distribution: Record<string, number>;
+    avgOverall: number | null;
+    ratedCount: number;
+    thinCount: number;
+    themes: Array<{ theme: string; count: number }>;
+  } | null;
+  movers: Array<{
+    personId: string;
+    personName: string;
+    from: number | null;
+    to: number | null;
+    delta: number | null;
+  }>;
+  repeatThin: Array<{ personId: string; personName: string }>;
+  themeDrift: {
+    appeared: string[];
+    disappeared: string[];
+    grew: Array<{ theme: string; from: number; to: number }>;
+    shrank: Array<{ theme: string; from: number; to: number }>;
+  };
+}

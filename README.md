@@ -107,7 +107,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Build a citation pool all year so the writing desk is not empty in week one of reviews.
 
-**How it works:** Capture achievements, goals, feedback (with optional 1:1 theme tags), documents, concern / underperformance notes, and external links (for example Jira or Bitbucket sync). Visibility controls keep EM-only material out of subject exports. AI digests and drafts pull from this pool (and from concerns only when you opt them in).
+**How it works:** Capture achievements, goals, feedback (with optional 1:1 theme tags), documents, concern / underperformance notes, and external links (for example Jira or Bitbucket sync). The **Timeline** panel stitches those events with manager reviews and rating decisions so you can prep a 1:1 without opening five pages. Visibility controls keep EM-only material out of subject exports. AI digests and drafts pull from this pool (and from concerns only when you opt them in).
 
 ![Person dossier](./docs/screenshots/04-person.png)
 
@@ -157,9 +157,15 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** See the team's rating and coaching shape as graphs, not only as a queue of drafts.
 
-**How it works:** Cycle-scoped charts for overall distribution, evidence vs overall, competency averages, promo readiness, writing-time buckets, level mix, and top 1:1 themes. The people table adds competency sparklines and prior-cycle overall deltas when history exists. Use it with Consistency: graphs for pattern, cards for per-person fixes.
+**How it works:** Cycle-scoped charts for overall distribution, evidence vs overall, competency averages, promo readiness, writing-time buckets, level mix, and top 1:1 themes. Cross-cycle **rating trends** and **cycle compare** call out movers, repeat thin dossiers, and theme drift. The people table adds competency sparklines and prior-cycle overall deltas when history exists.
 
 ![Team performance](./docs/screenshots/11-team-performance.png)
+
+### Sprint pulse
+
+**Intent:** Review the last sprint (or any date window) for coaching, not final ratings.
+
+**How it works:** Pick last 7 / 14 / 30 days or a custom range. See per-person achievement volume, Jira / Bitbucket throughput, feedback themes, open concerns, and evidence freshness (in-window vs older dossier items, plus stale-only cites on manager drafts).
 
 ### Backfill
 
@@ -192,7 +198,9 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 - **Encrypted vault** (AES-256-GCM) for DB and dossier files on lock
 - **People / roles / cycles** with self and peer JSON bundles
 - **Writing desk**: competencies, evidence links, citation freeze, HTML subject packets
-- **Consistency** and **team performance** views before you share
+- **Consistency** and **team performance** views before you share (including cross-cycle trends and cycle compare)
+- **Sprint pulse** for date-window coaching and evidence freshness
+- **Person timeline** on each dossier
 - **Bias / faithfulness lint** (advisory) on drafts
 - **Promotions** against next-role expectations
 - **Backfill** wizard plus MCP / Jira / Bitbucket paths for thin dossiers

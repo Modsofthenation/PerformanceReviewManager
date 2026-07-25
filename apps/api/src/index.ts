@@ -53,6 +53,7 @@ import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
 import { buildTeamPerformance } from "./teamPerformance.js";
 import type { TeamPerformancePersonInput } from "./teamPerformance.js";
+import { loadCycleCompare, loadPersonTimeline, loadRatingTrends, loadSprintPulse } from "./analyticsGather.js";
 import {
   checksum,
   encryptSecret,
@@ -3284,6 +3285,39 @@ app.post("/api/ai/bias-lint", async (c) => {
     runFaithfulnessLint(text, allowlist),
   );
   return c.json({ findings, ephemeral: true });
+});
+
+app.get("/api/sprint-pulse", (c) => {
+  const db = getDb();
+  return c.json(
+    loadSprintPulse(db, {
+      from: c.req.query("from"),
+      to: c.req.query("to"),
+      preset: c.req.query("preset"),
+    }),
+  );
+});
+
+app.get("/api/people/:id/timeline", (c) => {
+  const db = getDb();
+  const timeline = loadPersonTimeline(db, c.req.param("id"));
+  if (!timeline) return c.json({ error: "Not found" }, 404);
+  return c.json(timeline);
+});
+
+app.get("/api/rating-trends", (c) => {
+  const db = getDb();
+  return c.json(loadRatingTrends(db));
+});
+
+app.get("/api/cycle-compare", (c) => {
+  const db = getDb();
+  const result = loadCycleCompare(db, {
+    cycleId: c.req.query("cycleId"),
+    compareTo: c.req.query("compareTo"),
+  });
+  if (!result) return c.json({ error: "No cycle found" }, 404);
+  return c.json(result);
 });
 
 app.get("/api/team-performance", (c) => {

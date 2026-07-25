@@ -8,6 +8,7 @@ import type {
   IntegrationSyncResult,
   PersonDTO,
   PersonExternalLinkDTO,
+  PersonTimelineDTO,
 } from "@prm/shared";
 import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
@@ -50,6 +51,7 @@ export function PersonPage() {
   const [linkResults, setLinkResults] = useState<IntegrationRemoteUser[]>([]);
   const [linkMsg, setLinkMsg] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [timeline, setTimeline] = useState<PersonTimelineDTO | null>(null);
 
   async function load() {
     if (!id) return;
@@ -67,6 +69,11 @@ export function PersonPage() {
       setExtLinks(links.items);
     } catch {
       setExtLinks([]);
+    }
+    try {
+      setTimeline(await api<PersonTimelineDTO>(`/api/people/${id}/timeline`));
+    } catch {
+      setTimeline(null);
     }
   }
 
@@ -126,6 +133,27 @@ export function PersonPage() {
           }
         />
       )}
+
+      <div className="panel stack" id="timeline">
+        <h2 style={{ margin: 0 }}>Timeline</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Chronological dossier, reviews, concerns, and rating decisions. Use this to prep a 1:1 or reconstruct
+          why the story changed.
+        </p>
+        {!timeline || timeline.entries.length === 0 ? (
+          <p className="muted">No timeline events yet.</p>
+        ) : (
+          <ul className="timeline-list person-timeline">
+            {timeline.entries.slice(0, 40).map((e, idx) => (
+              <li key={`${e.kind}-${e.sourceId ?? idx}-${e.at}`}>
+                <span className="mono muted">{e.at}</span>{" "}
+                <span className="flag">{e.kind}</span> <strong>{e.title}</strong>
+                {e.detail ? <div className="muted">{e.detail}</div> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div className="panel stack" id="integrations">
         <h2>Jira & Bitbucket</h2>
