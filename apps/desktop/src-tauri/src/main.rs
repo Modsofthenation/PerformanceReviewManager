@@ -4,6 +4,7 @@ use std::{
   fs,
   io::Read,
   path::{Path, PathBuf},
+  process::{Child, Command, Stdio},
   sync::Mutex,
 };
 
@@ -21,6 +22,7 @@ struct LaunchConfig {
 }
 
 struct LaunchState(Mutex<LaunchConfig>);
+struct ApiChild(Mutex<Option<Child>>);
 
 #[tauri::command]
 fn get_launch_config(state: State<'_, LaunchState>) -> Result<LaunchConfig, String> {
@@ -85,9 +87,87 @@ fn resolve_launch_config() -> LaunchConfig {
   }
 }
 
+fn candidate_sidecar_dirs(resource_dir: Option<&Path>) -> Vec<PathBuf> {
+  let mut dirs = Vec::new();
+  if let Ok(custom) = std::env::var("PRM_API_SIDECAR_DIR") {
+    dirs.push(PathBuf::from(custom));
+  }
+  if let Some(res) = resource_dir {
+    dirs.push(res.join("sidecars"));
+    dirs.push(res.to_path_buf());
+  }
+  dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sidecars"));
+  dirs
+}
+
+/// Spawn the local Node API when a bundled sidecar exists or `PRM_SPAWN_API=1`.
+fn maybe_spawn_api(token: &str, resource_dir: Option<&Path>) -> Option<Child> {
+  let force = std::env::var("PRM_SPAWN_API").ok().as_deref() == Some("1");
+  let api_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../api/src/index.ts");
+
+  let mut program: Option<String> = None;
+  let mut args: Vec<String> = Vec::new();
+  let mut cwd: Option<PathBuf> = None;
+
+  for dir in candidate_sidecar_dirs(resource_dir) {
+    let script = dir.join("prm-api.mjs");
+    if !script.exists() {
+      continue;
+    }
+    let bundled_node = if cfg!(windows) {
+      dir.join("node.exe")
+    } else {
+      dir.join("node")
+    };
+    if bundled_node.exists() {
+      program = Some(bundled_node.to_string_lossy().to_string());
+    } else {
+      program = Some("node".into());
+    }
+    args = vec![script.to_string_lossy().to_string()];
+    cwd = Some(dir);
+    break;
+  }
+
+  if program.is_none() && force && api_entry.exists() {
+    program = Some("pnpm".into());
+    args = vec!["exec".into(), "tsx".into(), "src/index.ts".into()];
+    cwd = api_entry.parent()?.parent().map(|p| p.to_path_buf());
+  }
+
+  let (program, args, cwd) = match (program, cwd) {
+    (Some(p), Some(c)) => (p, args, c),
+    _ => return None,
+  };
+
+  let data = data_dir();
+  let _ = fs::create_dir_all(&data);
+  match Command::new(&program)
+    .args(&args)
+    .current_dir(&cwd)
+    .env("PRM_LAUNCH_TOKEN", token)
+    .env("PRM_DATA_DIR", &data)
+    .env("PRM_PORT", "8787")
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()
+  {
+    Ok(child) => {
+      eprintln!("PRM: spawned API sidecar ({program})");
+      Some(child)
+    }
+    Err(err) => {
+      eprintln!("PRM: failed to spawn API sidecar: {err}");
+      None
+    }
+  }
+}
+
 fn main() {
   let launch = resolve_launch_config();
   std::env::set_var("PRM_LAUNCH_TOKEN", &launch.launch_token);
+  let token_for_spawn = launch.launch_token.clone();
 
   let inject = format!(
     "window.__PRM_LAUNCH_TOKEN__={};",
@@ -96,14 +176,22 @@ fn main() {
 
   tauri::Builder::default()
     .manage(LaunchState(Mutex::new(launch)))
+    .manage(ApiChild(Mutex::new(None)))
     .invoke_handler(tauri::generate_handler![get_launch_config])
     .setup(move |app| {
+      let resource_dir = app.path().resource_dir().ok();
+      let child = maybe_spawn_api(&token_for_spawn, resource_dir.as_deref());
+      if let Some(state) = app.try_state::<ApiChild>() {
+        if let Ok(mut guard) = state.0.lock() {
+          *guard = child;
+        }
+      }
+
       let url = if cfg!(debug_assertions) {
         WebviewUrl::External(DEV_UI_URL.parse().expect("dev ui url"))
       } else {
         WebviewUrl::App("index.html".into())
       };
-      // Prefer initialization_script so the token exists before first fetch.
       if app.get_webview_window("main").is_none() {
         WebviewWindowBuilder::new(app, "main", url)
           .title("Performance Review Manager")
@@ -116,6 +204,18 @@ fn main() {
       }
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running Performance Review Manager");
+    .build(tauri::generate_context!())
+    .expect("error while building Performance Review Manager")
+    .run(|app_handle, event| {
+      if let tauri::RunEvent::Exit = event {
+        if let Some(state) = app_handle.try_state::<ApiChild>() {
+          if let Ok(mut guard) = state.0.lock() {
+            if let Some(mut child) = guard.take() {
+              let _ = child.kill();
+              let _ = child.wait();
+            }
+          }
+        }
+      }
+    });
 }

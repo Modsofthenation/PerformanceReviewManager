@@ -25,6 +25,7 @@ import {
   roleFrameworkVersions,
   roleFrameworks,
   workspace,
+  concernLogs,
 } from "@prm/db";
 import type {
   BiasFinding,
@@ -36,6 +37,8 @@ import type {
   RoleDraftDTO,
   RoleFrameworkInfo,
   WorkspaceStatus,
+  ConcernLogDTO,
+  DeadlineNudge,
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
@@ -59,6 +62,9 @@ import {
   readDocumentFile,
   exportAuditPack,
   verifyActivityChain,
+  createEncryptedBackup,
+  listEncryptedBackups,
+  restoreEncryptedBackup,
 } from "./store.js";
 import {
   buildChatSystemPrompt,
@@ -72,6 +78,7 @@ import {
 } from "./ai.js";
 import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations.js";
 import { runBiasToneLint } from "./bias.js";
+import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import { localPeerSynthesize } from "./peerSynth.js";
 import {
@@ -310,6 +317,32 @@ app.post("/api/workspace/unlock", async (c) => {
 app.post("/api/workspace/lock", (c) => {
   lockVault();
   return c.json({ ok: true, encryptedAtRest: true });
+});
+
+app.get("/api/workspace/backups", (c) => {
+  return c.json({ backups: listEncryptedBackups() });
+});
+
+app.post("/api/workspace/backup", async (c) => {
+  const body = await c.req.json<{ label?: string }>().catch(() => ({}) as { label?: string });
+  try {
+    const result = createEncryptedBackup(body.label);
+    return c.json(result);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Backup failed" }, 500);
+  }
+});
+
+app.post("/api/workspace/restore", async (c) => {
+  const body = await c.req.json<{ filename: string; confirm?: boolean }>();
+  if (!body.filename) return c.json({ error: "filename required" }, 400);
+  if (!body.confirm) return c.json({ error: "confirm: true required" }, 400);
+  try {
+    const result = restoreEncryptedBackup(body.filename);
+    return c.json(result);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Restore failed" }, 500);
+  }
 });
 
 app.get("/api/people", (c) => {
@@ -908,6 +941,9 @@ app.post("/api/cycles", async (c) => {
     windowStart: string;
     windowEnd: string;
     includeDirects?: boolean;
+    selfDue?: string;
+    peerDue?: string;
+    managerDue?: string;
   }>();
   const db = getDb();
   const cycleId = id("cycle");
@@ -933,12 +969,132 @@ app.post("/api/cycles", async (c) => {
         roleDefinitionId: a?.roleDefinitionId ?? null,
         targetNextRoleDefinitionId: a?.targetNextRoleDefinitionId ?? null,
         eligibility: "full",
-        phaseStatusJson: JSON.stringify({ self: "pending", peer: "pending", manager: "draft" }),
+        phaseStatusJson: JSON.stringify({
+          self: "pending",
+          peer: "pending",
+          manager: "draft",
+          selfDue: body.selfDue ?? body.windowEnd,
+          peerDue: body.peerDue ?? body.windowEnd,
+          managerDue: body.managerDue ?? body.windowEnd,
+        }),
       }).run();
     }
   }
   logActivity("cycle.create", "cycle", cycleId, { name: body.name });
   return c.json({ id: cycleId });
+});
+
+function readPhaseStatus(raw: string): Record<string, string> {
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function writePhaseStatus(participantId: string, patch: Record<string, string>) {
+  const db = getDb();
+  const row = db.select().from(cycleParticipants).where(eq(cycleParticipants.id, participantId)).all()[0];
+  if (!row) return null;
+  const next = { ...readPhaseStatus(row.phaseStatusJson), ...patch };
+  db.update(cycleParticipants)
+    .set({ phaseStatusJson: JSON.stringify(next) })
+    .where(eq(cycleParticipants.id, participantId))
+    .run();
+  return next;
+}
+
+function participantFor(cycleId: string, personId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(cycleParticipants)
+    .where(and(eq(cycleParticipants.cycleId, cycleId), eq(cycleParticipants.personId, personId)))
+    .all()[0];
+}
+
+app.patch("/api/cycles/:id", async (c) => {
+  const cycleId = c.req.param("id");
+  const body = await c.req.json<{
+    name?: string;
+    windowStart?: string;
+    windowEnd?: string;
+    status?: string;
+  }>();
+  const db = getDb();
+  const cycle = db.select().from(cycles).where(eq(cycles.id, cycleId)).all()[0];
+  if (!cycle) return c.json({ error: "Not found" }, 404);
+  db.update(cycles)
+    .set({
+      name: body.name ?? cycle.name,
+      windowStart: body.windowStart ?? cycle.windowStart,
+      windowEnd: body.windowEnd ?? cycle.windowEnd,
+      status: body.status ?? cycle.status,
+    })
+    .where(eq(cycles.id, cycleId))
+    .run();
+  logActivity("cycle.update", "cycle", cycleId, body as Record<string, unknown>);
+  return c.json({ ok: true });
+});
+
+app.post("/api/cycles/:id/participants/:personId/waive", async (c) => {
+  const cycleId = c.req.param("id");
+  const personId = c.req.param("personId");
+  const body = await c.req.json<{ phase: string; reason: string }>();
+  if (!body.reason?.trim()) return c.json({ error: "reason required" }, 400);
+  const phase = body.phase === "peer" ? "peer" : "self";
+  const cp = participantFor(cycleId, personId);
+  if (!cp) return c.json({ error: "Participant not found" }, 404);
+  const phaseStatus = writePhaseStatus(cp.id, {
+    [phase]: "waived",
+    [`${phase}WaiveReason`]: body.reason.trim(),
+    [`${phase}WaivedAt`]: nowIso(),
+  });
+  logActivity("cycle.waive", "person", personId, { cycleId, phase, reason: body.reason.trim() });
+  return c.json({ ok: true, phaseStatus });
+});
+
+app.get("/api/cycles/:id/nudges", (c) => {
+  const cycleId = c.req.param("id");
+  const db = getDb();
+  const cycle = db.select().from(cycles).where(eq(cycles.id, cycleId)).all()[0];
+  if (!cycle) return c.json({ error: "Not found" }, 404);
+  const end = new Date(cycle.windowEnd);
+  const now = new Date();
+  const daysUntilDue = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const participants = db.select().from(cycleParticipants).where(eq(cycleParticipants.cycleId, cycleId)).all();
+  const nudges: DeadlineNudge[] = [];
+  for (const cp of participants) {
+    const person = db.select().from(people).where(eq(people.id, cp.personId)).all()[0];
+    if (!person) continue;
+    const phase = readPhaseStatus(cp.phaseStatusJson);
+    const hasSelf = db
+      .select()
+      .from(reviews)
+      .where(and(eq(reviews.cycleId, cycleId), eq(reviews.subjectPersonId, cp.personId), eq(reviews.type, "self")))
+      .all().length > 0;
+    const selfStatus = hasSelf ? "returned" : phase.self || "pending";
+    if (selfStatus === "returned" || selfStatus === "waived") continue;
+    const subject = encodeURIComponent(`Self-review due: ${cycle.name}`);
+    const body = encodeURIComponent(
+      `Hi ${person.name},\n\nPlease complete your self-review for ${cycle.name} (due ${cycle.windowEnd}).\nYour manager will send a JSON bundle — fill it and return the file.\n\nThanks`,
+    );
+    nudges.push({
+      personId: person.id,
+      personName: person.name,
+      email: person.email,
+      cycleId,
+      cycleName: cycle.name,
+      windowEnd: cycle.windowEnd,
+      daysUntilDue,
+      missingSelf: !hasSelf,
+      selfStatus,
+      mailtoHref: person.email
+        ? `mailto:${encodeURIComponent(person.email)}?subject=${subject}&body=${body}`
+        : `mailto:?subject=${subject}&body=${body}`,
+    });
+  }
+  return c.json({ cycleId, windowEnd: cycle.windowEnd, daysUntilDue, nudges });
 });
 
 app.get("/api/cycles/:id/command-center", (c) => {
@@ -948,14 +1104,33 @@ app.get("/api/cycles/:id/command-center", (c) => {
   const items = participants.map((cp) => {
     const person = db.select().from(people).where(eq(people.id, cp.personId)).all()[0];
     const revs = db.select().from(reviews).where(and(eq(reviews.cycleId, cycleId), eq(reviews.subjectPersonId, cp.personId))).all();
+    const phaseStatus = readPhaseStatus(cp.phaseStatusJson);
+    const hasSelf = revs.some((r) => r.type === "self");
+    const selfStatus = hasSelf
+      ? "returned"
+      : phaseStatus.self === "waived"
+        ? "waived"
+        : phaseStatus.self === "exported"
+          ? "exported"
+          : "pending";
+    const peerStatus =
+      phaseStatus.peer === "waived"
+        ? "waived"
+        : revs.filter((r) => r.type === "peer").length
+          ? "returned"
+          : phaseStatus.peer === "exported"
+            ? "exported"
+            : "pending";
     return {
       participantId: cp.id,
       person: person ? mapPerson(person, assignmentFor(person.id)) : null,
       eligibility: cp.eligibility,
-      phaseStatus: JSON.parse(cp.phaseStatusJson) as Record<string, string>,
-      hasSelf: revs.some((r) => r.type === "self"),
+      phaseStatus: { ...phaseStatus, self: selfStatus, peer: peerStatus },
+      hasSelf,
       peerCount: revs.filter((r) => r.type === "peer").length,
       managerStatus: revs.find((r) => r.type === "manager")?.status ?? "missing",
+      selfStatus,
+      peerStatus,
     };
   });
   return c.json({ cycleId, items });
@@ -987,8 +1162,19 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
   });
   const flags: string[] = [];
   if (!currentRole) flags.push("unassigned_role");
-  if (!revs.some((r) => r.type === "self")) flags.push("missing_self_import");
+  const phaseStatus = participant ? readPhaseStatus(participant.phaseStatusJson) : {};
+  const hasSelf = revs.some((r) => r.type === "self");
+  if (!hasSelf && phaseStatus.self !== "waived") flags.push("missing_self_import");
   if (!db.select().from(achievements).where(eq(achievements.personId, personId)).all().length) flags.push("thin_evidence");
+
+  const cycle = db.select().from(cycles).where(eq(cycles.id, cycleId)).all()[0];
+  const windowStart = cycle?.windowStart ?? "0000-01-01";
+  const windowEnd = cycle?.windowEnd ?? "9999-12-31";
+  const inWindow = (iso: string | null | undefined) => {
+    if (!iso) return true;
+    const day = iso.slice(0, 10);
+    return day >= windowStart.slice(0, 10) && day <= windowEnd.slice(0, 10);
+  };
 
   const manager = revs.find((r) => r.type === "manager" && r.status !== "superseded");
   const links = manager
@@ -1071,12 +1257,14 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
       id: g.id,
       title: g.title,
       status: g.status,
+      createdAt: g.createdAt,
     })),
     achievements: achRows.map((row) => ({
       id: row.id,
       title: row.title,
       occurredAt: row.occurredAt,
       description: row.description,
+      outOfWindow: !inWindow(row.occurredAt),
     })),
     feedback: fbRows.map((f) => ({
       id: f.id,
@@ -1084,12 +1272,32 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
       kind: f.kind,
       body: f.body,
       occurredAt: f.occurredAt,
+      outOfWindow: !inWindow(f.occurredAt),
     })),
     documents: docRows.map((d) => ({
       id: d.id,
       title: d.title,
       visibility: d.visibility as PacketDTO["documents"][number]["visibility"],
+      occurredAt: d.occurredAt,
+      outOfWindow: !inWindow(d.occurredAt),
     })),
+    outOfWindow: {
+      achievements: achRows
+        .filter((row) => !inWindow(row.occurredAt))
+        .map((row) => ({ id: row.id, title: row.title, occurredAt: row.occurredAt })),
+      feedback: fbRows
+        .filter((f) => !inWindow(f.occurredAt))
+        .map((f) => ({
+          id: f.id,
+          fromName: f.fromName,
+          kind: f.kind,
+          body: f.body,
+          occurredAt: f.occurredAt,
+        })),
+      documents: docRows
+        .filter((d) => !inWindow(d.occurredAt))
+        .map((d) => ({ id: d.id, title: d.title, occurredAt: d.occurredAt })),
+    },
     evidenceLinks: links.map((l) => ({
       id: l.id,
       targetType: l.targetType,
@@ -1107,7 +1315,23 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
     })),
     priorCycle,
     timeline: timeline.slice(0, 40),
-    flags,
+    flags: (() => {
+      const oow =
+        achRows.some((r) => !inWindow(r.occurredAt)) ||
+        fbRows.some((f) => !inWindow(f.occurredAt)) ||
+        docRows.some((d) => !inWindow(d.occurredAt));
+      if (oow) flags.push("out_of_window_evidence");
+      return flags;
+    })(),
+    phaseStatus,
+    writingSecondsTotal: (() => {
+      try {
+        const payload = JSON.parse(manager?.payloadJson ?? "{}") as Record<string, unknown>;
+        return typeof payload.writing_seconds_total === "number" ? payload.writing_seconds_total : 0;
+      } catch {
+        return 0;
+      }
+    })(),
   };
   return c.json(packet);
 });
@@ -1445,6 +1669,13 @@ app.post("/api/bundles/export", async (c) => {
         : "Author hidden in shared packet later — not cryptographically anonymous. Fill and return JSON to the manager.",
   };
   logActivity("bundle.export", "person", body.subjectPersonId, { kind: body.kind });
+  const cp = participantFor(body.cycleId, body.subjectPersonId);
+  if (cp) {
+    writePhaseStatus(cp.id, {
+      [body.kind]: "exported",
+      [`${body.kind}ExportedAt`]: nowIso(),
+    });
+  }
   return c.json(bundle);
 });
 
@@ -1493,7 +1724,106 @@ app.post("/api/bundles/import", async (c) => {
   }).run();
 
   logActivity("bundle.import", "review", reviewId, { kind });
+  const cp = participantFor(cycleId, subjectPersonId);
+  if (cp) {
+    writePhaseStatus(cp.id, {
+      [kind]: "returned",
+      [`${kind}ReturnedAt`]: ts,
+    });
+  }
   return c.json({ bundleId, reviewId });
+});
+
+app.get("/api/people/:id/concerns", (c) => {
+  const personId = c.req.param("id");
+  const db = getDb();
+  const rows = db
+    .select()
+    .from(concernLogs)
+    .where(eq(concernLogs.personId, personId))
+    .all()
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+  const items: ConcernLogDTO[] = rows.map((r) => ({
+    id: r.id,
+    personId: r.personId,
+    occurredAt: r.occurredAt,
+    title: r.title,
+    body: r.body,
+    expectationText: r.expectationText,
+    planText: r.planText,
+    status: r.status,
+    aiAllowed: Boolean(r.aiAllowed),
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+  return c.json({ items });
+});
+
+app.post("/api/people/:id/concerns", async (c) => {
+  const personId = c.req.param("id");
+  const body = await c.req.json<{
+    title: string;
+    body: string;
+    occurredAt?: string;
+    expectationText?: string;
+    planText?: string;
+    aiAllowed?: boolean;
+  }>();
+  if (!body.title?.trim() || !body.body?.trim()) {
+    return c.json({ error: "title and body required" }, 400);
+  }
+  const db = getDb();
+  const person = db.select().from(people).where(eq(people.id, personId)).all()[0];
+  if (!person) return c.json({ error: "Not found" }, 404);
+  const ts = nowIso();
+  const concernId = id("concern");
+  db.insert(concernLogs)
+    .values({
+      id: concernId,
+      personId,
+      occurredAt: body.occurredAt?.slice(0, 10) || ts.slice(0, 10),
+      title: body.title.trim(),
+      body: body.body.trim(),
+      expectationText: body.expectationText?.trim() || null,
+      planText: body.planText?.trim() || null,
+      status: "open",
+      aiAllowed: body.aiAllowed ? 1 : 0,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .run();
+  logActivity("concern.create", "person", personId, { concernId, title: body.title.trim() });
+  return c.json({ id: concernId });
+});
+
+app.patch("/api/concerns/:id", async (c) => {
+  const concernId = c.req.param("id");
+  const body = await c.req.json<{
+    title?: string;
+    body?: string;
+    expectationText?: string | null;
+    planText?: string | null;
+    status?: string;
+    aiAllowed?: boolean;
+  }>();
+  const db = getDb();
+  const row = db.select().from(concernLogs).where(eq(concernLogs.id, concernId)).all()[0];
+  if (!row) return c.json({ error: "Not found" }, 404);
+  db.update(concernLogs)
+    .set({
+      title: body.title?.trim() || row.title,
+      body: body.body?.trim() || row.body,
+      expectationText:
+        body.expectationText === undefined ? row.expectationText : body.expectationText?.trim() || null,
+      planText: body.planText === undefined ? row.planText : body.planText?.trim() || null,
+      status: body.status ?? row.status,
+      aiAllowed: body.aiAllowed === undefined ? row.aiAllowed : body.aiAllowed ? 1 : 0,
+      updatedAt: nowIso(),
+    })
+    .where(eq(concernLogs.id, concernId))
+    .run();
+  logActivity("concern.update", "person", row.personId, { concernId });
+  return c.json({ ok: true });
 });
 
 app.get("/api/people/:id/dossier", (c) => {
@@ -2482,6 +2812,7 @@ app.post("/api/ai/bias-lint", async (c) => {
     text?: string;
   }>();
   let text = body.text?.trim() ?? "";
+  let allowlist: string[] = [];
   if (!text && body.cycleId && body.personId) {
     const db = getDb();
     const manager = db
@@ -2499,9 +2830,24 @@ app.post("/api/ai/bias-lint", async (c) => {
     if (manager) {
       const p = JSON.parse(manager.payloadJson) as Record<string, unknown>;
       text = [p.summary, p.strengths, p.growth_areas, p.dev_plan, p.role_fit].map((x) => String(x ?? "")).join("\n\n");
+      allowlist = db
+        .select()
+        .from(evidenceLinks)
+        .where(eq(evidenceLinks.reviewId, manager.id))
+        .all()
+        .map((l) => l.sourceId);
+      allowlist.push(
+        ...db.select().from(achievements).where(eq(achievements.personId, body.personId)).all().map((a) => a.id),
+        ...db.select().from(goals).where(eq(goals.personId, body.personId)).all().map((g) => g.id),
+        ...db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, body.personId)).all().map((f) => f.id),
+        ...db.select().from(documents).where(eq(documents.personId, body.personId)).all().map((d) => d.id),
+      );
     }
   }
-  const findings: BiasFinding[] = runBiasToneLint(text);
+  const findings = mergeLintFindings(
+    runBiasToneLint(text),
+    runFaithfulnessLint(text, allowlist),
+  );
   return c.json({ findings, ephemeral: true });
 });
 

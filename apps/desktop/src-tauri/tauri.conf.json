@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "bash ../scripts/desktop-dev.sh",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --dir ../.. --filter @prm/ui build",
+    "beforeBuildCommand": "node ../scripts/bundle-api-sidecar.mjs --node && pnpm --dir ../.. --filter @prm/ui build",
     "frontendDist": "../ui/dist"
   },
   "app": {
@@ -23,6 +23,9 @@
       "icons/128x128.png",
       "icons/henry.w@example.net",
       "icons/icon.png"
+    ],
+    "resources": [
+      "sidecars/**/*"
     ],
     "longDescription": "Solo engineering manager performance review workbench with encrypted local vault.",
     "shortDescription": "EM performance review workbench",

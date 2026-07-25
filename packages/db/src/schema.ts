@@ -206,6 +206,21 @@ export const promotionCases = sqliteTable("promotion_cases", {
   createdAt: text("created_at").notNull(),
 });
 
+/** Dated underperformance / concern notes — AI off by default for this record. */
+export const concernLogs = sqliteTable("concern_logs", {
+  id: text("id").primaryKey(),
+  personId: text("person_id").notNull(),
+  occurredAt: text("occurred_at").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  expectationText: text("expectation_text"),
+  planText: text("plan_text"),
+  status: text("status").notNull().default("open"),
+  aiAllowed: integer("ai_allowed").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const aiSettings = sqliteTable("ai_settings", {
   id: text("id").primaryKey(),
   enabled: integer("enabled").notNull().default(0),
@@ -265,6 +280,7 @@ export const schema = {
   citationSnapshots,
   nextLevelAssessments,
   promotionCases,
+  concernLogs,
   aiSettings,
   aiGenerations,
   activityEvents,

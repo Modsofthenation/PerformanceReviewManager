@@ -39,11 +39,13 @@ export const paths = {
   documents: join(ROOT, "files", "documents"),
   frameworks: join(ROOT, "files", "frameworks"),
   exports: join(ROOT, "files", "exports"),
+  backups: join(ROOT, "backups"),
 };
 
 mkdirSync(paths.documents, { recursive: true });
 mkdirSync(paths.frameworks, { recursive: true });
 mkdirSync(paths.exports, { recursive: true });
+mkdirSync(paths.backups, { recursive: true });
 
 type VaultMeta = {
   version: 1;
@@ -355,6 +357,66 @@ export function encryptionStatus() {
     encryptedAtRest: Boolean(vault?.encryptedAtRest) || existsSync(DB_ENC_PATH),
     plaintextDbPresent: existsSync(DB_PATH),
   };
+}
+
+/** Snapshot unlocked SQLite (+ optional files note) into an encrypted backup under data/backups. */
+export function createEncryptedBackup(label?: string) {
+  const secret = getWorkspaceSecret();
+  if (!secret) throw new Error("Workspace locked — unlock before backup");
+  if (!existsSync(DB_PATH)) throw new Error("No plaintext database to back up");
+  mkdirSync(paths.backups, { recursive: true });
+  if (sqliteHandle) {
+    try {
+      sqliteHandle.pragma("wal_checkpoint(TRUNCATE)");
+    } catch {
+      /* ignore */
+    }
+  }
+  const stamp = nowIso().replace(/[:.]/g, "-");
+  const safeLabel = (label ?? "manual").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 40);
+  const name = `prm-backup-${stamp}-${safeLabel}.sqlite.enc`;
+  const outPath = join(paths.backups, name);
+  const plain = readFileSync(DB_PATH);
+  writeFileSync(outPath, encryptBytes(plain, secret), { mode: 0o600 });
+  logActivity("workspace.backup", "workspace", null, { filename: name, bytes: plain.length });
+  return { filename: name, path: outPath, byteSize: plain.length, createdAt: nowIso() };
+}
+
+export function listEncryptedBackups() {
+  mkdirSync(paths.backups, { recursive: true });
+  return readdirSync(paths.backups)
+    .filter((f) => f.endsWith(".sqlite.enc"))
+    .map((filename) => {
+      const full = join(paths.backups, filename);
+      const st = statSync(full);
+      return { filename, byteSize: st.size, modifiedAt: st.mtime.toISOString() };
+    })
+    .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+}
+
+/**
+ * Restore from an encrypted backup. Caller must unlock first; this replaces the live DB
+ * after closing handles — session remains but DB is reopened.
+ */
+export function restoreEncryptedBackup(filename: string) {
+  const secret = getWorkspaceSecret();
+  if (!secret) throw new Error("Workspace locked — unlock before restore");
+  const safe = basename(filename);
+  if (safe !== filename || !safe.endsWith(".sqlite.enc")) {
+    throw new Error("Invalid backup filename");
+  }
+  const full = join(paths.backups, safe);
+  if (!existsSync(full)) throw new Error("Backup not found");
+  const plain = decryptBytes(readFileSync(full), secret);
+  closeDbHandles();
+  removeSidecars();
+  writeFileSync(DB_PATH, plain, { mode: 0o600 });
+  if (existsSync(DB_ENC_PATH)) unlinkSync(DB_ENC_PATH);
+  const opened = openDatabase(DB_PATH);
+  sqliteHandle = opened.sqlite;
+  dbHandle = opened.db;
+  logActivity("workspace.restore", "workspace", null, { filename: safe });
+  return { ok: true as const, filename: safe };
 }
 
 export function writeEncryptedDocument(filename: string, data: Buffer) {

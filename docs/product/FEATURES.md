@@ -149,6 +149,7 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 | Evidence digest, draft sections, peer synthesize | P0 | |
 | Role gap analysis + promo draft | P0 | |
 | Bias / tone lint | P0 | Advisory; ephemeral findings by default |
+| Faithfulness / invention checks | P0 | Unknown cites, ungrounded sentences, bare metrics (advisory) |
 | Citation ID validation | P0 | Strip unknown ids |
 | Private-tier egress | P0 | Per-data-class opt-in; per-generation manifest |
 | Local-only / Ollama | P0 | |
@@ -176,7 +177,7 @@ Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Workspace settings | P0 | Scales, AI, retention (short default locally) |
-| Encrypted backup / restore | P0 | SQLite backup API |
+| Encrypted backup / restore | P0 | Settings one-click; SQLite encrypted under `data/backups` |
 | Activity log (hash-chained) | P0 | Append-only triggers; Settings verify + HMAC-signed export (EM-keyed, not legal custody) |
 | Export subject packet / workspace archive | P0 | Handoff when EM leaves |
 | Legal-hold flag (local) | P1 | Blocks purge |
