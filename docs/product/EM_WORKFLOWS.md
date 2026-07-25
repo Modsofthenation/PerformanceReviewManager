@@ -10,15 +10,16 @@ These are the canonical flows the product is designed around. Every screen exist
 **Owner:** EM + IC  
 **Outcome:** Dossier stays warm
 
-1. After a ship or incident, IC or EM adds an **Achievement** (title, date, links, competencies tagged).
+1. After a ship or incident, IC or EM adds an **Achievement** (title, date, links, competencies tagged) and optionally **uploads supporting documents** (design PDF, metrics CSV, etc.).
 2. Peers send lightweight **Feedback** anytime (strength + optional growth).
 3. Goals updated at monthly check-in (on track / at risk / done).
 4. Optional: EM tags 1:1 themes (`career`, `scope`, `friction`) — no transcript required.
-5. Optional integrations append **signal summaries** weekly (e.g. “12 PRs merged, 4 reviews, owned checkout-refactor”).
+5. Optional: EM **imports a Meet/Drive transcript** (or uploads `.vtt`) → system stores a private **MeetingSummary** (themes/actions), not a raw dump on the IC packet.
+6. Optional integrations append **signal summaries** weekly (e.g. “12 PRs merged, 4 reviews, owned checkout-refactor”).
 
 **EM time budget:** ~5 minutes/week/person.
 
-**Product surfaces:** Person dossier, quick-add FAB, Slack `/praise @name`, goal board.
+**Product surfaces:** Person dossier, quick-add FAB, document upload, transcript import, Slack `/praise @name`, goal board.
 
 ---
 

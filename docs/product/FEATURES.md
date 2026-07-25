@@ -78,13 +78,41 @@ This is the differentiator vs annual-form tools.
 | Goals / OKRs with status & check-ins | P0 | Linked into review automatically |
 | Feedback inbox (praise, constructive, shoutouts) | P0 | From peers anytime; tag to person |
 | Achievement log (IC or manager adds) | P0 | “Shipped X”, “Mentored Y”, with date + links |
-| 1:1 theme tags | P1 | Lightweight tags from 1:1s (“career”, “blockers”, “scope”) — not full notes dump |
+| 1:1 theme tags | P1 | Lightweight tags from 1:1s (“career”, “blockers”, “scope”) — still available without transcripts |
 | Integration signals (read-only) | P1 | GitHub PR merges/reviews, Jira/Linear completed epics — **summaries, not raw surveillance** |
-| Artifact attachments | P0 | URLs, docs, design links, dashboards |
-| Private vs shareable evidence | P0 | Manager can mark notes private |
+| Document evidence uploads | P0 | Upload PDF/DOCX/PPTX/images/CSV → object storage → ACL → cite on ratings/sections/AI |
+| External URL artifacts | P0 | Link design docs, dashboards, tickets without uploading |
+| Google Meet / Drive transcript import | P1 | Opt-in; store **summaries + theme bullets**, not raw dumps; same privacy as private manager notes by default |
+| Private vs shareable evidence | P0 | Manager can mark notes, documents, and transcript summaries private |
 | Cycle snapshot | P0 | At cycle open, freeze “evidence window” dates; still allow attach during writing |
 
 **Evidence window rule:** A cycle covering Jan–Jun includes dossier items with `occurred_at` in that range, plus carry-forward goals.
+
+### 3.1 Document evidence (upload)
+
+Managers and ICs attach files as first-class dossier items (not only URLs).
+
+| Capability | Detail |
+|------------|--------|
+| Allowed types (v1) | PDF, DOCX, PPTX, PNG/JPEG, CSV, TXT/MD |
+| Size limits | Configurable; default 25 MB/file, virus/malware scan on ingest |
+| Storage | Encrypted object storage; app stores metadata + signed download URLs |
+| Link targets | Attach to Achievement, Goal, Feedback, Rating, or free-standing on person dossier |
+| AI use | Extracted text (or OCR summary) enters ContextPackage only when requester has ACL and item is selected/eligible |
+| Visibility | `private_manager` \| `subject_and_manager` \| `calibration_visible` (default: uploader chooses; manager uploads default private) |
+| Retention | Follows evidence class; hard-delete removes object + EvidenceLinks |
+
+### 3.2 Meet / Drive transcript importer (opt-in)
+
+| Capability | Detail |
+|------------|--------|
+| Sources | Google Meet transcripts via Google Drive (Workspace); manual `.vtt`/`.txt` upload fallback |
+| Consent | Org admin enables integration; manager opts in per report or per meeting import; IC can see that a summary exists if shared |
+| What we store | Structured **MeetingSummary**: attendees, date, title, bullet themes, action items, optional quotes (capped); raw transcript kept only as short-TTL encrypted blob or not at all (org setting) |
+| Default visibility | `private_manager` — same bar as private manager notes; never in IC shared packet unless explicitly reclassified |
+| AI use | Summaries (not raw transcripts) may be cited in digests/drafts when visibility allows; citations show `meeting_summary:id` |
+| Safety | No always-on calendar scraping of every Meet; import is explicit (pick file / pick Drive item) or rules-based folder the EM designates |
+| Non-goal | Recording audio/video inside this product; we only ingest transcripts the org already produced |
 
 ---
 
@@ -183,9 +211,11 @@ Overlapping phases allowed (e.g. peers still open while early manager drafts beg
 |---------|----------|-------|
 | Email + Slack/Teams digests | P0 | Deadlines, requests, share events |
 | Google/Microsoft SSO | P0 | |
+| Document upload to object storage | P0 | See §3.1 |
 | HRIS sync (Workday/Bamboo/etc.) | P1 | People, managers, levels |
 | GitHub / GitLab signal import | P1 | Opt-in per org |
 | Linear / Jira goal linkage | P1 | |
+| Google Meet / Drive transcript import | P1 | Opt-in; summaries only — see §3.2 |
 | Calendar holds for review 1:1s | P2 | |
 
 ---

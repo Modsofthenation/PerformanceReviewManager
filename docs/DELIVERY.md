@@ -25,13 +25,14 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 - Competency library + opinionated eng template pack
 - Template versioning
 - Goals, achievements, feedback CRUD
+- **Document evidence uploads** (scan → store → ACL → cite on ratings)
 - Cycle wizard + participants + phases
 - Self / peer / manager review forms
 - Writing desk packet assembly (no AI)
 - Submit / share / acknowledge
 - Person timeline (basic)
 
-**Exit criteria:** EM completes a 5-person mock cycle end-to-end with evidence links.
+**Exit criteria:** EM completes a 5-person mock cycle end-to-end with evidence links, including at least one uploaded document cited on a rating.
 
 ---
 
@@ -70,12 +71,14 @@ Phased build order optimized for **fastest path to an EM doing a real cycle**.
 
 - HRIS sync
 - GitHub/Linear signal summaries
+- **Google Meet / Drive transcript import** (opt-in → `MeetingSummary`, private-by-default)
+- Manual transcript upload fallback
 - Slack praise command + richer notifications
 - Stagnation / thin-evidence alerts
 - Search across finalized reviews
 - Upward feedback aggregates
 
-**Exit criteria:** Weekly signals appear on packets; HRIS reorg reflected within 24h.
+**Exit criteria:** Weekly signals appear on packets; HRIS reorg reflected within 24h; EM can import a Meet transcript and cite the summary privately in a draft.
 
 ---
 

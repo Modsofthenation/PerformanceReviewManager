@@ -18,6 +18,8 @@ Organization
   ├── Goal / GoalCheckIn
   ├── FeedbackItem
   ├── Achievement
+  ├── EvidenceDocument
+  ├── MeetingSummary
   ├── CalibrationSession / CalibrationDecision
   ├── AiGeneration
   └── AuditEvent
@@ -113,7 +115,7 @@ Normalized score rows extracted from payload for analytics:
 Join between a rating (or text section) and an evidence source:
 
 `rating_id` | `section_key` → `source_type` + `source_id`  
-`source_type`: `goal` | `feedback` | `achievement` | `integration_signal` | `url` | `prior_review`
+`source_type`: `goal` | `feedback` | `achievement` | `integration_signal` | `url` | `prior_review` | `document` | `meeting_summary`
 
 ---
 
@@ -130,6 +132,43 @@ Anytime peer/manager feedback: `from_user_id`, `to_user_id`, `kind` (`praise`|`c
 
 ### Achievement
 Structured win: title, description, links[], competency tags, `occurred_at`, created_by, visibility.
+
+### EvidenceDocument
+Uploaded file treated as citeable evidence.
+
+| Field | Notes |
+|-------|-------|
+| `subject_user_id` | Whose dossier this sits on |
+| `uploaded_by_user_id` | Actor |
+| `title`, `mime_type`, `byte_size`, `checksum` | Metadata |
+| `storage_key` | Object-store pointer (never public ACL) |
+| `extracted_text_ref` | Optional pointer to extracted/OCR text for AI (separate object; may be redacted) |
+| `visibility` | `private_manager` \| `subject_and_manager` \| `calibration_visible` |
+| `occurred_at` | When the evidence applies (user-set; defaults to upload time) |
+| `competency_tags[]` | Optional |
+| `scan_status` | `pending` \| `clean` \| `rejected` |
+
+Only `clean` documents are downloadable or eligible for AI context.
+
+### MeetingSummary
+Opt-in Google Meet / Drive (or manual) transcript derivative. **Default visibility matches private manager notes.**
+
+| Field | Notes |
+|-------|-------|
+| `subject_user_id` | Primary report discussed (required) |
+| `imported_by_user_id` | Usually the manager |
+| `source` | `google_drive` \| `google_meet` \| `manual_upload` |
+| `external_ref` | Drive file id / opaque ref (optional) |
+| `title`, `occurred_at` | Meeting metadata |
+| `attendee_user_ids[]` | Resolved where possible |
+| `themes[]` | Short bullets produced at import time |
+| `action_items[]` | Optional |
+| `quotes[]` | Optional capped excerpts (not full transcript) |
+| `visibility` | Default `private_manager`; elevating requires explicit action + audit |
+| `raw_transcript_ref` | Nullable; short-TTL or disabled per org `transcript_raw_retention_days` |
+| `summary_model` | If AI-produced at import, record model id |
+
+**Invariant:** Subject-facing serializers never include `MeetingSummary` or `private_manager` documents unless visibility was raised and shared-packet rules allow it.
 
 ### IntegrationSignal
 Normalized, opt-in summaries from GitHub/Linear/etc.:
@@ -148,7 +187,8 @@ Normalized, opt-in summaries from GitHub/Linear/etc.:
 Store aggregates suitable for humans/AI; do not ship firehose of every commit into the model context by default.
 
 ### OneOnOneTheme (optional P1)
-`manager_id`, `report_id`, `tags[]`, `occurred_at`, optional private note.
+`manager_id`, `report_id`, `tags[]`, `occurred_at`, optional private note.  
+Complements `MeetingSummary` when the EM does not want transcript import — tags only.
 
 ---
 
@@ -207,6 +247,9 @@ Post-share correction: reason, fields changed, approved_by, visible_to_subject f
 |-------|-------------------|
 | Finalized reviews + ratings | 7 years (configurable) |
 | Drafts abandoned | 1 year after cycle close |
+| Evidence documents (files + extracts) | Match linked review retention; unlinked docs 3 years |
+| Meeting summaries | Match private-notes policy; default 3 years |
+| Raw transcript blobs | Org setting; default **30 days** then purge (summaries remain) |
 | AI generations | 2 years (or match review) |
 | Audit log | 7 years |
 | Integration raw refs | 90 days (summaries kept with review evidence links) |

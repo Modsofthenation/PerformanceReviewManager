@@ -111,7 +111,11 @@ Postgres + application policies for v1. Add RLS later for defense-in-depth on se
 
 ### Evidence
 - `CRUD /goals`, `/feedback`, `/achievements`
-- `POST /ratings/:id/evidence`
+- `POST /documents` — multipart upload → scan → metadata
+- `GET /documents/:id` — ACL’d signed download
+- `POST /meeting-summaries/import` — Drive/Meet pick or file upload → summary job
+- `PATCH /meeting-summaries/:id/visibility` — elevate/demote with audit
+- `POST /ratings/:id/evidence` — link any evidence source including `document` / `meeting_summary`
 
 ### Calibration
 - `POST /calibration-sessions`
@@ -141,10 +145,12 @@ Postgres + application policies for v1. Add RLS later for defense-in-depth on se
 4. Upward aggregate (if any)
 5. Goals in window + check-ins
 6. Achievements & feedback in window
-7. Integration signal summaries
-8. Prior cycle manager summary (ratings + shared text)
-9. Current manager draft (if viewer allowed)
-10. Flags: thin evidence, self-delta, promo, overdue peers
+7. Evidence documents visible to viewer (metadata; text extract only if AI/ACL allows)
+8. Meeting summaries visible to viewer (default: manager-only)
+9. Integration signal summaries
+10. Prior cycle manager summary (ratings + shared text)
+11. Current manager draft (if viewer allowed)
+12. Flags: thin evidence, self-delta, promo, overdue peers
 
 Assembly is the backbone for both UI and AI context.
 
@@ -163,6 +169,11 @@ OAuth app installation → weekly job per user producing `IntegrationSignal` sum
 ### Linear / Jira
 Link issues/epics to Goals; import completion into check-ins.
 
+### Google Drive / Meet transcripts (opt-in)
+Workspace OAuth with least-privilege Drive scope for transcript files the importer is pointed at (explicit file pick or designated folder).  
+Flow: select transcript → worker extracts text → produce `MeetingSummary` (themes, actions, capped quotes) → optional raw blob with short TTL → never auto-attach to IC-visible packet.  
+Manual `.vtt`/`.txt` upload supported without Google connect.
+
 ### Slack
 Notify deadlines; `/prm praise @user …` creates FeedbackItem; deep links to packet.
 
@@ -170,12 +181,13 @@ Notify deadlines; `/prm praise @user …` creates FeedbackItem; deep links to pa
 
 ## Reliability & security
 
-- Encrypt attachments at rest; TLS in transit
+- Encrypt attachments and transcript blobs at rest; TLS in transit
+- Malware scan before document is `clean` / downloadable
 - Secrets in KMS/vault
-- Rate-limit AI endpoints per org
-- PII minimization in logs (no review body in app logs)
+- Rate-limit AI endpoints and transcript imports per org
+- PII minimization in logs (no review body, document text, or transcript content in app logs)
 - Backup + point-in-time recovery on Postgres
-- Feature flags for AI and integrations per org
+- Feature flags for AI, document upload, and Meet/Drive import per org
 
 ---
 

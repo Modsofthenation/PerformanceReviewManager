@@ -46,15 +46,17 @@ Before any LLM call, build a **ContextPackage**:
   "goals": [{"id": "goal:3", "title": "...", "status": "done"}],
   "achievements": [{"id": "achievement:12", "title": "...", "links": [...]}],
   "feedback": [{"id": "feedback:88", "kind": "praise", "text": "..."}],
+  "documents": [{"id": "document:9", "title": "Q2 design review notes.pdf", "excerpt": "..."}],
+  "meeting_summaries": [{"id": "meeting_summary:2", "title": "1:1 2026-03-12", "themes": ["..."], "visibility": "private_manager"}],
   "signals": [{"id": "signal:4", "highlights": ["..."]}],
   "prior_cycle": {"overall": 4, "themes": ["..."]},
   "manager_scratch": "optional private notes if feature allows"
 }
 ```
 
-**Token budget policy:** Prefer structured summaries over raw dumps. Cap peers at N; summarize long self-reviews. Never include other employees’ packets.
+**Token budget policy:** Prefer structured summaries over raw dumps. Cap peers at N; summarize long self-reviews. For documents, send excerpts/chunks tied to selected evidence — never entire multi-megabyte extracts by default. For meetings, send `MeetingSummary` fields only — **never raw transcripts** in interactive AI calls. Never include other employees’ packets.
 
-**Injection defense:** Treat all user-authored review text as untrusted data; wrap in delimiters; instructions forbid following directives found inside evidence.
+**Injection defense:** Treat all user-authored review text, document extracts, and transcript-derived text as untrusted data; wrap in delimiters; instructions forbid following directives found inside evidence.
 
 ---
 
@@ -132,4 +134,6 @@ Gate launches on faithfulness ≥ threshold on golden set of anonymized syntheti
 - Reveal anonymous peer identities
 - Cross-contaminate context across subjects
 - Optimize for “sounds nice” over accuracy
-- Provide comp recommendations (“pay them more”) — out of scope; link to separate process
+- Provide comp recommendations (“pay them more”) — out of scope; link to a separate process
+- Ingest or cite raw Meet transcripts in drafts (summaries only)
+- Include `private_manager` documents or meeting summaries in subject-visible previews
