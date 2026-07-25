@@ -3,11 +3,13 @@ import {
   accounts,
   achievements,
   aiSettings,
+  concernLogs,
   cycleParticipants,
   cycles,
   feedbackItems,
   goals,
   people,
+  reviews,
   roleAssignments,
   roleDefinitions,
   roleExpectations,
@@ -251,9 +253,62 @@ export async function seedWorkspace(opts: {
       body: "Clear communication in cross-functional design reviews.",
       visibility: "em_and_subject",
       occurredAt: "2026-04-02",
+      themesJson: JSON.stringify(["collaboration", "delivery"]),
       createdAt,
     }).run();
   }
+
+  // Recent window evidence (sprint pulse demos) + a couple of external sync-style rows
+  const recentDirects = TEAM.filter((t) => !t.isEm).slice(0, 3);
+  for (const [i, member] of recentDirects.entries()) {
+    const pid = personIds[member.name];
+    db.insert(achievements).values({
+      id: id("ach"),
+      personId: pid,
+      title: i === 0 ? "Closed checkout latency epic" : "Merged payment retry hardening",
+      description: "Synced-style achievement for the current coaching window.",
+      occurredAt: i === 0 ? "2026-07-18" : "2026-07-20",
+      createdAt,
+      sourceProvider: i === 0 ? "jira" : "bitbucket",
+      externalId: i === 0 ? "CHK-241" : "pr-1882",
+      externalUrl: i === 0 ? "https://example.atlassian.net/browse/CHK-241" : "https://bitbucket.org/example/pr/1882",
+    }).run();
+    db.insert(feedbackItems).values({
+      id: id("fb"),
+      toPersonId: pid,
+      fromName: "EM note",
+      kind: "coaching",
+      body: "Discussed pacing and stakeholder updates for the current sprint.",
+      visibility: "em_only",
+      occurredAt: "2026-07-21",
+      themesJson: JSON.stringify(["pacing", "stakeholders"]),
+      createdAt,
+    }).run();
+  }
+  const firstDirect = personIds[TEAM.find((t) => !t.isEm)!.name];
+  db.insert(concernLogs).values({
+    id: id("concern"),
+    personId: firstDirect,
+    occurredAt: "2026-07-19",
+    title: "Missed partner handoff",
+    body: "Late handoff to design delayed review by a day.",
+    expectationText: "Confirm handoffs in Slack the morning of the due date.",
+    planText: "Add handoff checklist to the squad ritual.",
+    status: "open",
+    aiAllowed: 0,
+    createdAt,
+    updatedAt: createdAt,
+  }).run();
+
+  const priorCycleId = id("cycle");
+  db.insert(cycles).values({
+    id: priorCycleId,
+    name: "H2 2025",
+    windowStart: "2025-07-01",
+    windowEnd: "2025-12-31",
+    status: "closed",
+    createdAt,
+  }).run();
 
   const cycleId = id("cycle");
   db.insert(cycles).values({
@@ -272,15 +327,44 @@ export async function seedWorkspace(opts: {
       .from(roleAssignments)
       .where(and(eq(roleAssignments.personId, pid), isNull(roleAssignments.effectiveTo)))
       .all()[0];
-    db.insert(cycleParticipants).values({
-      id: id("cp"),
-      cycleId,
-      personId: pid,
-      managerPersonId: emPersonId,
-      roleDefinitionId: assignment?.roleDefinitionId ?? null,
-      targetNextRoleDefinitionId: assignment?.targetNextRoleDefinitionId ?? null,
-      eligibility: "full",
-      phaseStatusJson: JSON.stringify({ self: "pending", peer: "pending", manager: "draft" }),
+    for (const cid of [priorCycleId, cycleId]) {
+      db.insert(cycleParticipants).values({
+        id: id("cp"),
+        cycleId: cid,
+        personId: pid,
+        managerPersonId: emPersonId,
+        roleDefinitionId: assignment?.roleDefinitionId ?? null,
+        targetNextRoleDefinitionId: assignment?.targetNextRoleDefinitionId ?? null,
+        eligibility: "full",
+        phaseStatusJson: JSON.stringify({
+          self: cid === cycleId ? "pending" : "returned",
+          peer: cid === cycleId ? "pending" : "returned",
+          manager: cid === cycleId ? "draft" : "finalized",
+        }),
+      }).run();
+    }
+  }
+
+  // Prior-cycle manager ratings so trends / compare have history
+  const rated = TEAM.filter((t) => !t.isEm).slice(0, 4);
+  for (const [i, member] of rated.entries()) {
+    const pid = personIds[member.name];
+    const overall = 3 + (i % 2);
+    db.insert(reviews).values({
+      id: id("rev"),
+      cycleId: priorCycleId,
+      subjectPersonId: pid,
+      authorPersonId: emPersonId,
+      type: "manager",
+      status: "finalized",
+      payloadJson: JSON.stringify({
+        overall,
+        competencies: { execution: overall, ownership: overall, collaboration: 3 },
+        promo_readiness: "not_applicable",
+        summary: `H2 2025 summary for ${member.name}`,
+      }),
+      createdAt,
+      updatedAt: createdAt,
     }).run();
   }
 
