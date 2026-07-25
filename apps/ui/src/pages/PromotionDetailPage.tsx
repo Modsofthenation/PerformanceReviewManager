@@ -24,6 +24,9 @@ export function PromotionDetailPage() {
   const [marks, setMarks] = useState<Record<string, GapMark>>({});
   const [aiOut, setAiOut] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [baseline, setBaseline] = useState<{ status: string; recommendation: string } | null>(null);
 
   async function load() {
     if (!id) return;
@@ -33,7 +36,9 @@ export function PromotionDetailPage() {
     setSummary(String(p.case_summary ?? ""));
     setScope(String(p.scope_examples ?? ""));
     setGapsText(String(p.remaining_gaps ?? ""));
-    setRecommendation((p.recommendation as "ready" | "not_yet") ?? "not_yet");
+    const rec = (p.recommendation as "ready" | "not_yet") ?? "not_yet";
+    setRecommendation(rec);
+    setBaseline({ status: d.status, recommendation: rec });
     const m: Record<string, GapMark> = {};
     for (const a of d.assessments) m[a.roleExpectationId] = a.mark as GapMark;
     for (const e of d.targetRole?.expectations ?? []) {
@@ -48,21 +53,37 @@ export function PromotionDetailPage() {
 
   async function save(status = "draft") {
     if (!id) return;
-    await api(`/api/promotions/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        status,
-        payload: {
-          case_summary: summary,
-          scope_examples: scope,
-          remaining_gaps: gaps,
-          recommendation,
-        },
-        assessments: Object.entries(marks).map(([roleExpectationId, mark]) => ({ roleExpectationId, mark })),
-      }),
-    });
-    setMsg(`Saved (${status})`);
-    await load();
+    setError(null);
+    const changes: string[] = [];
+    if (baseline && status !== baseline.status) changes.push(`status ${baseline.status}→${status}`);
+    if (baseline && recommendation !== baseline.recommendation) {
+      changes.push(`recommendation ${baseline.recommendation}→${recommendation}`);
+    }
+    if (changes.length && !decisionReason.trim()) {
+      setError("Add a decision reason when status or recommendation changes.");
+      return;
+    }
+    try {
+      await api(`/api/promotions/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status,
+          decisionReason: changes.length ? decisionReason.trim() : undefined,
+          payload: {
+            case_summary: summary,
+            scope_examples: scope,
+            remaining_gaps: gaps,
+            recommendation,
+          },
+          assessments: Object.entries(marks).map(([roleExpectationId, mark]) => ({ roleExpectationId, mark })),
+        }),
+      });
+      setMsg(`Saved (${status})`);
+      if (changes.length) setDecisionReason("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    }
   }
 
   async function openHtmlPacket() {
@@ -168,6 +189,7 @@ export function PromotionDetailPage() {
       )}
 
       {msg && <p className="muted">{msg}</p>}
+      {error && <p className="chat-error" style={{ padding: 0 }}>{error}</p>}
 
       <div className="writing">
         <div className="panel stack">
@@ -236,6 +258,15 @@ export function PromotionDetailPage() {
               <option value="not_yet">Not yet</option>
               <option value="ready">Ready</option>
             </select>
+          </div>
+          <div className="field">
+            <label>Decision reason (when recommendation or status changes)</label>
+            <textarea
+              value={decisionReason}
+              onChange={(e) => setDecisionReason(e.target.value)}
+              placeholder="Why ready vs not yet / why submitting now…"
+              rows={2}
+            />
           </div>
           {!submitted && (
             <div className="cta-primary-row">

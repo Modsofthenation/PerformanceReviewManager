@@ -485,14 +485,15 @@ External source context: ${source ?? "unspecified (Jira / Google / docs / chat e
 Workflow:
 1. Call prm_status. If locked, prm_unlock (password workbench unless told otherwise).
 2. prm_list_people / prm_list_roles to map names → person ids and role ids.
-3. Gather items from the external system (tickets closed, docs, 1:1 notes, transcripts).
-4. Normalize into prm_bulk_load_evidence items:
+3. Prefer a first-run backfill: for each direct with thin dossiers (<2 achievements/feedback/docs), gather recent outcomes before drafting reviews. The UI Backfill wizard (/backfill) mirrors this path.
+4. Gather items from the external system (tickets closed, docs, 1:1 notes, transcripts).
+5. Normalize into prm_bulk_load_evidence items:
    - achievement — shipped outcomes with dates
    - goal — commitments / OKRs
    - feedback — freeform notes (set fromName to the system, e.g. "Jira", "Google Doc")
    - document — save file to disk first, then pass absolute filePath (pdf/docx/txt/md/csv/…)
-5. Prefer one bulk call (≤100 items). On ambiguity of names, ask or use personId.
-6. Verify with prm_get_person for a sample direct.
+6. Prefer one bulk call (≤100 items). On ambiguity of names, ask or use personId.
+7. Verify with prm_get_person for a sample direct.
 
 Never invent evidence. If the external source is thin, say so and only load what you have.
 Do not write manager review ratings unless explicitly asked — use dossier tools instead.`,

@@ -67,7 +67,7 @@ Copy the example at [`.cursor/mcp.json.example`](../../.cursor/mcp.json.example)
 | `prm_set_private_notes` | EM-only manager scratchpad |
 | `prm_create_promotion` | Open promo packet |
 
-Prompt: `prm_bulk_ingest_playbook` — workflow for Jira/Google → PRM.
+Prompt: `prm_bulk_ingest_playbook` — workflow for Jira/Google → PRM (pair with the in-app **Backfill** wizard at `/backfill` for thin dossiers).
 
 ## Example: bulk load after a Jira sweep
 
