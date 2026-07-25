@@ -124,6 +124,25 @@ export interface RoleDefinitionDTO {
   expectations: RoleExpectationDTO[];
 }
 
+export interface RoleDraftDTO {
+  key: string;
+  title: string;
+  track: Track;
+  levelKey: string | null;
+  summary: string | null;
+  nextRoleKeys: string[];
+  expectations: Array<{ kind: ExpectationKind; text: string }>;
+}
+
+export interface RoleFrameworkInfo {
+  frameworkId: string;
+  frameworkName: string;
+  versionId: string;
+  versionLabel: string;
+  sourceFilename: string | null;
+  roleCount: number;
+}
+
 export interface CycleDTO {
   id: string;
   name: string;

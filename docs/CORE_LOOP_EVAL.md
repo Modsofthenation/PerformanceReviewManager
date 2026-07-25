@@ -1,7 +1,7 @@
 # Core loop evaluation & capture gaps
 
 Snapshot of what the solo EM workbench **does today** vs residual gaps.
-Updated after audit verify/export, Tauri CSP/launch-token, and CSV people import.
+Updated after role framework authoring + AI/local extract from R&R docs.
 
 ## Core loop (product)
 
@@ -17,7 +17,7 @@ upload role R&R → tag people → year-round dossier
 |------|--------|--------|
 | Encrypted workspace unlock/lock | Done | AES vault; seed password `workbench`; `.session` is token-only (re-unlock after API restart) |
 | People list + CSV / manual add | Done | `POST /api/people/import` + Team paste/file; template download |
-| Role catalog + assign | Done | Seeded eng ladder |
+| Role catalog + assign + author | Done | Seeded ladder; Roles page add/edit/delete; CSV/markdown or AI extract from R&R doc |
 | Continuous dossier | Done | Achievements, goals, feedback, documents + visibility |
 | Cycle create + participants | Done | Soft window; no phase wizard |
 | Export / import self & peer JSON | Done | Outside-app send; paste import |
