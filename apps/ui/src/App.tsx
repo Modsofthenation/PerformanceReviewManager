@@ -15,6 +15,7 @@ import { PromotionsPage } from "./pages/PromotionsPage";
 import { PromotionDetailPage } from "./pages/PromotionDetailPage";
 import { ChatPage } from "./pages/ChatPage";
 import { ConsistencyPage } from "./pages/ConsistencyPage";
+import { TeamPerformancePage } from "./pages/TeamPerformancePage";
 import { BackfillPage } from "./pages/BackfillPage";
 
 export function App() {
@@ -90,6 +91,7 @@ export function App() {
           <NavLink to="/cycles">Cycles</NavLink>
           <NavLink to="/promotions">Promotions</NavLink>
           <NavLink to="/consistency">Consistency</NavLink>
+          <NavLink to="/team-performance">Team performance</NavLink>
           <NavLink to="/backfill">Backfill</NavLink>
           <NavLink to="/chat">AI Chat</NavLink>
           <NavLink to="/settings">Settings</NavLink>
@@ -119,6 +121,7 @@ export function App() {
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/promotions/:id" element={<PromotionDetailPage />} />
           <Route path="/consistency" element={<ConsistencyPage />} />
+          <Route path="/team-performance" element={<TeamPerformancePage />} />
           <Route path="/backfill" element={<BackfillPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/settings" element={<SettingsPage />} />
