@@ -119,6 +119,7 @@ export function ChatPage() {
           messages: payload,
           personId: personId || null,
           cycleId: cycleId || null,
+          confirmWorkspaceScope: !personId,
         }),
       });
       setMessages((prev) => [

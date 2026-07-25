@@ -11,7 +11,7 @@ export function extractCitationIds(text: string): string[] {
 
 /**
  * Drop unknown citation ids from AI output (server-side allowlist).
- * Keeps prose; replaces `[unknown_id]` with plain text without brackets when not allowed.
+ * Keeps prose; removes `[unknown_id]` entirely (do not leave bare ids that look real).
  */
 export function filterCitationsAgainstAllowlist(text: string, allowlist: string[]) {
   const allowed = new Set(allowlist);
@@ -23,7 +23,11 @@ export function filterCitationsAgainstAllowlist(text: string, allowlist: string[
       return full;
     }
     if (!dropped.includes(id)) dropped.push(id);
-    return id;
+    return "";
   });
-  return { text: cleaned, citationsUsed: used, citationsDropped: dropped };
+  return {
+    text: cleaned.replace(/[ \t]{2,}/g, " ").replace(/ \./g, ".").trim(),
+    citationsUsed: used,
+    citationsDropped: dropped,
+  };
 }

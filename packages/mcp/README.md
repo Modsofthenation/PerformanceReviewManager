@@ -7,7 +7,7 @@ Pair this with other MCPs (Google Drive, Jira, etc.): pull source material there
 ## Prerequisites
 
 1. PRM API running: `pnpm dev:api` (or `pnpm dev`) on `http://127.0.0.1:8787`
-2. Workspace initialized + unlockable (seed password: `workbench`)
+2. Workspace initialized. Unlock explicitly via `prm_unlock` (password) or set `PRM_PASSWORD` — there is **no** built-in default password.
 
 ## Cursor setup
 
@@ -49,8 +49,9 @@ Copy the example at [`.cursor/mcp.json.example`](../../.cursor/mcp.json.example)
 | Var | Default | Meaning |
 |-----|---------|---------|
 | `PRM_API_URL` | `http://127.0.0.1:8787` | Local API base |
-| `PRM_PASSWORD` | `workbench` | Unlock password |
+| `PRM_PASSWORD` | — | Unlock password (**required** for auto-unlock; no demo default) |
 | `PRM_TOKEN` | — | Optional existing `x-prm-token` |
+| `PRM_UPLOAD_ROOTS` | cwd + `/tmp` | Extra `:`-separated dirs allowed for `filePath` uploads |
 
 ## Tools (high level)
 

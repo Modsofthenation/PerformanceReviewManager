@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS reviews (
   import_bundle_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  shared_at TEXT
+  shared_at TEXT,
+  frozen_timeline_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS import_bundles (
@@ -255,6 +256,12 @@ export type Db = ReturnType<typeof drizzle<typeof schema>>;
 export function openDatabase(dbPath: string): { sqlite: Database.Database; db: Db } {
   const sqlite = new Database(dbPath);
   sqlite.exec(DDL);
+  // Additive migrations for existing workspaces
+  try {
+    sqlite.exec("ALTER TABLE reviews ADD COLUMN frozen_timeline_json TEXT");
+  } catch {
+    /* column exists */
+  }
   const db = drizzle(sqlite, { schema });
   return { sqlite, db };
 }

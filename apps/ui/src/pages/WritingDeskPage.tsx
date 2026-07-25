@@ -165,23 +165,32 @@ export function WritingDeskPage() {
       if (score !== MIDDLE_BAND && !linksFor(key).length) missing.push(competencyLabel(key));
     }
     if (overall !== MIDDLE_BAND && links.length === 0) missing.push("overall rating");
-    if ((overall === 1 || overall === 5) && links.length < 2) {
-      missing.push("extreme overall (1 or 5) needs ≥2 evidence links");
+    const distinct = new Set(links.map((l) => `${l.sourceType}:${l.sourceId}`)).size;
+    if ((overall === 1 || overall === 5) && distinct < 2) {
+      missing.push("extreme overall (1 or 5) needs ≥2 distinct evidence links");
     }
     return missing;
   }
 
   function ratingChanges() {
-    if (!baseline || !packet?.managerReview) return [] as Array<{ field: string; from: unknown; to: unknown }>;
+    if (!baseline) return [] as Array<{ field: string; from: unknown; to: unknown }>;
     const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
-    if (baseline.overall !== overall) changes.push({ field: "overall", from: baseline.overall, to: overall });
-    for (const [key, score] of Object.entries(competencies)) {
-      if (baseline.competencies[key] != null && baseline.competencies[key] !== score) {
-        changes.push({ field: `competency:${key}`, from: baseline.competencies[key], to: score });
+    if (baseline.overall !== overall) {
+      if (overall !== MIDDLE_BAND || baseline.overall !== MIDDLE_BAND) {
+        changes.push({ field: "overall", from: baseline.overall, to: overall });
       }
     }
-    if (baseline.promo && promo && baseline.promo !== promo) {
-      changes.push({ field: "promo_readiness", from: baseline.promo, to: promo });
+    for (const [key, score] of Object.entries(competencies)) {
+      const prev = baseline.competencies[key];
+      if (prev === score) continue;
+      if (score !== MIDDLE_BAND || (prev != null && prev !== MIDDLE_BAND)) {
+        changes.push({ field: `competency:${key}`, from: prev ?? null, to: score });
+      }
+    }
+    if (baseline.promo !== promo) {
+      if (promo !== "not_applicable" || baseline.promo) {
+        changes.push({ field: "promo_readiness", from: baseline.promo || null, to: promo });
+      }
     }
     return changes;
   }
@@ -197,8 +206,13 @@ export function WritingDeskPage() {
       }
     }
     const changes = ratingChanges();
-    if (changes.length && !decisionReason.trim()) {
-      setError("Add a decision reason when overall, competency, or promo readiness scores change.");
+    const reopening = finalized && nextStatus === "draft";
+    if ((changes.length || reopening) && !decisionReason.trim()) {
+      setError(
+        reopening
+          ? "Add a decision reason to reopen a finalized review."
+          : "Add a decision reason when overall, competency, or promo readiness scores change.",
+      );
       return;
     }
     try {
@@ -208,7 +222,7 @@ export function WritingDeskPage() {
           cycleId,
           subjectPersonId: personId,
           status: nextStatus,
-          decisionReason: changes.length ? decisionReason.trim() : undefined,
+          decisionReason: changes.length || reopening ? decisionReason.trim() : undefined,
           payload: {
             overall,
             summary,
@@ -227,7 +241,7 @@ export function WritingDeskPage() {
         }),
       });
       setStatus(`Saved (${nextStatus})`);
-      if (changes.length) setDecisionReason("");
+      if (changes.length || reopening) setDecisionReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -295,12 +309,25 @@ export function WritingDeskPage() {
       ) : finalized ? (
         <NextStep
           tone="ok"
-          label="Review finalized — citations frozen"
-          detail={`${packet.citationSnapshots.length} citation snapshot(s). Share the HTML packet (Print → PDF). Private notes stay out.`}
+          label="Review finalized — citations & timeline frozen"
+          detail={`${packet.citationSnapshots.length} citation snapshot(s). Subject HTML requires finalize. Reopen to draft only with a decision reason.`}
           action={
             <>
               <button className="btn" type="button" onClick={() => void openSubjectHtml()}>
                 Open HTML packet
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => {
+                  if (!decisionReason.trim()) {
+                    setError("Add a decision reason, then click Reopen.");
+                    return;
+                  }
+                  void save("draft");
+                }}
+              >
+                Reopen to draft
               </button>
               {(promo === "ready" || promo === "not_yet") && (
                 <Link className="btn secondary" to="/promotions">
@@ -513,12 +540,11 @@ export function WritingDeskPage() {
             )}
           </div>
 
-          {(ratingChanges().length > 0 || decisions.length > 0) && (
+          {(ratingChanges().length > 0 || decisions.length > 0 || finalized) && (
             <div className="field">
-              <label>Decision reason (required when scores change)</label>
+              <label>Decision reason (required when scores change or reopening)</label>
               <textarea
                 value={decisionReason}
-                disabled={finalized}
                 onChange={(e) => setDecisionReason(e.target.value)}
                 placeholder="Why did overall / competency / promo readiness move?"
                 rows={2}
@@ -766,7 +792,13 @@ export function WritingDeskPage() {
                 </button>
               </>
             )}
-            <button className="btn secondary" type="button" onClick={() => void openSubjectHtml()}>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={!finalized}
+              title={finalized ? "Open subject HTML (Print → PDF)" : "Finalize before exporting"}
+              onClick={() => void openSubjectHtml()}
+            >
               Open HTML packet
             </button>
             <button
