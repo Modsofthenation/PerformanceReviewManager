@@ -40,7 +40,20 @@ pnpm desktop:build
 
 At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR`, and kills the child on exit — one process from the user’s point of view.
 
-CI builds the same matrix (Ubuntu / macOS / Windows) on pushes to `main`.
+CI builds the same matrix (Ubuntu / macOS / Windows) on pushes to `main`. Each green desktop job uploads an Actions artifact (retained 30 days):
+
+| Artifact name | Typical contents |
+|---------------|------------------|
+| `desktop-linux-x86_64` | `.deb` / `.AppImage` under `bundle/` |
+| `desktop-macos-aarch64` | `.dmg` / `.app` under `bundle/` |
+| `desktop-windows-x86_64` | `.msi` / NSIS `.exe` under `bundle/` |
+
+Download from the run’s **Artifacts** section in the GitHub UI, or:
+
+```bash
+gh run download <run-id> -n desktop-windows-x86_64
+# also: desktop-macos-aarch64, desktop-linux-x86_64
+```
 
 ## Icons
 
