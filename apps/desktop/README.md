@@ -36,7 +36,7 @@ pnpm desktop:build
 `beforeBuildCommand`:
 
 1. Bundles `@prm/api` into `src-tauri/sidecars/prm-api.mjs` (esbuild) and copies a portable **Node** binary + `better-sqlite3` next to it
-2. Builds the UI into `apps/ui/dist`
+2. Builds the UI into `apps/ui/dist` (Tauri `frontendDist` is `../../ui/dist` from `src-tauri`)
 
 At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR`, and kills the child on exit — one process from the user’s point of view.
 
