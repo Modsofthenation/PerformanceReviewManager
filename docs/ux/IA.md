@@ -1,66 +1,46 @@
-# UX Information Architecture
+# UX Information Architecture — Solo Workbench
 
-## Primary navigation (EM)
+## Primary nav (EM)
 
-| Nav item | Purpose |
-|----------|---------|
-| **Home** | Cycle command center or dossier health |
-| **Team** | Direct reports list → person dossier |
-| **Roles** | Upload/edit career framework; assign roles to people |
-| **Cycles** | Active + past cycles |
-| **Promotions** | Promo packets & next-level comparisons |
-| **Calibration** | Sessions for cohorts you own/participate in |
-| **Templates** | Visible to HRBP/Admin primarily; managers read-only anchors |
-| **Settings** | Profile, notifications, **AI keys/providers**, integrations, backup |
+| Nav | Purpose |
+|-----|---------|
+| **Home** | Command center — bundles, drafts, flags |
+| **Team** | People → dossier |
+| **Roles** | Framework upload/edit/assign |
+| **Cycles** | Active/past + export/import bundles |
+| **Promotions** | Promo packets |
+| **Consistency** | Single-EM distribution / side-by-side |
+| **Settings** | Encryption, AI keys, retention, backup, integrations |
 
-IC nav is thinner: Home (tasks), My reviews, Goals, Give feedback.
+No IC nav in v1.
 
 ---
 
 ## Key screens
 
-### 1. Home — Command Center
-- Cycle selector
-- Funnel: Self done / Peers in / Drafts / Submitted / Shared
-- Attention list (sorted by urgency)
-- CTA: Continue writing (next incomplete packet)
-
-### 2. Person dossier
-Tabs: Overview · Role · Goals · Feedback · Achievements · Reviews · Promotions · Trends  
-Overview = assigned role + next progression, latest rating, open goals, evidence freshness meter, AI pattern insight (if enabled).  
-**Role** tab = full RoleDefinition, side-by-side next role, assignment history.
-
-### 3. Writing desk
-Split packet / draft (see EM_WORKFLOWS). Sticky role comparison strip (current → next). Sticky submit bar with validation (missing required, unassigned role warning, lint warnings).
-
-### 4. Role framework admin
-Upload R&R document → structure RoleDefinitions → set progression links → publish version → bulk-assign team.
-
-### 5. Calibration room
-Left: histogram + filters. Center: card grid. Right: selected person detail + decision composer. Promo mode filters to candidates sharing the same target RoleDefinition.
-
-### 6. Template editor
-Block list builder, live preview, publish version modal with diff vs previous.
-
-### 7. Cycle wizard
-4 steps: Basics → Population → Templates & policies → Timeline → Review & launch.
+1. **Home** — bundle pipeline; continue writing; thin evidence / unassigned role.  
+2. **Person dossier** — Overview · Role · Goals · Evidence · Reviews · Promotions · Trends.  
+3. **Writing desk** — packet/draft split; role strip; autosave; subject preview.  
+4. **Bundle center** — export self/peer; import dropzone; provenance.  
+5. **Role admin** — upload → structure expectations (stable ids) → publish → assign.  
+6. **Consistency** — histogram + cards (own directs).  
+7. **Settings → AI** — keys, providers, private-tier matrix, test connection.  
+8. **Backfill wizard** — first-run.
 
 ---
 
-## Visual direction (product UI — not marketing)
+## Copy rules
 
-When implementing UI later:
-
-- Dense, calm, tool-like (Linear/Notion density), not consumer-social
-- Clear hierarchy for reading long packets: typography for evidence vs draft
-- Status color reserved for cycle risk (overdue), not decoration
-- Avoid card soup on Writing Desk — use split panes and lists
-- Motion: phase progress, packet section expand, AI suggestion insert — subtle only
+- Never say “anonymous” for local peer feedback — say **“author hidden in shared packet.”**  
+- Never imply private notes are undiscoverable.  
+- Encryption unlock is part of app open, not an advanced setting only.
 
 ---
 
-## Empty states that teach the product
+## Visual direction
 
-- No evidence yet → “Add 3 achievements now; future-you will thank you”
-- Thin packet at write time → checklist of what’s missing before AI draft
-- No active cycle → show continuous capture CTAs + last cycle summary
+Calm, dense tool UI (Linear-like). Split panes over card soup. Subtle motion for AI insert / phase progress. Keyboard: `J/K` people, `E` evidence, `G` generate, `R` role compare, `P` preview.
+
+## A11y baseline (Phase 5, cheap starts in 0)
+
+Keyboard-complete writing desk, WCAG AA contrast, labeled form controls.

@@ -1,148 +1,116 @@
-# Delivery Plan
+# Delivery Plan — Solo EM Workbench
 
-Phased build order optimized for **fastest path to an EM doing a real cycle**.
-
----
-
-## Phase 0 — Foundations
-
-**Outcome:** Installable local app shell with people hierarchy and role framework.
-
-- Tauri + Vite UI + Hono API sidecar skeleton
-- SQLite schema + app-data file layout
-- Local profiles + keychain for secrets
-- Employment profiles + manager tree
-- Level ladder seed data
-- **Role framework upload + RoleDefinition editor + person role assignment**
-- Audit log skeleton
-- Design system + app shell (Command Center empty state)
-
-**Exit criteria:** App runs on Linux, Windows, and macOS from a single codebase; manager sees directs; each direct can be tagged with a RoleDefinition from an uploaded framework.
+Aligned to [TRUST_MODEL.md](./architecture/TRUST_MODEL.md).
 
 ---
 
-## Phase 1 — Templates + dossiers + manual cycle
+## Phase 0 — Foundations & safety
 
-**Outcome:** Runnable review without AI or integrations.
+**Outcome:** Signed-capable app skeleton that can hold real data safely.
 
-- Competency library + opinionated eng template pack
-- Template versioning (**including promotion packet template**)
-- Goals, achievements, feedback CRUD
-- **Document evidence uploads** (scan → store → ACL → cite on ratings)
-- **Current vs next role comparison** on writing desk (from RoleAssignment)
-- Cycle wizard + participants + phases
-- Self / peer / manager review forms (+ role_fit / next_level_gap blocks)
-- Writing desk packet assembly (no AI)
-- Submit / share / acknowledge
-- Person timeline (basic)
+- Tauri + Vite UI + IPC (spike: no naked HTTP API)
+- Encrypted SQLite + app-data layout; sync-folder warning
+- Single Account; keychain + Linux fallback
+- `Person` / EmploymentRecord / manager tree
+- CSV import
+- ActivityEvent hash chain
+- Workspace backup/restore (SQLite backup API)
+- Synthetic 12-person seed org (demo + AI fixtures later)
+- CI matrix spike on one primary OS, then expand; signing keys process started
+- Design-partner outreach (data-handling agreement)
 
-**Exit criteria:** EM completes a 5-person mock cycle with evidence links, uploaded documents, and ratings judged against assigned RoleDefinitions; can open a promotion checklist vs next role.
+**Exit:** App runs encrypted workspace on at least one OS; backup/restore verified; trust model reflected in UI copy.
 
 ---
 
-## Phase 2 — Calibration + history depth
+## Phase 1 — Roles, dossier, vertical slice
 
-**Outcome:** Fairness tooling managers actually open.
+**Outcome:** EM completes reviews for ~5 people without live IC login.
 
-- Calibration room + decision log
-- Distribution charts
-- Competency trend sparklines
-- Consistency warnings (overall vs competencies)
-- Exports (PDF packet, CSV distributions)
-- Reminder jobs (email/Slack)
+- Role framework upload + RoleExpectation editor + assignment
+- Cold-start backfill wizard
+- Fixed template pack (IC self/peer/manager, check-in, promotion) — no upward
+- Goals, achievements, feedback, document uploads
+- Cycle + **export/import bundles**
+- Writing desk: role_fit, competencies, conditional next_level_gap
+- CitationSnapshot on finalize; subject packet export
+- Draft autosave
+- On-device writing-time metric
 
-**Exit criteria:** Director runs calib on 15 people; rating changes audited.
+**Exit:** Mock cycle with imports + at least one uploaded doc cited; ratings against RoleDefinitions.
+
+---
+
+## Phase 2 — Consistency, history, underperformance
+
+- Single-EM distribution / side-by-side consistency
+- Decision log
+- Person timeline + manager-only sparklines
+- Concern log / improvement plan (AI off default)
+- Optional calibration **file bundles**
+- OS/in-app reminders + exportable nudge list
+
+**Exit:** EM adjusts ratings with logged reasons; timeline usable.
 
 ---
 
 ## Phase 3 — AI co-pilot
 
-**Outcome:** Writing time drops; quality/grounding holds.
+- Settings → AI; providers; test connection; local-only
+- Context packager + per-generation data-class manifest
+- Digest, draft, peer synthesize, role gap, promo draft
+- Citation ID validation; injection eval suite; faithfulness gate
+- Private-tier per-class opt-in
+- Lint ephemeral by default
+- Cost estimate (P1 stretch)
 
-- Context packager + AiGeneration store
-- Evidence digest, peer synthesize, draft section, bias lint
-- **Role gap analysis + promotion draft** (grounded in RoleDefinition)
-- Citation chips + accept-into-draft UX
-- Eval harness + feature flags
-- Org AI policy controls
-
-**Exit criteria:** Faithfulness evals pass; gap analysis refuses when role unassigned; pilot EMs report ≤45 min median write time.
-
----
-
-## Phase 4 — Integrations & scale
-
-**Outcome:** Dossier fills itself.
-
-- HRIS sync
-- GitHub/Linear signal summaries
-- **Google Meet / Drive transcript import** (opt-in → `MeetingSummary`, private-by-default)
-- Manual transcript upload fallback
-- Slack praise command + richer notifications
-- Stagnation / thin-evidence alerts
-- Search across finalized reviews
-- Upward feedback aggregates
-
-**Exit criteria:** Weekly signals appear on packets; HRIS reorg reflected within 24h; EM can import a Meet transcript and cite the summary privately in a draft.
+**Exit:** Evals pass on synthetic packets; design partners hit ≤45 min with AI assist vs Phase 1 baseline.
 
 ---
 
-## Phase 5 — Enterprise hardening
+## Phase 4 — Integrations (optional)
 
-- RLS, data residency options
-- Legal hold & retention automation
-- Adverse-impact HR reports (careful rollout)
-- Advanced permission tester
-- Performance/load testing for cycle crunch weeks
-- Mobile polish
+- Manual + Drive picker transcripts → MeetingSummary
+- GitHub/Linear summaries if warranted
+- Framework AI-assisted extract
+- Meet notice/consent copy in UI
 
 ---
 
-## Suggested implementation modules (code layout)
+## Phase 5 — Hardening (still local)
+
+- Full 3-OS signed installers + auto-update
+- Parser sandboxing hardening
+- Accessibility baseline (keyboard writing desk, contrast)
+- Legal-hold flag; handoff export polish
+- **Not** RLS / multi-tenant SaaS — that is a separate hosted track
+
+---
+
+## Module layout
 
 ```
-apps/desktop/             # Tauri 2 shell (Rust)
-apps/ui/                  # React + Vite + TypeScript
-apps/api/                 # Hono local API sidecar
-packages/db/              # Drizzle schema + SQLite migrations
-packages/policy/          # ACL pure functions
-packages/packet/          # assembly + redaction
-packages/ai/              # providers (cloud + Ollama), prompts, evals
-packages/integrations/    # csv, github, drive, …
-docs/                     # this plan
+apps/desktop/          # Tauri
+apps/ui/               # React + Vite
+packages/core/         # domain services (TS or Rust)
+packages/db/           # schema, migrations
+packages/policy/       # export redaction rules
+packages/packet/       # assembly
+packages/ai/           # providers, evals
+packages/bundles/      # export/import formats
+docs/
 ```
 
-Dev: `pnpm dev` (UI + API). Ship: Tauri build wrapping both.
-
 ---
 
-## KPI dashboard (product)
+## Locked defaults
 
-Track from Phase 1 onward:
-
-- Cycle completion rate
-- Median time-in-writing-desk per review
-- % ratings with evidence
-- Peer response rate
-- AI accept rate & edit distance (Phase 3+)
-- Calibration decision count / meeting
-- Dossier freshness (% people with ≥1 evidence item in last 60 days)
-
----
-
-## Open implementation choices (defaults locked)
-
-| Topic | Default decision |
-|-------|------------------|
-| Rating scale | 5-point labeled; customizable |
-| Forced ranking | Off |
-| Peer anonymity to IC | On by default |
-| AI score suggestions | Off until Phase 3 evals pass; drafts on first |
-| Comp module | Never in-core; deep-link only |
-| Stack | **Tauri 2 + React/Vite/TS + Hono + SQLite** (local Win/Mac/Linux); see `docs/architecture/LOCAL_STACK.md` |
-
----
-
-## Immediate next build step
-
-Start Phase 0/1 scaffold: monorepo, schema from [DOMAIN_MODEL.md](./data/DOMAIN_MODEL.md), seed eng templates, vertical slice of Writing Desk on fake packet data.
+| Topic | Decision |
+|-------|----------|
+| Product mode | Solo EM workbench |
+| Collaboration | Import bundles |
+| Stack | Tauri + Vite/React + SQLite encrypted |
+| Upward / live anonymity / adverse impact | Hosted-only |
+| next_level_gap | Conditional |
+| Local retention | Current + previous cycle (+ export to SoR) |
+| AI keys | In-app Settings → keychain |

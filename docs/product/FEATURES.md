@@ -1,303 +1,195 @@
 # Feature Catalog
 
-Features are grouped by product surface. Priority tags: **P0** (must ship for useful v1), **P1** (makes it excellent), **P2** (differentiation / scale).
+Priority: **P0** / **P1** / **P2**.  
+Mode markers: **Workbench** (solo local v1) · **Import-path** · **Hosted-only** · **Bundle-calib**  
+Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 
 ---
 
-## 1. Org & people foundation
+## 1. Org & people (workbench)
+
+| Feature | Priority | Mode | Notes |
+|---------|----------|------|-------|
+| Local workspace + encrypted store | P0 | Workbench | Required before real employee data |
+| People as employees (not necessarily logins) | P0 | Workbench | `Person` records; EM is the only Account by default |
+| Reporting hierarchy | P0 | Workbench | Directs list |
+| CSV / manual people import | P0 | Workbench | Primary onboarding |
+| Cold-start backfill | P0 | Workbench | Past ratings, achievements, prior review docs — first 30 min usable |
+| Level ladder | P0 | Workbench | Coarse; prefer RoleDefinition when assigned |
+| Role framework library | P0 | Workbench | See §1.1 |
+| Person ↔ role assignment | P0 | Workbench | Tag each direct |
+| Local profiles (shared laptop) | P2 | Workbench | Same OS user ⇒ not strong isolation; prefer separate OS accounts |
+| Live IC / peer login | — | Hosted-only | Not v1 |
+
+### 1.1 Role & responsibilities framework
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| People profiles (role, level, manager, start date, location) | P0 | Sync from HRIS/IdP when available; manual edit fallback |
-| Reporting hierarchy | P0 | Directs + skip-level views |
-| Teams / eng ladders (IC1–IC6, M1–M3) | P0 | Levels drive template selection and calibration cohorts |
-| **Role framework library** | P0 | Upload/manage engineering roles & responsibilities docs — see §1.1 |
-| **Person ↔ role assignment** | P0 | Tag each person with a framework role (+ level); basis for evaluation |
-| Access roles (IC, EM, Director, HRBP, Admin) | P0 | Permission matrix in architecture doc |
-| Manager change / reorg handling | P1 | Mid-cycle ownership rules; history preserved under person |
+| Upload R&R / career framework docs | P0 | PDF/DOCX/MD; retain source file |
+| Structure RoleDefinitions | P0 | Manual structured edit first; AI-assisted extract P1 |
+| Expectations with **stable IDs** | P0 | `RoleExpectation` rows — not bare string arrays |
+| Progression graph (`next_role_keys`) | P0 | Keys within framework version |
+| Publish immutable framework version | P0 | Cycles pin version |
+| Assign role + optional target next | P0 | Warn if profile level ≠ role level |
+| Diff current vs next | P0 | Side-by-side for writing desk / promo |
+| Framework owner + effective dates | P1 | “Framework insufficient” state if gaps |
+| Version migration tool | P1 | Remap keys when publishing new framework year |
 
-### 1.1 Role & responsibilities framework (evaluation basis)
-
-Company engineering role docs are a **first-class input** to reviews and promotions — not optional flavor text. Expectations for “meets / exceeds” and “ready for next level” are derived from the assigned role definition and its next progression.
-
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Upload role framework documents | P0 | PDF/DOCX/MD/CSV; e.g. “Engineering Career Framework”, per-track R&R packs |
-| Parse / structure into RoleDefinitions | P0 | Manual structured edit required for v1 accuracy; AI-assisted extraction optional (P1) to prefill responsibilities, expectations, competencies |
-| Role catalog | P0 | Track (IC/EM), level (IC3…), title, summary, responsibilities[], expectations[], competencies[], examples of impact |
-| Progression graph | P0 | Each role links to `next_role_ids[]` (e.g. IC3 → IC4; IC5 → IC5 Staff or M1) |
-| Versioning | P0 | Publishing a framework version is immutable; people assignments pin a version for a cycle |
-| Assign role to person | P0 | EM/HRBP tags each teammate with `role_definition_id` (+ effective dates); shown on dossier & packet |
-| Bulk assign from team view | P1 | Tag directs quickly after framework upload |
-| Diff current vs next role | P0 | Side-by-side responsibilities / expectations used in writing desk & promo templates |
-| Framework as scoring basis | P0 | Competency anchors and AI evaluations must prefer assigned RoleDefinition text over generic ladder copy when present |
-
-**Rule:** If a person has an assigned role framework entry, performance comparison and promotion readiness use **that document’s expectations** (current role) and **next progression’s expectations** — not a generic rubric alone.
+**Rule:** Assigned RoleDefinition text is the evaluation basis for current-role fit and next-progression comparison.
 
 ---
 
-## 2. Templates & frameworks
+## 2. Templates
 
-Templates are the **contract** for what a review collects and how it is scored.
+| Feature | Priority | Mode | Notes |
+|---------|----------|------|-------|
+| Template types: Self, Peer, Manager, Promotion | P0 | Workbench | Upward = Hosted-only (removed from v1 pack) |
+| Check-in mini template | P0 | Workbench | New hire / &lt;90 days |
+| Manager-track template (M1–M3) | P0 | Workbench | People-manager subjects |
+| Versioning / pin to cycle | P0 | Workbench | |
+| Blocks: text, competencies, overall, goals, role_fit, next_level_gap, promo_signal, private_text | P0 | | |
+| `next_level_gap` | P0 | | **Conditional** — required only if `promo_signal` ∈ {ready, not_yet} or EM opens promo packet; not on every review |
+| Promo interest (self) vs promo readiness (manager) | P0 | | Separate block types |
+| Custom template builder | P1 | | v1 ships fixed pack + clone |
 
-### 2.1 Template builder
+### 2.1 Default eng pack (v1)
 
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Template types: Self, Peer, Manager, Upward, **Promotion packet**, Calibration notes | P0 | Same role framework + competency set can power review and promo forms |
-| Sections: free text, rubric scores, multi-select, goals review, acknowledgment | P0 | Composable blocks |
-| Competency library (company + eng-specific) | P0 | e.g. Execution, Ownership, Collaboration, Technical depth, Impact, Leadership |
-| Rating scales (configurable) | P0 | Default: 1–5 labeled (Does not meet → Far exceeds); support 4-point forced-choice |
-| Behavioral anchors per level | P1 | “What ‘Exceeds’ looks like at IC3 vs IC5” |
-| Role/level targeting | P0 | Template A for IC1–IC3; Template B for IC4+; Manager template for people managers |
-| Versioning & immutability | P0 | Publishing creates immutable version; cycles pin a version |
-| Preview as IC / Peer / Manager | P0 | WYSIWYG of exact form respondents see |
-| Clone & fork templates | P1 | Org starts from opinionated eng defaults |
-| Legal / acknowledgment blocks | P1 | HR-required language, signature timestamps |
-
-### 2.2 Default opinionated engineering pack (shipped)
-
-Ship these so EMs aren’t staring at an empty builder:
-
-**IC Self-review**
-- Top outcomes this cycle (3–5)
-- Competency self-scores with evidence
-- Collaboration & influence examples
-- Growth areas & support needed
-- Goals proposed for next cycle
-- Promotion interest (optional, private to manager/HR)
-
-**Peer feedback (short)**
-- Context of collaboration
-- Strengths observed (required)
-- One growth suggestion (required)
-- Optional competency marks (narrow set)
-- Confidence / working-relationship length
-
-**Manager review**
-- Overall rating + summary **against assigned role expectations**
-- Competency ratings with evidence (anchors from RoleDefinition when present)
-- **Current-role fit** vs responsibilities in framework doc
-- Strengths / growth areas (balanced)
-- Goal assessment (met / partial / missed + why)
-- **Next-level gap panel** (read-only from progression) + development plan
-- Promo readiness signal (separate from performance rating)
-- Private manager notes (never shared with IC)
-
-**Upward feedback (optional cycle component)**
-- Manager supportiveness, clarity, growth investment, fairness
-- Always aggregated before manager sees it (n≥3 rule)
-
-### 2.3 Promotion templates & next-progression comparison
-
-Performance reviews judge **current role**. Promotion packets judge **readiness for the next role** defined in the framework. Linked, not conflated.
-
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Promotion template type | P0 | Structured packet: case summary, evidence vs next-role expectations, gaps, sponsor notes |
-| Auto-load next role | P0 | From person’s assigned role → `next_role_ids`; manager picks target if multiple paths (e.g. Staff vs M1) |
-| Expectation checklist | P0 | Each next-role responsibility/expectation becomes a row: `demonstrating` \| `emerging` \| `not_yet` + evidence links |
-| Side-by-side comparison UI | P0 | Current RoleDefinition vs Next RoleDefinition; highlight delta responsibilities |
-| Performance-vs-progression view | P0 | On writing desk: “meeting current IC3 bar?” vs “operating at IC4 scope?” as separate judgments |
-| Promotion cycle or attach-to-review | P1 | Standalone promo window *or* generate promo draft from a strong manager review |
-| Calibration for promo | P1 | Cohort of promo candidates; compare evidence density against same next-role bar |
-| AI promo draft / gap analysis | P0 | Grounded only in RoleDefinition + dossier evidence; lists missing next-level signals explicitly |
-| Export promo packet | P1 | PDF for promo committee / skip-level |
-
-**Evaluation basis (non-negotiable):**  
-Uploaded/structured role & responsibilities content is the **source of truth** for both (a) whether someone meets their current role and (b) how they compare to the next progression. Generic competencies fill gaps only where the role doc is silent.
+- IC Self, Peer (short), Manager (IC), Manager (people-manager), Check-in, Promotion packet  
+- **No upward template in v1**  
+- Competency catalog + anchors for primary levels (complete for shipped competencies)  
+- See `default_eng_template_pack.json`
 
 ---
 
-## 3. Continuous evidence layer (“the dossier”)
-
-This is the differentiator vs annual-form tools.
+## 3. Continuous evidence (dossier)
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Goals / OKRs with status & check-ins | P0 | Linked into review automatically |
-| Feedback inbox (praise, constructive, shoutouts) | P0 | From peers anytime; tag to person |
-| Achievement log (IC or manager adds) | P0 | “Shipped X”, “Mentored Y”, with date + links |
-| 1:1 theme tags | P1 | Lightweight tags from 1:1s (“career”, “blockers”, “scope”) — still available without transcripts |
-| Integration signals (read-only) | P1 | GitHub PR merges/reviews, Jira/Linear completed epics — **summaries, not raw surveillance** |
-| Document evidence uploads | P0 | Upload PDF/DOCX/PPTX/images/CSV → object storage → ACL → cite on ratings/sections/AI |
-| External URL artifacts | P0 | Link design docs, dashboards, tickets without uploading |
-| Google Meet / Drive transcript import | P1 | Opt-in; store **summaries + theme bullets**, not raw dumps; same privacy as private manager notes by default |
-| Private vs shareable evidence | P0 | Manager can mark notes, documents, and transcript summaries private |
-| Cycle snapshot | P0 | At cycle open, freeze “evidence window” dates; still allow attach during writing |
-
-**Evidence window rule:** A cycle covering Jan–Jun includes dossier items with `occurred_at` in that range, plus carry-forward goals.
-
-### 3.1 Document evidence (upload)
-
-Managers and ICs attach files as first-class dossier items (not only URLs).
-
-| Capability | Detail |
-|------------|--------|
-| Allowed types (v1) | PDF, DOCX, PPTX, PNG/JPEG, CSV, TXT/MD |
-| Size limits | Configurable; default 25 MB/file, virus/malware scan on ingest |
-| Storage | Encrypted object storage; app stores metadata + signed download URLs |
-| Link targets | Attach to Achievement, Goal, Feedback, Rating, or free-standing on person dossier |
-| AI use | Extracted text (or OCR summary) enters ContextPackage only when requester has ACL and item is selected/eligible |
-| Visibility | `private_manager` \| `subject_and_manager` \| `calibration_visible` (default: uploader chooses; manager uploads default private) |
-| Retention | Follows evidence class; hard-delete removes object + EvidenceLinks |
-
-### 3.2 Meet / Drive transcript importer (opt-in)
-
-| Capability | Detail |
-|------------|--------|
-| Sources | Google Meet transcripts via Google Drive (Workspace); manual `.vtt`/`.txt` upload fallback |
-| Consent | Org admin enables integration; manager opts in per report or per meeting import; IC can see that a summary exists if shared |
-| What we store | Structured **MeetingSummary**: attendees, date, title, bullet themes, action items, optional quotes (capped); raw transcript kept only as short-TTL encrypted blob or not at all (org setting) |
-| Default visibility | `private_manager` — same bar as private manager notes; never in IC shared packet unless explicitly reclassified |
-| AI use | Summaries (not raw transcripts) may be cited in digests/drafts when visibility allows; citations show `meeting_summary:id` |
-| Safety | No always-on calendar scraping of every Meet; import is explicit (pick file / pick Drive item) or rules-based folder the EM designates |
-| Non-goal | Recording audio/video inside this product; we only ingest transcripts the org already produced |
+| Goals + check-ins | P0 | |
+| Feedback items (EM-entered or imported) | P0 | |
+| Achievements | P0 | |
+| Document uploads | P0 | PDF/DOCX/PPTX/images/CSV → app-data; allowlist + size caps; `scan_status` = allowlist/not_scanned unless real scanner configured |
+| External URLs | P0 | |
+| Meet / transcript → MeetingSummary | P1 | Opt-in; default private-to-EM; notice that “private” ≠ undiscoverable legally |
+| 1:1 theme tags | P1 | Without transcripts |
+| Integration signals (GitHub/Linear) | P2 | Optional |
+| Private vs shareable | P0 | Controls **share/export** inclusion; EM always sees workspace data |
+| Evidence snapshots at finalize | P0 | Cited title/checksum/excerpt frozen into review |
+| Out-of-window tray | P1 | Don’t silently drop late-uploaded docs |
 
 ---
 
-## 4. Review cycles
+## 4. Cycles & import-path collaboration
 
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Cycle create wizard (dates, population, templates, anonymity) | P0 | Population = org unit, level filter, or manual list |
-| Phased timeline | P0 | Self → Peer → Manager → Calibration → Finalize → Share |
-| Deadline reminders | P0 | Email/Slack; escalating to skip-level on breach |
-| Progress command center (EM) | P0 | Who’s done self, peers outstanding, drafts vs submitted |
-| Peer nomination | P0 | IC nominates; manager approves/adds; min/max peers |
-| Anonymity controls | P0 | Peer text anonymous to IC by default; visible to manager |
-| Draft / submit / unlock | P0 | HR/EM can unlock with audit reason |
-| Bulk actions | P1 | Nudge all incomplete; export packet zip |
-| Mid-cycle joins/leaves | P1 | Partial reviews; eligibility rules |
-| Comp / promo flags (links out) | P1 | “Ready for promo discussion” without embedding salary |
+| Feature | Priority | Mode | Notes |
+|---------|----------|------|-------|
+| Cycle wizard | P0 | Workbench | Window, phases, templates by role/level |
+| Command center | P0 | Workbench | Bundle sent/returned, drafts, shared exports |
+| **Export self-review bundle** | P0 | Import-path | Per person; pins template_version |
+| **Export peer-review bundle** | P0 | Import-path | EM picks peers; or IC suggests offline |
+| **Import bundle / paste** | P0 | Import-path | Validate template version; store provenance |
+| Phase gates | P1 | | Soft gates — EM can waive with reason (no remote HR unlock) |
+| Deadline reminders | P0 | Workbench | **OS / in-app only** while app running; exportable nudge list / mailto drafts for ICs |
+| Email/Slack reminders | — | Hosted-only / P2 | |
+| Live peer nomination workflow | — | Hosted-only | v1: EM records peer list + imports |
+| Server-enforced peer anonymity | — | Hosted-only | v1: optional hide names in **subject export** only |
+| Mid-cycle manager change | P1 | | Contribution / supersede model |
 
-### Cycle states
+### Cycle states (participant-authoritative)
 
-```
-draft → scheduled → self_open → peer_open → manager_open
-  → calibration → finalizing → shared → closed → archived
-```
-
-Overlapping phases allowed (e.g. peers still open while early manager drafts begin) via config flags.
+Per-participant phase status is source of truth; cycle banner is derived. Overlaps allowed (e.g. import peers while drafting).
 
 ---
 
-## 5. Writing desk (manager review UX)
+## 5. Writing desk
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Person packet view | P0 | Self + peers + goals + evidence + **role comparison** + last cycle |
-| Rubric scoring with anchors | P0 | From RoleDefinition first, competency anchors fallback |
-| Role-fit + next-level gap panel | P0 | Current vs next RoleDefinition checklist with evidence |
-| Evidence picker per competency | P0 | Search dossier; attach to score / expectation row |
-| Overall rating consistency hint | P1 | Warn if overall << / >> competency average without rationale |
-| Private scratchpad | P0 | Not in shared packet |
-| Compare to last cycle | P0 | Diff ratings & themes |
-| Open promotion packet | P0 | Prefill from gap panel when promo_signal ≠ not_applicable |
-| Share preview (IC view) | P0 | Exactly what IC will see |
-| Discussion mode | P1 | After share: IC acknowledgment + optional comment |
+| Packet = role comparison + imports + dossier + prior cycle | P0 | |
+| Role-fit vs current RoleExpectation IDs | P0 | |
+| Competency scores + evidence | P0 | Evidence required outside middle band |
+| Conditional next-level gap checklist | P0 | Stable expectation IDs + marks |
+| Private scratchpad | P0 | |
+| Subject preview / share export | P0 | Exactly what IC receives |
+| Draft autosave + section restore | P0 | Crash recovery |
+| Underperformance / concern log | P1 | Dated concerns, expectation record, improvement plan; AI off by default |
+| Open promotion packet | P0 | From readiness signal |
 
 ---
 
-## 6. Calibration room
+## 6. Calibration & consistency
 
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| Cohort builder (level × org) | P0 | Default: all IC3s under same director |
-| Distribution histogram | P0 | Live as ratings change |
-| Side-by-side cards | P0 | Summary, overall, key evidence, promo flag |
-| Drag-to-discuss queue | P1 | “Needs discussion” shortlist |
-| Consistency checks | P1 | Similar narratives, different ratings |
-| Decision log | P0 | Rating changes during calib with reason |
-| Export for leadership readout | P1 | PDF/CSV of final distributions |
-
-**Default policy:** No forced curve. Soft guidance bands optional per company config.
+| Feature | Priority | Mode | Notes |
+|---------|----------|------|-------|
+| Single-EM consistency view | P0 | Workbench | Distribution across own directs; side-by-side |
+| Decision log (local) | P0 | Workbench | Tamper-evident hash chain; not compliance-grade |
+| Cross-manager calibration | P1 | Bundle-calib | Export candidate cards → director import → decisions back |
+| Live multi-EM calib room | — | Hosted-only | |
 
 ---
 
-## 7. History, analytics & memory
+## 7. History & analytics
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Person timeline | P0 | All cycles, ratings, goals, key feedback themes |
-| Competency sparklines | P0 | Trend per competency across cycles |
-| Team heat / distribution over time | P1 | Director view |
-| Promotion / rating stagnation alerts | P1 | “Exceeds ×3, no promo packet” |
-| Search across finalized reviews (permissioned) | P1 | Full-text for managers on their tree |
-| Export / legal hold | P1 | HRBP-only packages |
-| Retention policies | P0 | Configurable; default retain finalized 7 years |
+| Person timeline | P0 | |
+| Competency sparklines (manager ratings only) | P0 | Filter by review type |
+| Stagnation hints | P1 | Local heuristics |
+| Search finalized reviews | P1 | FTS on workspace |
+| Workspace stats (time, evidence %) | P0 | On-device only |
+| Adverse-impact reporting | — | Hosted-only |
 
 ---
 
-## 8. AI integration (summary — detail in AI doc)
+## 8. AI
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| **In-app AI settings** | P0 | Configure provider, API keys, models, local/Ollama — see §8.1 |
-| Evidence digest for a person/cycle | P0 | Bullet synthesis of dossier + self + peers (+ selected docs / meeting summaries) |
-| Draft section writer | P0 | Strengths / growth / summary from selected evidence |
-| Role gap analysis | P0 | Evidence vs current + next RoleDefinition expectations |
-| Promotion draft writer | P0 | Grounded promo packet from next-role checklist |
-| Rubric suggestion (non-binding) | P1 | Suggested scores with citations; manager must confirm |
-| Bias & tone lint | P0 | Gendered language, certainty skew, vagueness |
-| Consistency challenger | P1 | Similar narratives, different ratings |
-| Peer feedback synthesizer | P0 | Cluster themes; preserve dissent |
-| Goal drafting for next cycle | P1 | From growth areas **and next-role gaps** |
-| Calibration talking points | P1 | Per person 3-bullet readout |
-| Chat-with-dossier (scoped) | P2 | Q&A over one person’s packet only |
+| Settings → AI (keys, provider, models, test) | P0 | OS keychain; Linux fallback documented |
+| Evidence digest, draft sections, peer synthesize | P0 | |
+| Role gap analysis + promo draft | P0 | |
+| Bias / tone lint | P0 | Advisory; ephemeral findings by default |
+| Citation ID validation | P0 | Strip unknown ids |
+| Private-tier egress | P0 | Per-data-class opt-in; per-generation manifest |
+| Local-only / Ollama | P0 | |
+| Cost/token estimate | P1 | Before run |
+| Chat-with-dossier | P2 | |
 
-**Hard rules:** AI never auto-submits; never invents metrics; always cites sources; logs prompts/outputs for audit.
-
-### 8.1 AI key & provider configuration (in-app)
-
-API keys and model choices are **managed entirely in the app UI** — not via shell env files or editing config on disk for normal use.
-
-| Setting | Behavior |
-|---------|----------|
-| Enable AI | Workspace toggle; when off, Generate actions hidden |
-| Provider | Anthropic / OpenAI / Azure OpenAI / **Ollama (local)** / custom base URL |
-| API key | Entered in Settings → AI; **Test connection** button; stored in **OS keychain** (never SQLite, never logs, never exported in backup by default) |
-| Default models | Per-job picks (digest, draft, lint, gap analysis) with sensible presets |
-| Local-only mode | Force Ollama; block cloud calls (for sensitive packets / offline) |
-| Warn on private data | First cloud call that would include private notes/docs/meeting summaries → confirm dialog |
-| Key rotation | Update/replace/clear key in UI; old key removed from keychain |
-| Who can edit | Workspace `admin` (solo EM is admin by default) |
-
-Empty/missing key → writing desk still works; AI actions show “Configure AI in Settings” CTA.
+Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 
 ---
 
 ## 9. Notifications & integrations
 
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| In-app + OS notifications | P0 | Deadlines, requests, share events |
-| Document upload to local storage | P0 | See §3.1 |
-| CSV / manual people import | P0 | Primary local path |
-| GitHub / GitLab signal import | P1 | Opt-in; OAuth via in-app settings |
-| Linear / Jira goal linkage | P1 | |
-| Google Meet / Drive transcript import | P1 | Opt-in; summaries only — see §3.2 |
-| Email / Slack digests | P2 | Optional later |
-| Calendar holds for review 1:1s | P2 | |
+| Feature | Priority | Mode | Notes |
+|---------|----------|------|-------|
+| OS + in-app notifications | P0 | Workbench | |
+| Document / framework upload | P0 | Workbench | |
+| Google Drive / Meet file pick or manual transcript | P1 | Workbench | |
+| GitHub / Linear | P2 | | |
+| Slack / email digests | — | Hosted-only / later | |
 
 ---
 
-## 10. Admin & compliance
+## 10. Admin & safety
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Workspace settings (scales, anonymity, AI on/off) | P0 | |
-| **Settings → AI** (keys, provider, models) | P0 | See §8.1 |
-| Audit log | P0 | Access, edits, unlocks, AI generations, exports |
-| Permission tester | P1 | “What can user X see?” |
-| Adverse impact reporting | P2 | Rating distributions by protected attributes (HR-only; careful legal design) |
-| Data deletion / workspace reset | P1 | |
+| Workspace settings | P0 | Scales, AI, retention (short default locally) |
+| Encrypted backup / restore | P0 | SQLite backup API |
+| Activity log (hash-chained) | P0 | |
+| Export subject packet / workspace archive | P0 | Handoff when EM leaves |
+| Legal-hold flag (local) | P1 | Blocks purge |
+| Retention default | P0 | **Current + previous cycle** locally; export to company SoR at close; long retention = hosted |
+| Permission tester | P2 | Thin in solo mode |
+
 ---
 
 ## Non-goals (v1)
 
-- Compensation planning / merit matrices
-- Full ATS or recruiting
-- Real-time keystroke productivity scoring
-- Public social feed of praise (keep feedback professional and packet-oriented)
-- Mobile-native apps (responsive web is enough)
+- Live multi-user / SSO / server anonymity  
+- Comp planning, forced ranking  
+- Slack DM surveillance  
+- Mobile-native apps  
+- Adverse-impact dashboards on the laptop  
+- Claiming local audit is immutable legal evidence  

@@ -1,173 +1,97 @@
 # AI Integration
 
-AI exists to **compress evidence into judgment support**, not to replace the manager’s voice.
+AI compresses evidence into judgment support. It does not replace the EM’s voice.  
+Workbench trust: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 
 ---
 
-## Design principles
+## Principles
 
-1. **Grounded or silent.** If evidence is thin, say so; do not invent projects, metrics, or praise.
-2. **Citations required.** Every non-trivial claim points at dossier items (`achievement:12`, `feedback:88`, `goal:3`).
-3. **Human accept gate.** AI text lands in a suggestion buffer; user applies/edits before it becomes draft payload.
-4. **Same eyesight as user.** Context packager applies ACL of the requesting manager.
-5. **Challenge mode > sycophancy.** Prefer surfacing contradictions and bias over flattering prose.
-6. **Auditable.** Store prompt package hash, model, output, citations, latency, token counts.
-7. **Disable-able.** Org and cycle can turn AI off (sensitive PIPs, legal holds).
+1. Grounded or silent — cite `RoleExpectation` / dossier ids; no invention.  
+2. Human accept gate into draft.  
+3. Same eyesight as EM (full workspace) for generation — **egress** is separately gated.  
+4. Challenge mode over flattery.  
+5. Auditable generations with **data_classes_sent**.  
+6. Disable-able; underperformance flows default AI **off**.
 
 ---
 
-## Capability map
+## Configuration (in-app)
 
-| Capability | Input | Output | Auto-apply? |
-|------------|-------|--------|-------------|
-| Evidence digest | Packet slice | 8–12 bullets + thin-evidence warning | No (display only) |
-| Peer synthesizer | Peer reviews | Themes, frequency, dissent callouts | No |
-| Draft section | Section key + selected evidence ids + tone | Markdown draft + citations | No |
-| Rubric suggest | Competency + **RoleDefinition anchors** + evidence | Suggested score + rationale + citations | No |
-| **Role gap analysis** | Current + next RoleDefinition + dossier | Meets-current checklist + next-level gaps with citations | No |
-| **Promotion draft** | Target RoleDefinition + evidence + gap analysis | Promo packet sections grounded in next-role expectations | No |
-| Bias / tone lint | Draft text | Findings with spans + rewrites | Optional apply rewrite |
-| Consistency challenger | Multiple drafts in cohort | Questions for calib | Display |
-| Next-cycle goals | Growth areas + **next RoleDefinition gaps** | 3 SMART goal drafts | No |
-| Calib talking points | Person packet + rating | 3 bullets for meeting | Display |
-| Chat-with-dossier (P2) | Question + packet | Answer + citations | N/A |
+**Settings → AI** (workspace admin):
+
+- Enable AI  
+- Provider: Anthropic / OpenAI / Azure / Ollama / custom URL  
+- API key → OS keychain (masked in UI); Test connection  
+- Models per capability  
+- **Local-only** mode  
+- **Private-tier egress matrix** (per class: private notes, meeting summaries, document extracts) — default **deny** for cloud  
+- Custom URL requires explicit “unverified endpoint” acknowledgment  
+- Surface provider retention/training **facts** (not unkeepable guarantees)
+
+Missing key → writing desk works; Generate CTA → Settings.
+
+---
+
+## Capabilities
+
+| Capability | Notes | Auto-apply? |
+|------------|-------|-------------|
+| Evidence digest | | No |
+| Peer synthesize | From imports | No |
+| Draft section | Selected evidence | No |
+| Role gap analysis | Current + next RoleExpectations | No |
+| Promotion draft | Target role only | No |
+| Rubric suggest | P1; RoleDefinition primary | No |
+| Bias/tone lint | Ephemeral findings by default | Optional |
+| Next-cycle goals | From gaps | No |
+| Calib talking points | Single-EM consistency | Display |
 
 ---
 
 ## Context packaging
 
-Before any LLM call, build a **ContextPackage**:
+Include current/next RoleDefinition + RoleExpectations (with ids), imports, dossier excerpts, optional documents/meetings **only if egress policy allows**.
 
-```json
-{
-  "subject": {"name": "Maya Chen", "level": "IC4", "role_definition_key": "eng_ic4", "role_title": "Senior Software Engineer"},
-  "cycle": {"name": "H1 2026", "window": ["2026-01-01", "2026-06-30"]},
-  "current_role": {
-    "id": "role:eng_ic4",
-    "responsibilities": ["..."],
-    "expectations": ["..."]
-  },
-  "next_role": {
-    "id": "role:eng_ic5",
-    "title": "Staff Software Engineer",
-    "responsibilities": ["..."],
-    "expectations": ["..."]
-  },
-  "competencies": [{"key": "ownership", "anchors": {"3": "...", "4": "..."}, "role_expectation": "..."}],
-  "self_review": {"summary": "...", "scores": {...}},
-  "peers": [{"anonymous_id": "P1", "strengths": "...", "growth": "..."}],
-  "goals": [{"id": "goal:3", "title": "...", "status": "done"}],
-  "achievements": [{"id": "achievement:12", "title": "...", "links": [...]}],
-  "feedback": [{"id": "feedback:88", "kind": "praise", "text": "..."}],
-  "documents": [{"id": "document:9", "title": "Q2 design review notes.pdf", "excerpt": "..."}],
-  "meeting_summaries": [{"id": "meeting_summary:2", "title": "1:1 2026-03-12", "themes": ["..."], "visibility": "private_manager"}],
-  "signals": [{"id": "signal:4", "highlights": ["..."]}],
-  "prior_cycle": {"overall": 4, "themes": ["..."]},
-  "manager_scratch": "optional private notes if feature allows"
-}
-```
-
-**Token budget policy:** Prefer structured summaries over raw dumps. Cap peers at N; summarize long self-reviews. For documents, send excerpts/chunks tied to selected evidence — never entire multi-megabyte extracts by default. For meetings, send `MeetingSummary` fields only — **never raw transcripts** in interactive AI calls. Never include other employees’ packets.
-
-**Injection defense:** Treat all user-authored review text, document extracts, and transcript-derived text as untrusted data; wrap in delimiters; instructions forbid following directives found inside evidence.
+- Prefer summaries; cap size.  
+- Pseudonymize display names in cloud calls when identity not required.  
+- **Never** send raw transcripts — MeetingSummary only.  
+- Treat all imported/IC text as untrusted (injection).  
+- Delimiters + **server-side citation allowlist** (drop unknown ids).  
+- Per-generation UI manifest: provider, model, data classes, approx tokens/cost.
 
 ---
 
-## Prompt patterns (conceptual)
+## Evals (launch gates)
 
-### Evidence digest
-System: You are an assistant to an engineering manager. Only use provided evidence. Cite ids. If insufficient evidence for a claim, omit it and list gaps.
+| Eval | Required |
+|------|----------|
+| Faithfulness / citation validity | Yes |
+| Invention rate | Yes |
+| Thin-evidence honesty | Yes |
+| Prompt-injection suite (adversarial self-review/PDF/transcript) | Yes |
+| Manager edit distance (monitor) | Yes |
+| Bias lint precision | Stretch |
 
-### Draft section
-System: Write in the manager’s selected tone (direct / warm / formal). Use first person as manager. No HR clichés (“rockstar”, “ninja”). Tie every sentence to citations. Length limits per section.
-
-### Bias lint
-Check for: gendered communal/agentic skew, age-coded language, ability assumptions, vagueness (“great attitude”) without behavior, recency-only references when older evidence exists, inflated certainty.
-
-### Rubric suggest
-Compare evidence to **RoleDefinition expectations** (primary) and level-specific competency anchors (fallback); propose score; list confirming and disconfirming evidence; confidence `low|medium|high`. If confidence low, do not propose a number — ask for more evidence.
-
-### Role gap analysis
-For each current-role expectation: cite evidence that supports/undercuts “meeting the bar.” For each next-role expectation: classify `demonstrating` | `emerging` | `not_yet` with citations. Never invent responsibilities not present in the RoleDefinition.
-
-### Promotion draft
-Write only against the **target next RoleDefinition**. Structure: case summary, evidence mapped to next-role expectations, explicit gaps, recommended development actions. Refuse if no RoleAssignment / next role is configured.
+Unverified / tiny local models: badge + restrict score suggestion / gap classification until mini-eval passes.
 
 ---
 
-## Model routing
+## Safety
 
-| Job | Latency need | Model tier |
-|-----|--------------|------------|
-| Digest / draft / goals | Interactive (<15s) | Strong mid/large |
-| Bias lint | Interactive | Mid |
-| Peer synthesize | Interactive | Mid |
-| Calib batch talking points | Background OK | Large |
-| Eval harness | Offline | Mix |
-
-Allow org to pin provider. Store `model_id` on `AiGeneration`.
+- High-impact promo/gap outputs: human review attestation in UI  
+- Lint ≠ proof of fairness  
+- Retention: minimize; lint ephemeral; drafts shorter than reviews  
+- BYO key = user’s provider contract; block providers that fail org policy flags when those flags exist  
 
 ---
 
-## Safety & compliance
+## Never
 
-- **PIP / legal sensitive:** feature flag forces AI off or HRBP-only
-- **No training on customer data** contractual default with providers; zero-retention where available
-- **Export control:** AI outputs included in legal export packages
-- **Hallucination UX:** UI shows citations as chips; clicking opens source; “ungrounded sentence” detector soft-warns
-- **Rate limits:** per-user and per-org daily generation caps
-- **Human accountability copy:** near Generate buttons — “You are responsible for the final review”
-
----
-
-## Evaluation harness
-
-Ship offline evals before enabling each capability in prod:
-
-| Eval | Metric |
-|------|--------|
-| Faithfulness | % of sentences with valid citation supporting claim |
-| Invention rate | Human-labeled hallucinated facts / draft |
-| Bias lint precision | % flagged spans agreed by HR reviewer |
-| Manager edit distance | How much of AI draft survives (too high = rubber-stamp risk; too low = useless) |
-| Thin-evidence honesty | Model correctly refuses when packet empty |
-
-Gate launches on faithfulness ≥ threshold on golden set of anonymized synthetic packets.
-
----
-
-## Configuration UX
-
-AI is configured in **Settings → AI** (workspace admin):
-
-- Provider + API key (masked) or Ollama URL
-- Test connection
-- Model presets per feature
-- Enable/disable AI and local-only mode
-
-Keys live in the OS keychain; never in the SQLite DB or in exported review PDFs. See Features §8.1 and [LOCAL_STACK.md](../architecture/LOCAL_STACK.md).
-
----
-
-## UX integration points
-
-1. **Digest card** at top of writing desk (regenerate allowed; versioned).
-2. **Generate** on each text section with evidence multi-select (pre-checked from attachments).
-3. **Lint** runs on blur/submit; blockers optional (org config: warn vs block submit on critical findings).
-4. **Calibration**: “Prepare talking points” button per card.
-5. **History**: “Pattern insight” on timeline (multi-cycle), clearly labeled speculative.
-
----
-
-## What AI must never do
-
-- Auto-submit or auto-share a review
-- Change ratings without explicit manager confirmation
-- Reveal anonymous peer identities
-- Cross-contaminate context across subjects
-- Optimize for “sounds nice” over accuracy
-- Provide comp recommendations (“pay them more”) — out of scope; link to a separate process
-- Ingest or cite raw Meet transcripts in drafts (summaries only)
-- Include `private_manager` documents or meeting summaries in subject-visible previews
-- Evaluate against a generic ladder when a RoleDefinition is assigned — **uploaded R&R wins**
-- Claim promo readiness without mapping evidence to next-role expectations
+- Auto-submit / auto-share  
+- Change ratings without confirm  
+- Use raw transcripts  
+- Include `em_only` content in **subject** exports (separate from model context)  
+- Evaluate against generic ladder when RoleDefinition assigned  
+- Claim promo readiness without next-role expectation mapping  
+- Send private-tier classes to cloud without per-class opt-in  
