@@ -13,6 +13,7 @@ import { WritingDeskPage } from "./pages/WritingDeskPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PromotionsPage } from "./pages/PromotionsPage";
 import { PromotionDetailPage } from "./pages/PromotionDetailPage";
+import { ChatPage } from "./pages/ChatPage";
 
 export function App() {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
@@ -86,6 +87,7 @@ export function App() {
           <NavLink to="/roles">Roles</NavLink>
           <NavLink to="/cycles">Cycles</NavLink>
           <NavLink to="/promotions">Promotions</NavLink>
+          <NavLink to="/chat">AI Chat</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
         <div className="sidebar-actions">
@@ -112,6 +114,7 @@ export function App() {
           <Route path="/cycles/:cycleId/write/:personId" element={<WritingDeskPage />} />
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/promotions/:id" element={<PromotionDetailPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
