@@ -27,7 +27,6 @@ import {
   checksum,
   clearSession,
   createSession,
-  decryptSecret,
   encryptSecret,
   getDb,
   getSessionToken,
