@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { AuditVerifyResult } from "@prm/shared";
 import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
 import { NextStep, PageHeader } from "../components/PageChrome";
@@ -21,6 +22,8 @@ export function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [audit, setAudit] = useState<AuditVerifyResult | null>(null);
+  const [auditBusy, setAuditBusy] = useState(false);
   const { theme, setTheme } = useTheme();
 
   async function load() {
@@ -91,6 +94,73 @@ export function SettingsPage() {
             <option value="light">Light</option>
           </select>
         </div>
+      </div>
+
+      <div className="panel">
+        <h2>Activity audit</h2>
+        <p className="muted">
+          Hash-chained local activity log with append-only SQLite triggers. Verify recomputes the chain;
+          export signs a pack with the unlocked workspace key. Tamper-evident for this machine — not
+          external legal custody (anyone with the vault password can re-sign).
+        </p>
+        <div className="cta-primary-row">
+          <button
+            type="button"
+            className="btn"
+            disabled={auditBusy}
+            onClick={async () => {
+              setAuditBusy(true);
+              try {
+                const result = await api<AuditVerifyResult>("/api/activity/verify");
+                setAudit(result);
+                setMsg(result.ok ? `Chain OK (${result.count} events)` : `Chain broken: ${result.error}`);
+              } catch (e) {
+                setMsg(e instanceof Error ? e.message : "Verify failed");
+              } finally {
+                setAuditBusy(false);
+              }
+            }}
+          >
+            Verify chain
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={auditBusy}
+            onClick={async () => {
+              setAuditBusy(true);
+              try {
+                const pack = await api<Record<string, unknown>>("/api/activity/export", {
+                  method: "POST",
+                  body: "{}",
+                });
+                const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `prm-audit-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                const v = pack.verification as AuditVerifyResult | undefined;
+                if (v) setAudit(v);
+                setMsg("Audit pack downloaded");
+              } catch (e) {
+                setMsg(e instanceof Error ? e.message : "Export failed");
+              } finally {
+                setAuditBusy(false);
+              }
+            }}
+          >
+            Export signed pack
+          </button>
+        </div>
+        {audit && (
+          <p className="muted" style={{ marginBottom: 0 }}>
+            {audit.ok ? "Intact" : "Broken"} · {audit.count} events
+            {audit.tipHash ? ` · tip ${audit.tipHash.slice(0, 12)}…` : ""}
+            {audit.error ? ` · ${audit.error}` : ""}
+          </p>
+        )}
       </div>
 
       {needsKey ? (

@@ -185,6 +185,23 @@ export interface DecisionLogEntry {
   entityId: string | null;
   detail: Record<string, unknown>;
   createdAt: string;
+  prevHash?: string | null;
+  hash?: string;
+}
+
+export interface AuditVerifyResult {
+  ok: boolean;
+  count: number;
+  tipHash: string | null;
+  expectedTip: string | null;
+  brokenAt: string | null;
+  error: string | null;
+}
+
+export interface PeopleImportResult {
+  created: Array<{ id: string; name: string }>;
+  skipped: Array<{ name: string; reason: string }>;
+  errors: Array<{ row: number; message: string }>;
 }
 
 export interface WorkspaceStatus {

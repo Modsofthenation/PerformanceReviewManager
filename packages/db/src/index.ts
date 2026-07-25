@@ -262,6 +262,18 @@ export function openDatabase(dbPath: string): { sqlite: Database.Database; db: D
   } catch {
     /* column exists */
   }
+  sqlite.exec(`
+    CREATE TRIGGER IF NOT EXISTS activity_events_no_update
+    BEFORE UPDATE ON activity_events
+    BEGIN
+      SELECT RAISE(ABORT, 'activity_events is append-only');
+    END;
+    CREATE TRIGGER IF NOT EXISTS activity_events_no_delete
+    BEFORE DELETE ON activity_events
+    BEGIN
+      SELECT RAISE(ABORT, 'activity_events is append-only');
+    END;
+  `);
   const db = drizzle(sqlite, { schema });
   return { sqlite, db };
 }

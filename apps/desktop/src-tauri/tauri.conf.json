@@ -4,22 +4,15 @@
   "version": "0.1.0",
   "identifier": "com.prm.workbench",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../.. --parallel --filter @prm/api --filter @prm/ui dev",
+    "beforeDevCommand": "bash ../scripts/desktop-dev.sh",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "pnpm --dir ../.. --filter @prm/ui build",
     "frontendDist": "../ui/dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "Performance Review Manager",
-        "width": 1280,
-        "height": 840,
-        "resizable": true
-      }
-    ],
+    "windows": [],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8787 http://localhost:8787 http://127.0.0.1:5173 http://localhost:5173 ws://localhost:5173 ws://127.0.0.1:5173 ipc: http://ipc.localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     }
   },
   "bundle": {
@@ -34,10 +27,5 @@
     "longDescription": "Solo engineering manager performance review workbench with encrypted local vault.",
     "shortDescription": "EM performance review workbench",
     "category": "Productivity"
-  },
-  "plugins": {
-    "shell": {
-      "open": true
-    }
   }
 }

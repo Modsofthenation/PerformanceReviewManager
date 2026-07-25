@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { PersonDTO } from "@prm/shared";
-import { api } from "../lib/api";
+import type { PeopleImportResult, PersonDTO } from "@prm/shared";
+import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 export function TeamPage() {
@@ -9,6 +9,9 @@ export function TeamPage() {
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [levelKey, setLevelKey] = useState("IC3");
+  const [csvText, setCsvText] = useState("");
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
 
   async function load() {
     setPeople(await api<PersonDTO[]>("/api/people"));
@@ -28,6 +31,30 @@ export function TeamPage() {
     setName("");
     setTitle("");
     await load();
+  }
+
+  async function importCsv(e: React.FormEvent) {
+    e.preventDefault();
+    if (!csvText.trim()) return;
+    setImportBusy(true);
+    setImportMsg(null);
+    try {
+      const result = await api<PeopleImportResult>("/api/people/import", {
+        method: "POST",
+        body: JSON.stringify({ csv: csvText }),
+      });
+      setImportMsg(
+        `Created ${result.created.length}, skipped ${result.skipped.length}, errors ${result.errors.length}`,
+      );
+      if (result.created.length) {
+        setCsvText("");
+        await load();
+      }
+    } catch (err) {
+      setImportMsg(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImportBusy(false);
+    }
   }
 
   const directs = people.filter((p) => p.managerId);
@@ -108,6 +135,72 @@ export function TeamPage() {
         <div className="cta-primary-row">
           <button className="btn">Add to team</button>
         </div>
+      </form>
+
+      <form className="panel" id="csv-import" onSubmit={importCsv}>
+        <h2>Import CSV</h2>
+        <p className="muted">
+          Columns: name (required), email, title, levelKey, hireDate. Duplicates by email or exact name are skipped.
+          New people report to the workspace EM.
+        </p>
+        <div className="field">
+          <label htmlFor="csv-paste">Paste CSV</label>
+          <textarea
+            id="csv-paste"
+            rows={6}
+            value={csvText}
+            onChange={(e) => setCsvText(e.target.value)}
+            placeholder={"name,email,title,levelKey,hireDate\nAlex Rivera,alex@example.com,Software Engineer,IC3,2025-01-15"}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="csv-file">Or choose file</label>
+          <input
+            id="csv-file"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setCsvText(await file.text());
+            }}
+          />
+        </div>
+        <div className="cta-primary-row">
+          <button className="btn" disabled={importBusy || !csvText.trim()}>
+            {importBusy ? "Importing…" : "Import people"}
+          </button>
+          <a
+            className="btn secondary"
+            href="/api/people/import/template"
+            onClick={(e) => {
+              // Authenticated download via fetch (anchor alone omits x-prm-token).
+              e.preventDefault();
+              void (async () => {
+                const headers: HeadersInit = {};
+                const token = getToken();
+                if (token) headers["x-prm-token"] = token;
+                const launch = typeof window !== "undefined" ? window.__PRM_LAUNCH_TOKEN__ : undefined;
+                if (launch) headers["x-prm-launch-token"] = launch;
+                const res = await fetch("/api/people/import/template", { headers });
+                if (!res.ok) {
+                  setImportMsg("Could not download template");
+                  return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "prm-people-template.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+              })();
+            }}
+          >
+            Download template
+          </a>
+        </div>
+        {importMsg && <p className="muted">{importMsg}</p>}
       </form>
     </div>
   );
