@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Performance Review Manager",
+  "version": "0.1.0",
+  "identifier": "com.prm.workbench",
+  "build": {
+    "beforeDevCommand": "pnpm --dir ../.. --parallel --filter @prm/api --filter @prm/ui dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm --dir ../.. --filter @prm/ui build",
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Performance Review Manager",
+        "width": 1280,
+        "height": 840,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/henry.w@example.net",
+      "icons/icon.png"
+    ],
+    "longDescription": "Solo engineering manager performance review workbench with encrypted local vault.",
+    "shortDescription": "EM performance review workbench",
+    "category": "Productivity"
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}
