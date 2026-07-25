@@ -1,0 +1,238 @@
+{
+  "$schema_comment": "Opinionated default engineering review pack — seed for TemplateVersion payloads",
+  "pack_id": "eng_default_v1",
+  "rating_scale": {
+    "id": "five_point",
+    "labels": {
+      "1": "Does not meet expectations",
+      "2": "Partially meets expectations",
+      "3": "Meets expectations",
+      "4": "Exceeds expectations",
+      "5": "Far exceeds expectations"
+    }
+  },
+  "competencies": [
+    {
+      "key": "execution",
+      "name": "Execution & delivery",
+      "description": "Ships reliable outcomes on meaningful timelines; manages scope and quality."
+    },
+    {
+      "key": "technical_depth",
+      "name": "Technical depth",
+      "description": "Applies sound engineering judgment; improves system quality and correctness."
+    },
+    {
+      "key": "ownership",
+      "name": "Ownership",
+      "description": "Drives problems to resolution; anticipates risk; follows through without heavy oversight."
+    },
+    {
+      "key": "collaboration",
+      "name": "Collaboration",
+      "description": "Communicates clearly; elevates teammates; works effectively across boundaries."
+    },
+    {
+      "key": "impact",
+      "name": "Impact",
+      "description": "Connects work to user/business outcomes; multiplies value beyond individual tasks."
+    },
+    {
+      "key": "growth_leadership",
+      "name": "Growth & leadership",
+      "description": "Develops self and others; improves team practices; shows role-appropriate leadership."
+    }
+  ],
+  "templates": {
+    "ic_self": {
+      "name": "IC Self-review",
+      "blocks": [
+        {
+          "type": "text",
+          "key": "top_outcomes",
+          "label": "Top outcomes this cycle",
+          "prompt": "List 3–5 outcomes you are proud of. Link PRs, docs, or metrics where possible.",
+          "required": true,
+          "min_length": 100
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "technical_depth", "ownership", "collaboration", "impact", "growth_leadership"],
+          "require_evidence_outside_middle": true
+        },
+        {
+          "type": "text",
+          "key": "collaboration_examples",
+          "label": "How you collaborated and influenced",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth_areas",
+          "label": "Where you want to grow",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "support_needed",
+          "label": "Support you need from your manager",
+          "required": false
+        },
+        {
+          "type": "goals_review",
+          "key": "goals",
+          "label": "Goal assessment"
+        },
+        {
+          "type": "text",
+          "key": "proposed_goals",
+          "label": "Proposed goals for next cycle",
+          "required": true
+        },
+        {
+          "type": "promo_signal",
+          "key": "promo_interest",
+          "label": "Promotion interest",
+          "visibility": "manager_hr_only",
+          "required": false
+        }
+      ]
+    },
+    "peer": {
+      "name": "Peer feedback",
+      "blocks": [
+        {
+          "type": "text",
+          "key": "context",
+          "label": "How you worked together",
+          "required": true,
+          "max_length": 500
+        },
+        {
+          "type": "text",
+          "key": "strengths",
+          "label": "Strengths you observed",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth",
+          "label": "One growth suggestion",
+          "required": true
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "ownership", "collaboration"],
+          "required": false
+        }
+      ]
+    },
+    "manager": {
+      "name": "Manager review",
+      "blocks": [
+        {
+          "type": "overall_rating",
+          "key": "overall",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "summary",
+          "label": "Executive summary",
+          "prompt": "2–3 paragraphs the IC will read first. Be specific.",
+          "required": true,
+          "min_length": 200
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "technical_depth", "ownership", "collaboration", "impact", "growth_leadership"],
+          "require_evidence_outside_middle": true
+        },
+        {
+          "type": "text",
+          "key": "strengths",
+          "label": "Strengths",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth_areas",
+          "label": "Growth areas",
+          "required": true
+        },
+        {
+          "type": "goals_review",
+          "key": "goals",
+          "label": "Goals this cycle"
+        },
+        {
+          "type": "text",
+          "key": "dev_plan",
+          "label": "Development plan & next-cycle focus",
+          "required": true
+        },
+        {
+          "type": "promo_signal",
+          "key": "promo_readiness",
+          "label": "Promotion readiness",
+          "options": ["ready", "not_yet", "too_early", "not_applicable"],
+          "visibility": "manager_hr_director",
+          "required": true
+        },
+        {
+          "type": "private_text",
+          "key": "private_notes",
+          "label": "Private manager notes",
+          "visibility": "manager_hr_only"
+        },
+        {
+          "type": "acknowledgment",
+          "key": "ack",
+          "label": "IC acknowledgment",
+          "phase": "post_share"
+        }
+      ]
+    },
+    "upward": {
+      "name": "Upward feedback",
+      "aggregation": "require_min_3_before_manager_visibility",
+      "blocks": [
+        {
+          "type": "competency_scores",
+          "key": "manager_behaviors",
+          "competencies": ["clarity_support", "growth_investment", "fairness", "delivery_enablement"],
+          "note": "Manager-behavior competencies defined separately from IC ladder"
+        },
+        {
+          "type": "text",
+          "key": "keep_doing",
+          "label": "What should this manager keep doing?",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "improve",
+          "label": "What should this manager improve?",
+          "required": true
+        }
+      ]
+    }
+  },
+  "anchors_example": {
+    "ownership": {
+      "IC3": {
+        "3": "Owns assigned projects end-to-end; escalates blockers with options.",
+        "4": "Owns ambiguous problem spaces; unblocks others; prevents repeat failures.",
+        "5": "Sets ownership norms for the team; reliably drives cross-team outcomes."
+      },
+      "IC5": {
+        "3": "Owns multi-squad technical outcomes; anticipates dependency risk.",
+        "4": "Creates leverage via systems/process; develops other owners.",
+        "5": "Shapes org-level technical direction through owned initiatives."
+      }
+    }
+  }
+}
