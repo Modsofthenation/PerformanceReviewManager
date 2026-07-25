@@ -11,10 +11,12 @@ type AiSettings = {
   modelDraft: string | null;
   localOnly: boolean;
   ollamaBaseUrl: string | null;
+  cursorBaseUrl?: string | null;
   privateNotesEgress: boolean;
   meetingSummaryEgress: boolean;
   documentExtractEgress: boolean;
   hasApiKey: boolean;
+  apiKeyFromEnv?: boolean;
 };
 
 export function SettingsPage() {
@@ -55,7 +57,12 @@ export function SettingsPage() {
 
   if (!settings) return <p>Loading…</p>;
 
-  const needsKey = settings.enabled && !settings.localOnly && settings.provider !== "ollama" && !settings.hasApiKey && !apiKey;
+  const needsKey =
+    settings.enabled &&
+    !settings.localOnly &&
+    settings.provider !== "ollama" &&
+    !settings.hasApiKey &&
+    !apiKey;
 
   return (
     <div className="stack">
@@ -167,7 +174,7 @@ export function SettingsPage() {
         <NextStep
           tone="warn"
           label="Add an API key to use cloud drafting"
-          detail="AI is enabled but no key is on file. Paste a key below, Save, then Test connection — or switch to Ollama / local-only."
+          detail="AI is enabled but no key is on file. Paste a key below, Save, then Test connection — or switch to Ollama / local-only. For Cursor, use a crsr_ key or CURSOR_API_KEY."
           action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         />
       ) : settings.enabled ? (
@@ -232,27 +239,84 @@ export function SettingsPage() {
           <label>Provider</label>
           <select
             value={settings.provider}
-            onChange={(e) => setSettings({ ...settings, provider: e.target.value })}
+            onChange={(e) => {
+              const provider = e.target.value;
+              setSettings({
+                ...settings,
+                provider,
+                ...(provider === "cursor"
+                  ? {
+                      modelDigest: settings.modelDigest || "composer-2.5",
+                      modelDraft: settings.modelDraft || "composer-2.5",
+                      ollamaBaseUrl:
+                        settings.ollamaBaseUrl && settings.ollamaBaseUrl !== "http://127.0.0.1:11434"
+                          ? settings.ollamaBaseUrl
+                          : settings.cursorBaseUrl || "http://127.0.0.1:18789/v1",
+                    }
+                  : {}),
+              });
+            }}
           >
             <option value="anthropic">Anthropic</option>
             <option value="openai">OpenAI</option>
+            <option value="cursor">Cursor</option>
             <option value="ollama">Ollama</option>
           </select>
         </div>
+        {settings.provider === "cursor" && (
+          <p className="muted">
+            Uses an OpenAI-compatible Chat Completions endpoint with your Cursor API key
+            (<code>crsr_…</code> from cursor.com/dashboard → API Keys). Set Base URL to your Cursor
+            gateway (local proxy default <code>http://127.0.0.1:18789/v1</code>, or{" "}
+            <code>CURSOR_API_BASE_URL</code>). Key may also come from <code>CURSOR_API_KEY</code>.
+          </p>
+        )}
         <div className="field">
-          <label>API key {settings.hasApiKey ? "(on file — enter to replace)" : ""}</label>
+          <label>
+            API key{" "}
+            {settings.hasApiKey
+              ? settings.apiKeyFromEnv
+                ? "(from CURSOR_API_KEY env)"
+                : "(on file — enter to replace)"
+              : ""}
+          </label>
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={settings.hasApiKey ? "••••••••" : "sk-…"}
+            placeholder={
+              settings.hasApiKey ? "••••••••" : settings.provider === "cursor" ? "crsr_…" : "sk-…"
+            }
           />
         </div>
+        {(settings.provider === "ollama" || settings.provider === "cursor") && (
+          <div className="field">
+            <label>{settings.provider === "cursor" ? "Cursor API base URL" : "Ollama base URL"}</label>
+            <input
+              value={settings.ollamaBaseUrl ?? ""}
+              onChange={(e) => setSettings({ ...settings, ollamaBaseUrl: e.target.value })}
+              placeholder={
+                settings.provider === "cursor"
+                  ? "http://127.0.0.1:18789/v1"
+                  : "http://127.0.0.1:11434"
+              }
+            />
+          </div>
+        )}
         <div className="field">
           <label>Digest model</label>
           <input
             value={settings.modelDigest ?? ""}
             onChange={(e) => setSettings({ ...settings, modelDigest: e.target.value })}
+            placeholder={settings.provider === "cursor" ? "composer-2.5" : undefined}
+          />
+        </div>
+        <div className="field">
+          <label>Draft model</label>
+          <input
+            value={settings.modelDraft ?? ""}
+            onChange={(e) => setSettings({ ...settings, modelDraft: e.target.value })}
+            placeholder={settings.provider === "cursor" ? "composer-2.5" : undefined}
           />
         </div>
         <div className="field">
