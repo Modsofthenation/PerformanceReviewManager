@@ -252,6 +252,46 @@ export interface DeadlineNudge {
   mailtoHref: string;
 }
 
+export type IntegrationProvider = "jira" | "bitbucket";
+
+export interface IntegrationSettingsDTO {
+  id: IntegrationProvider;
+  enabled: boolean;
+  baseUrl: string | null;
+  workspaceSlug: string | null;
+  authEmail: string | null;
+  authUsername: string | null;
+  hasToken: boolean;
+  extra: Record<string, unknown>;
+  lastSyncAt: string | null;
+  updatedAt: string;
+}
+
+export interface PersonExternalLinkDTO {
+  id: string;
+  personId: string;
+  provider: IntegrationProvider;
+  externalAccountId: string;
+  externalDisplayName: string | null;
+  externalEmail: string | null;
+  externalUsername: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationRemoteUser {
+  accountId: string;
+  displayName: string;
+  email?: string | null;
+  username?: string | null;
+}
+
+export interface IntegrationSyncResult {
+  personId: string;
+  jira: { imported: number; updated: number; skipped: boolean; error: string | null };
+  bitbucket: { imported: number; updated: number; skipped: boolean; error: string | null };
+}
+
 export interface DecisionLogEntry {
   id: string;
   action: string;

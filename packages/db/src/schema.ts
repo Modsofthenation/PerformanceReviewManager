@@ -141,6 +141,11 @@ export const achievements = sqliteTable("achievements", {
   description: text("description"),
   occurredAt: text("occurred_at").notNull(),
   createdAt: text("created_at").notNull(),
+  /** Manual = null; synced integrations set provider id. */
+  sourceProvider: text("source_provider"),
+  externalId: text("external_id"),
+  externalUrl: text("external_url"),
+  externalPayloadJson: text("external_payload_json"),
 });
 
 export const feedbackItems = sqliteTable("feedback_items", {
@@ -238,6 +243,33 @@ export const aiSettings = sqliteTable("ai_settings", {
   apiKeyEncrypted: text("api_key_encrypted"),
 });
 
+/** Per-provider BYO integration config (Jira / Bitbucket). Tokens encrypted like AI keys. */
+export const integrationSettings = sqliteTable("integration_settings", {
+  id: text("id").primaryKey(), // 'jira' | 'bitbucket'
+  enabled: integer("enabled").notNull().default(0),
+  baseUrl: text("base_url"),
+  workspaceSlug: text("workspace_slug"),
+  authEmail: text("auth_email"),
+  authUsername: text("auth_username"),
+  tokenEncrypted: text("token_encrypted"),
+  extraJson: text("extra_json").notNull().default("{}"),
+  lastSyncAt: text("last_sync_at"),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/** Map a local person to a remote Jira/Bitbucket account. */
+export const personExternalLinks = sqliteTable("person_external_links", {
+  id: text("id").primaryKey(),
+  personId: text("person_id").notNull(),
+  provider: text("provider").notNull(),
+  externalAccountId: text("external_account_id").notNull(),
+  externalDisplayName: text("external_display_name"),
+  externalEmail: text("external_email"),
+  externalUsername: text("external_username"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const aiGenerations = sqliteTable("ai_generations", {
   id: text("id").primaryKey(),
   feature: text("feature").notNull(),
@@ -284,6 +316,8 @@ export const schema = {
   promotionCases,
   concernLogs,
   aiSettings,
+  integrationSettings,
+  personExternalLinks,
   aiGenerations,
   activityEvents,
 };

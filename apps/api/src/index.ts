@@ -26,6 +26,8 @@ import {
   roleFrameworks,
   workspace,
   concernLogs,
+  integrationSettings,
+  personExternalLinks,
 } from "@prm/db";
 import type {
   BiasFinding,
@@ -40,6 +42,11 @@ import type {
   ConcernLogDTO,
   CycleStatsDTO,
   DeadlineNudge,
+  IntegrationProvider,
+  IntegrationRemoteUser,
+  IntegrationSettingsDTO,
+  IntegrationSyncResult,
+  PersonExternalLinkDTO,
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
@@ -82,6 +89,14 @@ import { runBiasToneLint } from "./bias.js";
 import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import { localPeerSynthesize } from "./peerSynth.js";
+import { bitbucketSearchMembers, bitbucketTestConnection } from "./bitbucket.js";
+import { jiraSearchUsers, jiraTestConnection } from "./jira.js";
+import {
+  ensureIntegrationRow,
+  getBitbucketConfig,
+  getJiraConfig,
+  syncPersonIntegrations,
+} from "./integrations.js";
 import {
   buildPersonTimeline,
   collectRatingChanges,
@@ -2094,6 +2109,265 @@ app.put("/api/ai/settings", async (c) => {
   return c.json({ ok: true });
 });
 
+function mapIntegrationSettings(provider: IntegrationProvider): IntegrationSettingsDTO {
+  const row = ensureIntegrationRow(provider);
+  let extra: Record<string, unknown> = {};
+  try {
+    extra = JSON.parse(row.extraJson || "{}") as Record<string, unknown>;
+  } catch {
+    extra = {};
+  }
+  return {
+    id: provider,
+    enabled: Boolean(row.enabled),
+    baseUrl: row.baseUrl,
+    workspaceSlug: row.workspaceSlug,
+    authEmail: row.authEmail,
+    authUsername: row.authUsername,
+    hasToken: Boolean(row.tokenEncrypted),
+    extra,
+    lastSyncAt: row.lastSyncAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function mapExternalLink(row: typeof personExternalLinks.$inferSelect): PersonExternalLinkDTO {
+  return {
+    id: row.id,
+    personId: row.personId,
+    provider: row.provider as IntegrationProvider,
+    externalAccountId: row.externalAccountId,
+    externalDisplayName: row.externalDisplayName,
+    externalEmail: row.externalEmail,
+    externalUsername: row.externalUsername,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+app.get("/api/integrations", (c) => {
+  return c.json({
+    jira: mapIntegrationSettings("jira"),
+    bitbucket: mapIntegrationSettings("bitbucket"),
+  });
+});
+
+app.get("/api/integrations/:provider", (c) => {
+  const provider = c.req.param("provider") as IntegrationProvider;
+  if (provider !== "jira" && provider !== "bitbucket") return c.json({ error: "Unknown provider" }, 404);
+  return c.json(mapIntegrationSettings(provider));
+});
+
+app.put("/api/integrations/:provider", async (c) => {
+  const provider = c.req.param("provider") as IntegrationProvider;
+  if (provider !== "jira" && provider !== "bitbucket") return c.json({ error: "Unknown provider" }, 404);
+  const body = await c.req.json<{
+    enabled?: boolean;
+    baseUrl?: string | null;
+    workspaceSlug?: string | null;
+    authEmail?: string | null;
+    authUsername?: string | null;
+    token?: string | null;
+    extra?: Record<string, unknown>;
+  }>();
+  const db = getDb();
+  const current = ensureIntegrationRow(provider);
+  const secret = getWorkspaceSecret();
+  let tokenEncrypted = current.tokenEncrypted;
+  if (body.token === null) tokenEncrypted = null;
+  else if (body.token && secret) tokenEncrypted = encryptSecret(body.token, secret);
+  else if (body.token && !secret) return c.json({ error: "Workspace secret unavailable — re-unlock" }, 400);
+
+  const extraJson =
+    body.extra === undefined ? current.extraJson : JSON.stringify(body.extra ?? {});
+  const ts = nowIso();
+  db.update(integrationSettings)
+    .set({
+      enabled: body.enabled === undefined ? current.enabled : body.enabled ? 1 : 0,
+      baseUrl: body.baseUrl === undefined ? current.baseUrl : body.baseUrl?.trim() || null,
+      workspaceSlug:
+        body.workspaceSlug === undefined ? current.workspaceSlug : body.workspaceSlug?.trim() || null,
+      authEmail: body.authEmail === undefined ? current.authEmail : body.authEmail?.trim() || null,
+      authUsername:
+        body.authUsername === undefined ? current.authUsername : body.authUsername?.trim() || null,
+      tokenEncrypted,
+      extraJson,
+      updatedAt: ts,
+    })
+    .where(eq(integrationSettings.id, provider))
+    .run();
+  logActivity("integrations.settings.update", "integration", provider, {
+    enabled: body.enabled,
+  });
+  return c.json(mapIntegrationSettings(provider));
+});
+
+app.post("/api/integrations/:provider/test", async (c) => {
+  const provider = c.req.param("provider") as IntegrationProvider;
+  try {
+    if (provider === "jira") {
+      const cfg = getJiraConfig();
+      if (!cfg) return c.json({ error: "Enable Jira and save base URL, email, and API token first" }, 400);
+      const result = await jiraTestConnection(cfg);
+      return c.json(result);
+    }
+    if (provider === "bitbucket") {
+      const cfg = getBitbucketConfig();
+      if (!cfg) {
+        return c.json({ error: "Enable Bitbucket and save workspace, username, and app password first" }, 400);
+      }
+      const result = await bitbucketTestConnection(cfg);
+      return c.json(result);
+    }
+    return c.json({ error: "Unknown provider" }, 404);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Connection failed" }, 400);
+  }
+});
+
+app.get("/api/integrations/:provider/users", async (c) => {
+  const provider = c.req.param("provider") as IntegrationProvider;
+  const q = (c.req.query("q") ?? "").trim();
+  if (!q) return c.json({ error: "q required" }, 400);
+  try {
+    if (provider === "jira") {
+      const cfg = getJiraConfig();
+      if (!cfg) return c.json({ error: "Jira not configured" }, 400);
+      const users = await jiraSearchUsers(cfg, q);
+      const items: IntegrationRemoteUser[] = users.map((u) => ({
+        accountId: u.accountId,
+        displayName: u.displayName,
+        email: u.emailAddress ?? null,
+        username: null,
+      }));
+      return c.json({ items });
+    }
+    if (provider === "bitbucket") {
+      const cfg = getBitbucketConfig();
+      if (!cfg) return c.json({ error: "Bitbucket not configured" }, 400);
+      const users = await bitbucketSearchMembers(cfg, q);
+      const items: IntegrationRemoteUser[] = users.map((u) => ({
+        accountId: u.uuid,
+        displayName: u.displayName,
+        email: u.email ?? null,
+        username: u.nickname ?? null,
+      }));
+      return c.json({ items });
+    }
+    return c.json({ error: "Unknown provider" }, 404);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "User search failed" }, 400);
+  }
+});
+
+app.get("/api/people/:id/external-links", (c) => {
+  const personId = c.req.param("id");
+  const db = getDb();
+  const items = db
+    .select()
+    .from(personExternalLinks)
+    .where(eq(personExternalLinks.personId, personId))
+    .all()
+    .map(mapExternalLink);
+  return c.json({ items });
+});
+
+app.put("/api/people/:id/external-links/:provider", async (c) => {
+  const personId = c.req.param("id");
+  const provider = c.req.param("provider") as IntegrationProvider;
+  if (provider !== "jira" && provider !== "bitbucket") return c.json({ error: "Unknown provider" }, 404);
+  const body = await c.req.json<{
+    externalAccountId: string;
+    externalDisplayName?: string | null;
+    externalEmail?: string | null;
+    externalUsername?: string | null;
+  }>();
+  if (!body.externalAccountId?.trim()) return c.json({ error: "externalAccountId required" }, 400);
+  const db = getDb();
+  const person = db.select().from(people).where(eq(people.id, personId)).all()[0];
+  if (!person) return c.json({ error: "Not found" }, 404);
+  const ts = nowIso();
+  const existing = db
+    .select()
+    .from(personExternalLinks)
+    .where(and(eq(personExternalLinks.personId, personId), eq(personExternalLinks.provider, provider)))
+    .all()[0];
+  if (existing) {
+    db.update(personExternalLinks)
+      .set({
+        externalAccountId: body.externalAccountId.trim(),
+        externalDisplayName: body.externalDisplayName?.trim() || null,
+        externalEmail: body.externalEmail?.trim() || null,
+        externalUsername: body.externalUsername?.trim() || null,
+        updatedAt: ts,
+      })
+      .where(eq(personExternalLinks.id, existing.id))
+      .run();
+    logActivity("integrations.link.update", "person", personId, { provider });
+    const updated = db.select().from(personExternalLinks).where(eq(personExternalLinks.id, existing.id)).all()[0]!;
+    return c.json(mapExternalLink(updated));
+  }
+  const linkId = id("extlink");
+  const row = {
+    id: linkId,
+    personId,
+    provider,
+    externalAccountId: body.externalAccountId.trim(),
+    externalDisplayName: body.externalDisplayName?.trim() || null,
+    externalEmail: body.externalEmail?.trim() || null,
+    externalUsername: body.externalUsername?.trim() || null,
+    createdAt: ts,
+    updatedAt: ts,
+  };
+  db.insert(personExternalLinks).values(row).run();
+  logActivity("integrations.link.create", "person", personId, { provider });
+  return c.json(mapExternalLink(row));
+});
+
+app.delete("/api/people/:id/external-links/:provider", (c) => {
+  const personId = c.req.param("id");
+  const provider = c.req.param("provider") as IntegrationProvider;
+  const db = getDb();
+  const existing = db
+    .select()
+    .from(personExternalLinks)
+    .where(and(eq(personExternalLinks.personId, personId), eq(personExternalLinks.provider, provider)))
+    .all()[0];
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  db.delete(personExternalLinks).where(eq(personExternalLinks.id, existing.id)).run();
+  logActivity("integrations.link.delete", "person", personId, { provider });
+  return c.json({ ok: true });
+});
+
+app.post("/api/people/:id/integrations/sync", async (c) => {
+  const personId = c.req.param("id");
+  const body = await c.req.json<{ providers?: IntegrationProvider[] }>().catch(() => ({} as { providers?: IntegrationProvider[] }));
+  const db = getDb();
+  if (!db.select().from(people).where(eq(people.id, personId)).all()[0]) {
+    return c.json({ error: "Not found" }, 404);
+  }
+  try {
+    const result: IntegrationSyncResult = await syncPersonIntegrations(personId, body.providers);
+    return c.json(result);
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : "Sync failed" }, 400);
+  }
+});
+
+app.post("/api/integrations/sync-all", async (c) => {
+  const body = await c.req
+    .json<{ providers?: IntegrationProvider[] }>()
+    .catch(() => ({} as { providers?: IntegrationProvider[] }));
+  const db = getDb();
+  const links = db.select().from(personExternalLinks).all();
+  const personIds = [...new Set(links.map((l) => l.personId))];
+  const results: IntegrationSyncResult[] = [];
+  for (const personId of personIds) {
+    results.push(await syncPersonIntegrations(personId, body.providers));
+  }
+  return c.json({ count: results.length, results });
+});
+
 app.post("/api/people/:id/documents", async (c) => {
   const personId = c.req.param("id");
   const db = getDb();
@@ -2190,7 +2464,13 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
   if (next) {
     for (const e of next.expectations) lines.push(`Next expectation [${e.id}] (${e.kind}): ${e.text}`);
   }
-  for (const item of ach) lines.push(`Achievement [${item.id}] ${item.occurredAt}: ${item.title}. ${item.description ?? ""}`);
+  for (const item of ach) {
+    const link = item.externalUrl ? ` ${item.externalUrl}` : "";
+    const src = item.sourceProvider ? ` via ${item.sourceProvider}` : "";
+    lines.push(
+      `Achievement [${item.id}] ${item.occurredAt}${src}: ${item.title}. ${item.description ?? ""}${link}`,
+    );
+  }
   for (const item of g) lines.push(`Goal [${item.id}] (${item.status}): ${item.title}`);
   for (const item of fb) {
     if (!allowPrivateNotes && item.visibility === "em_only") {

@@ -147,7 +147,11 @@ CREATE TABLE IF NOT EXISTS achievements (
   title TEXT NOT NULL,
   description TEXT,
   occurred_at TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  source_provider TEXT,
+  external_id TEXT,
+  external_url TEXT,
+  external_payload_json TEXT
 );
 
 CREATE TABLE IF NOT EXISTS feedback_items (
@@ -242,6 +246,31 @@ CREATE TABLE IF NOT EXISTS ai_settings (
   api_key_encrypted TEXT
 );
 
+CREATE TABLE IF NOT EXISTS integration_settings (
+  id TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  base_url TEXT,
+  workspace_slug TEXT,
+  auth_email TEXT,
+  auth_username TEXT,
+  token_encrypted TEXT,
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  last_sync_at TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS person_external_links (
+  id TEXT PRIMARY KEY,
+  person_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  external_account_id TEXT NOT NULL,
+  external_display_name TEXT,
+  external_email TEXT,
+  external_username TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ai_generations (
   id TEXT PRIMARY KEY,
   feature TEXT NOT NULL,
@@ -281,6 +310,18 @@ export function openDatabase(dbPath: string): { sqlite: Database.Database; db: D
     sqlite.exec("ALTER TABLE feedback_items ADD COLUMN themes_json TEXT NOT NULL DEFAULT '[]'");
   } catch {
     /* column exists */
+  }
+  for (const col of [
+    "ALTER TABLE achievements ADD COLUMN source_provider TEXT",
+    "ALTER TABLE achievements ADD COLUMN external_id TEXT",
+    "ALTER TABLE achievements ADD COLUMN external_url TEXT",
+    "ALTER TABLE achievements ADD COLUMN external_payload_json TEXT",
+  ]) {
+    try {
+      sqlite.exec(col);
+    } catch {
+      /* column exists */
+    }
   }
   sqlite.exec(`
     CREATE TRIGGER IF NOT EXISTS activity_events_no_update

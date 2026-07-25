@@ -3,6 +3,7 @@ import type { AuditVerifyResult } from "@prm/shared";
 import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { IntegrationsPanel } from "../components/IntegrationsPanel";
 
 type AiSettings = {
   enabled: boolean;
@@ -84,7 +85,7 @@ export function SettingsPage() {
     <div className="stack">
       <PageHeader
         title="Settings"
-        job="Appearance, AI co-pilot keys, and private-tier egress. Keys stay encrypted with the workspace secret."
+        job="Appearance, AI, integrations, and private-tier egress. Keys stay encrypted with the workspace secret."
         primary={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         secondary={
           <button
@@ -118,6 +119,8 @@ export function SettingsPage() {
           </select>
         </div>
       </div>
+
+      <IntegrationsPanel />
 
       <div className="panel">
         <h2>Activity audit</h2>
