@@ -758,7 +758,6 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .compare-fill.current { background: var(--brand); top: 7px; }
 .person-timeline li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
 .person-timeline li:last-child { border-bottom: 0; }
-.page-header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 
 @media (max-width: 900px) {
   .tp-grid { grid-template-columns: 1fr; }
