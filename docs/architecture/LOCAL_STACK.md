@@ -116,11 +116,25 @@ Secrets (API keys, OAuth tokens) → **OS keychain** via Tauri plugins (`keyring
 
 ## AI on a local app
 
+### Configuration (in-app — required UX)
+
+Users set up AI **inside Settings → AI**, managed by the app:
+
+1. Choose provider (Anthropic, OpenAI, Azure, Ollama, custom base URL)
+2. Paste API key (or set Ollama base URL, default `http://127.0.0.1:11434`)
+3. **Test connection** → shows model list / success/failure
+4. Pick default models per capability (or accept presets)
+5. Optional: enable **local-only** (Ollama only; cloud blocked)
+
+Keys are written to the **OS keychain** via Tauri; the UI only ever shows masked values (`sk-…****`). Clearing AI config removes the keychain entry.
+
+No requirement to set `ANTHROPIC_API_KEY` in a terminal for normal operation (devs may still use env overrides in `pnpm dev`).
+
 | Path | When |
 |------|------|
-| Cloud provider + user API key | Default; best quality for digests/drafts/gap analysis |
-| **Ollama** (or LM Studio) on localhost | Offline / sensitive packets; org can force “local only” |
-| No AI | Fully usable; writing desk works without generation |
+| Cloud provider + key from Settings | Default; best quality for digests/drafts/gap analysis |
+| **Ollama** (or LM Studio) on localhost | Offline / sensitive packets; workspace can force “local only” |
+| No AI configured | Fully usable; writing desk works; Generate shows setup CTA |
 
 Same `AiGeneration` audit table; `model` field records `ollama:llama3.1` vs `anthropic:…`.
 

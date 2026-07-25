@@ -11,7 +11,7 @@
 | **Promotions** | Promo packets & next-level comparisons |
 | **Calibration** | Sessions for cohorts you own/participate in |
 | **Templates** | Visible to HRBP/Admin primarily; managers read-only anchors |
-| **Settings** | Profile, notification prefs |
+| **Settings** | Profile, notifications, **AI keys/providers**, integrations, backup |
 
 IC nav is thinner: Home (tasks), My reviews, Goals, Give feedback.
 

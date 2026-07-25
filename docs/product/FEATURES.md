@@ -233,13 +233,14 @@ Overlapping phases allowed (e.g. peers still open while early manager drafts beg
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
+| **In-app AI settings** | P0 | Configure provider, API keys, models, local/Ollama — see §8.1 |
 | Evidence digest for a person/cycle | P0 | Bullet synthesis of dossier + self + peers (+ selected docs / meeting summaries) |
 | Draft section writer | P0 | Strengths / growth / summary from selected evidence |
 | Role gap analysis | P0 | Evidence vs current + next RoleDefinition expectations |
 | Promotion draft writer | P0 | Grounded promo packet from next-role checklist |
 | Rubric suggestion (non-binding) | P1 | Suggested scores with citations; manager must confirm |
 | Bias & tone lint | P0 | Gendered language, certainty skew, vagueness |
-| Consistency challenger | P1 | “You called both ‘strong ownership’ but evidence differs” |
+| Consistency challenger | P1 | Similar narratives, different ratings |
 | Peer feedback synthesizer | P0 | Cluster themes; preserve dissent |
 | Goal drafting for next cycle | P1 | From growth areas **and next-role gaps** |
 | Calibration talking points | P1 | Per person 3-bullet readout |
@@ -247,19 +248,36 @@ Overlapping phases allowed (e.g. peers still open while early manager drafts beg
 
 **Hard rules:** AI never auto-submits; never invents metrics; always cites sources; logs prompts/outputs for audit.
 
+### 8.1 AI key & provider configuration (in-app)
+
+API keys and model choices are **managed entirely in the app UI** — not via shell env files or editing config on disk for normal use.
+
+| Setting | Behavior |
+|---------|----------|
+| Enable AI | Workspace toggle; when off, Generate actions hidden |
+| Provider | Anthropic / OpenAI / Azure OpenAI / **Ollama (local)** / custom base URL |
+| API key | Entered in Settings → AI; **Test connection** button; stored in **OS keychain** (never SQLite, never logs, never exported in backup by default) |
+| Default models | Per-job picks (digest, draft, lint, gap analysis) with sensible presets |
+| Local-only mode | Force Ollama; block cloud calls (for sensitive packets / offline) |
+| Warn on private data | First cloud call that would include private notes/docs/meeting summaries → confirm dialog |
+| Key rotation | Update/replace/clear key in UI; old key removed from keychain |
+| Who can edit | Workspace `admin` (solo EM is admin by default) |
+
+Empty/missing key → writing desk still works; AI actions show “Configure AI in Settings” CTA.
+
 ---
 
 ## 9. Notifications & integrations
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Email + Slack/Teams digests | P0 | Deadlines, requests, share events |
-| Google/Microsoft SSO | P0 | |
-| Document upload to object storage | P0 | See §3.1 |
-| HRIS sync (Workday/Bamboo/etc.) | P1 | People, managers, levels |
-| GitHub / GitLab signal import | P1 | Opt-in per org |
+| In-app + OS notifications | P0 | Deadlines, requests, share events |
+| Document upload to local storage | P0 | See §3.1 |
+| CSV / manual people import | P0 | Primary local path |
+| GitHub / GitLab signal import | P1 | Opt-in; OAuth via in-app settings |
 | Linear / Jira goal linkage | P1 | |
 | Google Meet / Drive transcript import | P1 | Opt-in; summaries only — see §3.2 |
+| Email / Slack digests | P2 | Optional later |
 | Calendar holds for review 1:1s | P2 | |
 
 ---
@@ -268,12 +286,12 @@ Overlapping phases allowed (e.g. peers still open while early manager drafts beg
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Org settings (scales, anonymity, AI on/off) | P0 | |
+| Workspace settings (scales, anonymity, AI on/off) | P0 | |
+| **Settings → AI** (keys, provider, models) | P0 | See §8.1 |
 | Audit log | P0 | Access, edits, unlocks, AI generations, exports |
 | Permission tester | P1 | “What can user X see?” |
 | Adverse impact reporting | P2 | Rating distributions by protected attributes (HR-only; careful legal design) |
-| Data residency / deletion requests | P1 | |
-
+| Data deletion / workspace reset | P1 | |
 ---
 
 ## Non-goals (v1)

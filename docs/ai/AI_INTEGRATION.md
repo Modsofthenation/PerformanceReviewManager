@@ -136,6 +136,19 @@ Gate launches on faithfulness ≥ threshold on golden set of anonymized syntheti
 
 ---
 
+## Configuration UX
+
+AI is configured in **Settings → AI** (workspace admin):
+
+- Provider + API key (masked) or Ollama URL
+- Test connection
+- Model presets per feature
+- Enable/disable AI and local-only mode
+
+Keys live in the OS keychain; never in the SQLite DB or in exported review PDFs. See Features §8.1 and [LOCAL_STACK.md](../architecture/LOCAL_STACK.md).
+
+---
+
 ## UX integration points
 
 1. **Digest card** at top of writing desk (regenerate allowed; versioned).
