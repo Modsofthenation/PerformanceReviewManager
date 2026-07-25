@@ -156,7 +156,35 @@ export interface PacketDTO {
   documents: Array<{ id: string; title: string; visibility: Visibility }>;
   evidenceLinks: EvidenceLinkDTO[];
   citationSnapshots: CitationSnapshotDTO[];
+  /** Most recent prior finalized/shared manager review (other cycle), if any. */
+  priorCycle: {
+    cycleId: string;
+    cycleName: string;
+    windowEnd: string;
+    overall: number | null;
+    summary: string;
+    strengths: string;
+    growthAreas: string;
+    competencies: Record<string, number>;
+  } | null;
+  /** Chronological dossier + review milestones for the subject. */
+  timeline: Array<{
+    at: string;
+    kind: string;
+    title: string;
+    detail?: string | null;
+    sourceId?: string;
+  }>;
   flags: string[];
+}
+
+export interface DecisionLogEntry {
+  id: string;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  detail: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface WorkspaceStatus {
@@ -167,6 +195,8 @@ export interface WorkspaceStatus {
   hasAiKey: boolean;
   aiProvider: string | null;
   encryptedAtRest?: boolean;
+  /** Directs with thin dossiers — useful for backfill CTA after unlock. */
+  thinEvidenceCount?: number;
 }
 
 export interface ConsistencyCardDTO {
@@ -177,6 +207,8 @@ export interface ConsistencyCardDTO {
   overall: number | null;
   competencies: Record<string, number>;
   evidenceLinkCount: number;
+  /** Non-middle competency/overall scores that lack evidence links. */
+  evidenceGaps: number;
   managerStatus: string;
   flags: string[];
 }

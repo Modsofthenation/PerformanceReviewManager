@@ -94,7 +94,7 @@ export function ConsistencyPage() {
             <NextStep
               tone="warn"
               label={`${thin.length} draft(s) need evidence outside the middle band`}
-              detail="Extreme overall/competency scores without links will block finalize."
+              detail="Extreme overall/competency scores without links will block finalize. Gaps listed per card."
               action={
                 <Link className="btn" to={`/cycles/${data.cycleId}/write/${thin[0].personId}`}>
                   Fix {thin[0].personName}
@@ -145,6 +145,7 @@ export function ConsistencyPage() {
                 </div>
                 <div className="muted" style={{ fontSize: "0.82rem" }}>
                   Evidence links: {card.evidenceLinkCount}
+                  {card.evidenceGaps > 0 ? ` · ${card.evidenceGaps} gap(s)` : ""}
                 </div>
                 {card.flags.length > 0 && (
                   <div style={{ marginTop: 6 }}>

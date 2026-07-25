@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { BiasFinding, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
+import type { BiasFinding, DecisionLogEntry, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { api, getToken } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
@@ -27,10 +27,18 @@ export function WritingDeskPage() {
   const [links, setLinks] = useState<EvidenceLinkDraft[]>([]);
   const [gaps, setGaps] = useState<Record<string, GapMark>>({});
   const [digest, setDigest] = useState<string | null>(null);
+  const [peerSynth, setPeerSynth] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [subjectExport, setSubjectExport] = useState<unknown>(null);
   const [biasFindings, setBiasFindings] = useState<BiasFinding[] | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [decisions, setDecisions] = useState<DecisionLogEntry[]>([]);
+  const [baseline, setBaseline] = useState<{
+    overall: number;
+    competencies: Record<string, number>;
+    promo: string;
+  } | null>(null);
 
   const competencyKeys = useMemo(() => {
     const keys = packet?.currentRole?.competencyKeys?.length
@@ -48,12 +56,15 @@ export function WritingDeskPage() {
     setStrengths(String(payload.strengths ?? ""));
     setGrowth(String(payload.growth_areas ?? ""));
     setDevPlan(String(payload.dev_plan ?? ""));
-    setOverall(Number(payload.overall ?? 3));
+    const nextOverall = Number(payload.overall ?? 3);
+    setOverall(nextOverall);
     setRoleFit(String(payload.role_fit ?? ""));
-    setPromo((payload.promo_readiness as PromoReadiness) ?? "not_applicable");
+    const nextPromo = (payload.promo_readiness as PromoReadiness) ?? "not_applicable";
+    setPromo(nextPromo);
     setPrivateNotes(String(payload.private_notes ?? ""));
     const comps = (payload.competencies ?? {}) as Record<string, number>;
     setCompetencies(comps);
+    setBaseline({ overall: nextOverall, competencies: comps, promo: nextPromo });
     setLinks(
       (p.evidenceLinks ?? []).map((l) => ({
         targetType: l.targetType,
@@ -62,6 +73,14 @@ export function WritingDeskPage() {
         sourceId: l.sourceId,
       })),
     );
+    if (p.managerReview?.id) {
+      const log = await api<{ entries: DecisionLogEntry[] }>(
+        `/api/activity?action=review.decision&entityId=${encodeURIComponent(p.managerReview.id)}&limit=12`,
+      );
+      setDecisions(log.entries);
+    } else {
+      setDecisions([]);
+    }
   }
 
   useEffect(() => {
@@ -146,7 +165,25 @@ export function WritingDeskPage() {
       if (score !== MIDDLE_BAND && !linksFor(key).length) missing.push(competencyLabel(key));
     }
     if (overall !== MIDDLE_BAND && links.length === 0) missing.push("overall rating");
+    if ((overall === 1 || overall === 5) && links.length < 2) {
+      missing.push("extreme overall (1 or 5) needs ≥2 evidence links");
+    }
     return missing;
+  }
+
+  function ratingChanges() {
+    if (!baseline || !packet?.managerReview) return [] as Array<{ field: string; from: unknown; to: unknown }>;
+    const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
+    if (baseline.overall !== overall) changes.push({ field: "overall", from: baseline.overall, to: overall });
+    for (const [key, score] of Object.entries(competencies)) {
+      if (baseline.competencies[key] != null && baseline.competencies[key] !== score) {
+        changes.push({ field: `competency:${key}`, from: baseline.competencies[key], to: score });
+      }
+    }
+    if (baseline.promo && promo && baseline.promo !== promo) {
+      changes.push({ field: "promo_readiness", from: baseline.promo, to: promo });
+    }
+    return changes;
   }
 
   async function save(nextStatus = "draft") {
@@ -155,9 +192,14 @@ export function WritingDeskPage() {
     if (nextStatus === "finalized") {
       const missing = missingEvidenceForFinalize();
       if (missing.length) {
-        setError(`Link evidence before finalizing (outside middle band): ${missing.join(", ")}`);
+        setError(`Evidence density gate: ${missing.join(", ")}`);
         return;
       }
+    }
+    const changes = ratingChanges();
+    if (changes.length && !decisionReason.trim()) {
+      setError("Add a decision reason when overall, competency, or promo readiness scores change.");
+      return;
     }
     try {
       await api("/api/reviews/manager", {
@@ -166,6 +208,7 @@ export function WritingDeskPage() {
           cycleId,
           subjectPersonId: personId,
           status: nextStatus,
+          decisionReason: changes.length ? decisionReason.trim() : undefined,
           payload: {
             overall,
             summary,
@@ -184,6 +227,7 @@ export function WritingDeskPage() {
         }),
       });
       setStatus(`Saved (${nextStatus})`);
+      if (changes.length) setDecisionReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -328,6 +372,81 @@ export function WritingDeskPage() {
             </ol>
           </div>
           <div className="panel">
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ margin: 0 }}>Peer synthesize</h2>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={!packet.peerReviews.length}
+                onClick={async () => {
+                  const res = await api<{ outputText: string }>("/api/ai/peer-synthesize", {
+                    method: "POST",
+                    body: JSON.stringify({ cycleId, personId }),
+                  });
+                  setPeerSynth(res.outputText);
+                }}
+              >
+                Roll up themes
+              </button>
+            </div>
+            <p className="muted">
+              {packet.peerReviews.length
+                ? `${packet.peerReviews.length} peer import(s) — synthesize themes instead of reading raw JSON.`
+                : "No peer imports yet."}
+            </p>
+            <div className="digest">
+              {peerSynth ??
+                (packet.peerReviews.length
+                  ? "Run roll-up to get strength/growth themes (authors stay EM-visible here; hidden in subject packet)."
+                  : "Import peer bundles from Cycles first.")}
+            </div>
+          </div>
+
+          {packet.priorCycle && (
+            <div className="panel">
+              <h2>Prior cycle — {packet.priorCycle.cycleName}</h2>
+              <p className="muted">
+                Ended {packet.priorCycle.windowEnd}
+                {packet.priorCycle.overall != null ? ` · Overall ${packet.priorCycle.overall}/5` : ""}
+              </p>
+              {packet.priorCycle.summary && (
+                <p>
+                  <strong>Summary:</strong> {packet.priorCycle.summary}
+                </p>
+              )}
+              {packet.priorCycle.strengths && (
+                <p>
+                  <strong>Strengths:</strong> {packet.priorCycle.strengths}
+                </p>
+              )}
+              {packet.priorCycle.growthAreas && (
+                <p>
+                  <strong>Growth:</strong> {packet.priorCycle.growthAreas}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="panel">
+            <h2>Person timeline</h2>
+            {(packet.timeline ?? []).length === 0 ? (
+              <p className="muted">No dossier milestones yet.</p>
+            ) : (
+              <ul className="timeline-list">
+                {(packet.timeline ?? []).slice(0, 16).map((t, i) => (
+                  <li key={`${t.kind}-${t.sourceId ?? i}`}>
+                    <span className="muted">
+                      {t.at} · {t.kind}
+                    </span>{" "}
+                    — <strong>{t.title}</strong>
+                    {t.detail ? <span className="muted"> — {String(t.detail).slice(0, 100)}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="panel">
             <h2>Imports & dossier</h2>
             <p>
               <strong>Self:</strong> {packet.selfReview ? "imported" : "missing"}
@@ -335,15 +454,6 @@ export function WritingDeskPage() {
             {packet.selfReview && (
               <pre className="digest">{JSON.stringify(packet.selfReview.payload, null, 2)}</pre>
             )}
-            <p>
-              <strong>Peers:</strong> {packet.peerReviews.length}
-            </p>
-            {packet.peerReviews.map((p) => (
-              <div key={p.id} className="digest" style={{ marginBottom: 8 }}>
-                <div className="muted">Author (EM-visible): {p.authorName}</div>
-                <pre style={{ margin: 0 }}>{JSON.stringify(p.payload, null, 2)}</pre>
-              </div>
-            ))}
             <p>
               <strong>Achievements</strong>
             </p>
@@ -394,9 +504,42 @@ export function WritingDeskPage() {
               onChange={(e) => setOverall(Number(e.target.value))}
             />
             {overall !== MIDDLE_BAND && (
-              <p className="muted">Outside middle band — link evidence on at least one competency below.</p>
+              <p className="muted">Outside middle band — link evidence on competencies below.</p>
+            )}
+            {(overall === 1 || overall === 5) && (
+              <p className="chat-error" style={{ padding: 0 }}>
+                Extreme overall ({overall}) requires ≥2 evidence links before finalize.
+              </p>
             )}
           </div>
+
+          {(ratingChanges().length > 0 || decisions.length > 0) && (
+            <div className="field">
+              <label>Decision reason (required when scores change)</label>
+              <textarea
+                value={decisionReason}
+                disabled={finalized}
+                onChange={(e) => setDecisionReason(e.target.value)}
+                placeholder="Why did overall / competency / promo readiness move?"
+                rows={2}
+              />
+              {ratingChanges().length > 0 && (
+                <p className="muted" style={{ fontSize: "0.82rem" }}>
+                  Pending: {ratingChanges().map((c) => `${c.field} ${c.from}→${c.to}`).join("; ")}
+                </p>
+              )}
+              {decisions.length > 0 && (
+                <ul className="timeline-list" style={{ marginTop: 8 }}>
+                  {decisions.map((d) => (
+                    <li key={d.id}>
+                      <span className="muted">{d.createdAt.slice(0, 16)}</span> —{" "}
+                      {String(d.detail.reason ?? "")}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="stack competency-block">
             <h3>Competencies</h3>

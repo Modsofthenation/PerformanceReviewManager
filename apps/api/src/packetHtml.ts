@@ -25,6 +25,15 @@ export function renderSubjectPacketHtml(opts: {
   competencyLabels?: Record<string, string>;
   peerThemes?: Array<{ strengths?: string; growth?: string }>;
   citationSnapshots?: Array<{ title: string; excerpt?: string | null; sourceId: string }>;
+  priorCycle?: {
+    cycleName: string;
+    windowEnd: string;
+    overall: number | null;
+    summary: string;
+    strengths: string;
+    growthAreas: string;
+  } | null;
+  timeline?: Array<{ at: string; kind: string; title: string; detail?: string | null }>;
   exportedAt: string;
 }) {
   const comps = Object.entries(opts.competencies ?? {})
@@ -45,6 +54,22 @@ export function renderSubjectPacketHtml(opts: {
     .map(
       (s) =>
         `<li><strong>${esc(s.title)}</strong>${s.excerpt ? ` — ${esc(s.excerpt)}` : ""} <span class="muted">[${esc(s.sourceId)}]</span></li>`,
+    )
+    .join("");
+
+  const prior = opts.priorCycle
+    ? `<section><h2>Prior cycle (${esc(opts.priorCycle.cycleName)})</h2>
+      <p class="meta">Window ended ${esc(opts.priorCycle.windowEnd)}${opts.priorCycle.overall != null ? ` · Overall ${esc(opts.priorCycle.overall)}/5` : ""}</p>
+      ${section("Prior summary", opts.priorCycle.summary)}
+      ${section("Prior strengths", opts.priorCycle.strengths)}
+      ${section("Prior growth", opts.priorCycle.growthAreas)}
+    </section>`
+    : "";
+
+  const timeline = (opts.timeline ?? [])
+    .map(
+      (t) =>
+        `<li><span class="muted">${esc(t.at)} · ${esc(t.kind)}</span> — <strong>${esc(t.title)}</strong>${t.detail ? `: ${esc(String(t.detail).slice(0, 140))}` : ""}</li>`,
     )
     .join("");
 
@@ -82,6 +107,7 @@ export function renderSubjectPacketHtml(opts: {
     · Exported ${esc(opts.exportedAt)}
   </div>
   <div class="notice">This packet is what is shared with the subject. Author names for peer input are hidden — not cryptographically anonymous. Private manager notes are omitted.</div>
+  ${prior}
   ${section("Summary", opts.summary ?? "")}
   ${section("Strengths", opts.strengths ?? "")}
   ${section("Growth areas", opts.growthAreas ?? "")}
@@ -94,6 +120,7 @@ export function renderSubjectPacketHtml(opts: {
   }
   ${peers ? `<section><h2>Peer themes</h2>${peers}</section>` : ""}
   ${cites ? `<section><h2>Cited evidence (frozen at finalize)</h2><ul>${cites}</ul></section>` : ""}
+  ${timeline ? `<section><h2>Person timeline</h2><ul>${timeline}</ul></section>` : ""}
 </body>
 </html>`;
 }

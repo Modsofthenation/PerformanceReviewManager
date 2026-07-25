@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { and, eq, isNull } from "drizzle-orm";
 import {
   achievements,
+  activityEvents,
   aiSettings,
   citationSnapshots,
   cycleParticipants,
@@ -26,6 +27,7 @@ import {
 import type {
   BiasFinding,
   ConsistencyDTO,
+  DecisionLogEntry,
   PacketDTO,
   PersonDTO,
   RoleDefinitionDTO,
@@ -63,6 +65,7 @@ import {
 import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations.js";
 import { runBiasToneLint } from "./bias.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
+import { localPeerSynthesize } from "./peerSynth.js";
 
 type Vars = { token: string };
 
@@ -168,14 +171,23 @@ app.get("/api/workspace/status", (c) => {
   let personCount = 0;
   let hasAiKey = false;
   let aiProvider: string | null = null;
+  let thinEvidenceCount = 0;
   if (initialized && unlocked) {
     try {
       const db = getDb();
       name = db.select().from(workspace).limit(1).all()[0]?.name ?? null;
-      personCount = db.select().from(people).all().length;
+      const allPeople = db.select().from(people).all();
+      personCount = allPeople.length;
       const ai = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
       hasAiKey = Boolean(ai?.apiKeyEncrypted);
       aiProvider = ai?.provider ?? null;
+      for (const p of allPeople.filter((x) => x.managerId)) {
+        const n =
+          db.select().from(achievements).where(eq(achievements.personId, p.id)).all().length +
+          db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, p.id)).all().length +
+          db.select().from(documents).where(eq(documents.personId, p.id)).all().length;
+        if (n < 2) thinEvidenceCount += 1;
+      }
     } catch {
       /* locked */
     }
@@ -187,6 +199,7 @@ app.get("/api/workspace/status", (c) => {
     personCount,
     hasAiKey,
     aiProvider,
+    thinEvidenceCount,
     encryptedAtRest: enc.encryptedAtRest,
   };
   return c.json(body);
@@ -427,6 +440,90 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
     ? db.select().from(citationSnapshots).where(eq(citationSnapshots.reviewId, manager.id)).all()
     : [];
 
+  const achRows = db.select().from(achievements).where(eq(achievements.personId, personId)).all();
+  const goalRows = db.select().from(goals).where(eq(goals.personId, personId)).all();
+  const fbRows = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, personId)).all();
+  const docRows = db.select().from(documents).where(eq(documents.personId, personId)).all();
+
+  const allCycles = db.select().from(cycles).all();
+  const priorCandidates = allCycles
+    .filter((cy) => cy.id !== cycleId)
+    .map((cy) => {
+      const mgr = db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.cycleId, cy.id), eq(reviews.subjectPersonId, personId), eq(reviews.type, "manager")))
+        .all()
+        .find((r) => r.status === "finalized" || r.status === "shared");
+      return mgr ? { cycle: cy, review: mgr } : null;
+    })
+    .filter(Boolean) as Array<{ cycle: typeof cycles.$inferSelect; review: typeof reviews.$inferSelect }>;
+  priorCandidates.sort((a, b) => b.cycle.windowEnd.localeCompare(a.cycle.windowEnd));
+  const prior = priorCandidates[0] ?? null;
+  let priorCycle: PacketDTO["priorCycle"] = null;
+  if (prior) {
+    const p = JSON.parse(prior.review.payloadJson) as Record<string, unknown>;
+    priorCycle = {
+      cycleId: prior.cycle.id,
+      cycleName: prior.cycle.name,
+      windowEnd: prior.cycle.windowEnd,
+      overall: typeof p.overall === "number" ? p.overall : null,
+      summary: String(p.summary ?? ""),
+      strengths: String(p.strengths ?? ""),
+      growthAreas: String(p.growth_areas ?? ""),
+      competencies: (p.competencies ?? {}) as Record<string, number>,
+    };
+  }
+
+  const timeline: PacketDTO["timeline"] = [];
+  for (const a of achRows) {
+    timeline.push({
+      at: a.occurredAt,
+      kind: "achievement",
+      title: a.title,
+      detail: a.description,
+      sourceId: a.id,
+    });
+  }
+  for (const f of fbRows) {
+    timeline.push({
+      at: f.occurredAt,
+      kind: "feedback",
+      title: `Feedback (${f.kind}) from ${f.fromName ?? "someone"}`,
+      detail: f.body.slice(0, 200),
+      sourceId: f.id,
+    });
+  }
+  for (const d of docRows) {
+    timeline.push({
+      at: d.occurredAt,
+      kind: "document",
+      title: d.title,
+      detail: d.filename,
+      sourceId: d.id,
+    });
+  }
+  for (const g of goalRows) {
+    timeline.push({
+      at: g.createdAt?.slice(0, 10) ?? g.createdAt,
+      kind: "goal",
+      title: g.title,
+      detail: g.status,
+      sourceId: g.id,
+    });
+  }
+  for (const cand of priorCandidates.slice(0, 3)) {
+    const p = JSON.parse(cand.review.payloadJson) as Record<string, unknown>;
+    timeline.push({
+      at: cand.cycle.windowEnd,
+      kind: "prior_review",
+      title: `${cand.cycle.name} manager review`,
+      detail: `Overall ${p.overall ?? "—"} · ${(String(p.summary ?? "")).slice(0, 160)}`,
+      sourceId: cand.review.id,
+    });
+  }
+  timeline.sort((a, b) => b.at.localeCompare(a.at));
+
   const packet: PacketDTO = {
     person: mapPerson(person, a),
     currentRole,
@@ -434,30 +531,25 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
     selfReview: revs.find((r) => r.type === "self") ? mapRev(revs.find((r) => r.type === "self")!) : null,
     peerReviews: revs.filter((r) => r.type === "peer").map(mapRev),
     managerReview: manager ? mapRev(manager) : null,
-    goals: db.select().from(goals).where(eq(goals.personId, personId)).all().map((g) => ({
+    goals: goalRows.map((g) => ({
       id: g.id,
       title: g.title,
       status: g.status,
     })),
-    achievements: db.select().from(achievements).where(eq(achievements.personId, personId)).all().map((row) => ({
+    achievements: achRows.map((row) => ({
       id: row.id,
       title: row.title,
       occurredAt: row.occurredAt,
       description: row.description,
     })),
-    feedback: db
-      .select()
-      .from(feedbackItems)
-      .where(eq(feedbackItems.toPersonId, personId))
-      .all()
-      .map((f) => ({
-        id: f.id,
-        fromName: f.fromName,
-        kind: f.kind,
-        body: f.body,
-        occurredAt: f.occurredAt,
-      })),
-    documents: db.select().from(documents).where(eq(documents.personId, personId)).all().map((d) => ({
+    feedback: fbRows.map((f) => ({
+      id: f.id,
+      fromName: f.fromName,
+      kind: f.kind,
+      body: f.body,
+      occurredAt: f.occurredAt,
+    })),
+    documents: docRows.map((d) => ({
       id: d.id,
       title: d.title,
       visibility: d.visibility as PacketDTO["documents"][number]["visibility"],
@@ -477,6 +569,8 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
       excerpt: s.excerpt,
       checksum: s.checksum,
     })),
+    priorCycle,
+    timeline: timeline.slice(0, 40),
     flags,
   };
   return c.json(packet);
@@ -541,6 +635,7 @@ app.put("/api/reviews/manager", async (c) => {
     subjectPersonId: string;
     payload: Record<string, unknown>;
     status?: string;
+    decisionReason?: string;
     gapAssessments?: Array<{ roleExpectationId: string; mark: string }>;
     evidenceLinks?: Array<{
       targetType: string;
@@ -566,6 +661,37 @@ app.put("/api/reviews/manager", async (c) => {
   const nextStatus = body.status ?? existing?.status ?? "draft";
   const competencies = (body.payload.competencies ?? {}) as Record<string, number>;
   const links = body.evidenceLinks ?? [];
+  const prevPayload = existing ? (JSON.parse(existing.payloadJson) as Record<string, unknown>) : {};
+  const prevComps = (prevPayload.competencies ?? {}) as Record<string, number>;
+  const prevOverall = typeof prevPayload.overall === "number" ? prevPayload.overall : null;
+  const nextOverall = typeof body.payload.overall === "number" ? body.payload.overall : null;
+  const prevPromo = String(prevPayload.promo_readiness ?? "");
+  const nextPromo = String(body.payload.promo_readiness ?? "");
+
+  const ratingChanges: Array<{ field: string; from: unknown; to: unknown }> = [];
+  if (prevOverall !== null && nextOverall !== null && prevOverall !== nextOverall) {
+    ratingChanges.push({ field: "overall", from: prevOverall, to: nextOverall });
+  }
+  for (const [key, score] of Object.entries(competencies)) {
+    if (typeof score !== "number") continue;
+    if (prevComps[key] != null && prevComps[key] !== score) {
+      ratingChanges.push({ field: `competency:${key}`, from: prevComps[key], to: score });
+    }
+  }
+  if (prevPromo && nextPromo && prevPromo !== nextPromo) {
+    ratingChanges.push({ field: "promo_readiness", from: prevPromo, to: nextPromo });
+  }
+
+  if (ratingChanges.length && !(body.decisionReason ?? "").trim()) {
+    return c.json(
+      {
+        error: "Decision reason required when overall, competency, or promo readiness scores change.",
+        code: "decision_reason_required",
+        changes: ratingChanges,
+      },
+      400,
+    );
+  }
 
   if (nextStatus === "finalized" || nextStatus === "shared") {
     const missing: string[] = [];
@@ -580,10 +706,13 @@ app.put("/api/reviews/manager", async (c) => {
       const hasAny = links.length > 0;
       if (!hasAny) missing.push("overall rating");
     }
+    if ((overall === 1 || overall === 5) && links.length < 2) {
+      missing.push("extreme overall (1 or 5) needs ≥2 evidence links");
+    }
     if (missing.length) {
       return c.json(
         {
-          error: `Evidence required outside the middle band (score ≠ ${MIDDLE_BAND}). Missing links for: ${missing.join(", ")}`,
+          error: `Evidence density gate failed. Missing links for: ${missing.join(", ")}`,
           code: "evidence_required",
           missing,
         },
@@ -699,6 +828,15 @@ app.put("/api/reviews/manager", async (c) => {
     logActivity("review.finalize", "review", reviewId, {
       snapshots: cited.size,
       evidenceLinks: links.length,
+    });
+  }
+
+  if (ratingChanges.length && reviewId) {
+    logActivity("review.decision", "review", reviewId, {
+      reason: (body.decisionReason ?? "").trim(),
+      changes: ratingChanges,
+      cycleId: body.cycleId,
+      subjectPersonId: body.subjectPersonId,
     });
   }
 
@@ -1003,6 +1141,11 @@ app.get("/api/documents/:id/download", (c) => {
 
 function buildEvidenceContext(personId: string, cycleId?: string) {
   const db = getDb();
+  const cfg = getAiConfig();
+  const allowDocExtract =
+    cfg.localOnly || cfg.provider === "ollama" || cfg.documentExtractEgress;
+  const dataClassesSent = ["dossier_public"] as string[];
+
   const person = db.select().from(people).where(eq(people.id, personId)).all()[0];
   const a = assignmentFor(personId);
   const role = loadRole(a?.roleDefinitionId);
@@ -1031,7 +1174,28 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
   for (const item of ach) lines.push(`Achievement [${item.id}] ${item.occurredAt}: ${item.title}. ${item.description ?? ""}`);
   for (const item of g) lines.push(`Goal [${item.id}] (${item.status}): ${item.title}`);
   for (const item of fb) lines.push(`Feedback [${item.id}] from ${item.fromName ?? "someone"}: ${item.body}`);
-  for (const d of docs) lines.push(`Document [${d.id}] (${d.visibility}): ${d.title} @ ${d.occurredAt}`);
+  for (const d of docs) {
+    lines.push(`Document [${d.id}] (${d.visibility}): ${d.title} @ ${d.occurredAt}`);
+    const ext = (d.filename.split(".").pop() ?? "").toLowerCase();
+    const textLike =
+      ["txt", "md", "csv"].includes(ext) ||
+      (d.mimeType ?? "").startsWith("text/") ||
+      d.mimeType === "text/markdown" ||
+      d.mimeType === "text/csv";
+    if (allowDocExtract && textLike) {
+      try {
+        const raw = readDocumentFile(d.storagePath).toString("utf8").slice(0, 4000);
+        if (raw.trim()) {
+          lines.push(`Document extract [${d.id}]:\n${raw.trim()}`);
+          if (!dataClassesSent.includes("document_extract")) dataClassesSent.push("document_extract");
+        }
+      } catch {
+        /* missing file */
+      }
+    } else if (textLike && !allowDocExtract) {
+      lines.push(`Document extract [${d.id}]: (held back — enable document extract egress or local-only AI)`);
+    }
+  }
   const self = revs.find((r) => r.type === "self");
   if (self) lines.push(`Self-review [${self.id}] JSON: ${self.payloadJson}`);
   for (const p of revs.filter((r) => r.type === "peer")) {
@@ -1045,12 +1209,16 @@ function buildEvidenceContext(personId: string, cycleId?: string) {
     ...(role?.expectations.map((e) => e.id) ?? []),
     ...(next?.expectations.map((e) => e.id) ?? []),
   ];
-  return { person, role, next, lines, citations, ach, docs };
+  return { person, role, next, lines, citations, ach, docs, dataClassesSent };
 }
 
 /** Compact workspace pack for chat when no single person is scoped. Caps per-person rows. */
 function buildWorkspaceContext(cycleId?: string) {
   const db = getDb();
+  const cfg = getAiConfig();
+  const allowDocExtract =
+    cfg.localOnly || cfg.provider === "ollama" || cfg.documentExtractEgress;
+  const dataClassesSent = ["dossier_public"] as string[];
   const allPeople = db.select().from(people).all();
   const allCycles = db.select().from(cycles).all();
   const allPromos = db.select().from(promotionCases).all();
@@ -1123,6 +1291,23 @@ function buildWorkspaceContext(cycleId?: string) {
     for (const d of docs) {
       lines.push(`Document [${d.id}] (${d.visibility}): ${d.title} @ ${d.occurredAt}`);
       citations.push(d.id);
+      const ext = (d.filename.split(".").pop() ?? "").toLowerCase();
+      const textLike =
+        ["txt", "md", "csv"].includes(ext) ||
+        (d.mimeType ?? "").startsWith("text/") ||
+        d.mimeType === "text/markdown" ||
+        d.mimeType === "text/csv";
+      if (allowDocExtract && textLike) {
+        try {
+          const raw = readDocumentFile(d.storagePath).toString("utf8").slice(0, 2500);
+          if (raw.trim()) {
+            lines.push(`Document extract [${d.id}]:\n${raw.trim()}`);
+            if (!dataClassesSent.includes("document_extract")) dataClassesSent.push("document_extract");
+          }
+        } catch {
+          /* missing */
+        }
+      }
     }
     if (cycleId) {
       const revs = db
@@ -1138,14 +1323,13 @@ function buildWorkspaceContext(cycleId?: string) {
     }
   }
 
-  return { lines, citations, scopeLabel: "entire workspace" as const };
+  return { lines, citations, scopeLabel: "entire workspace" as const, dataClassesSent };
 }
 
 app.post("/api/ai/digest", async (c) => {
   const body = await c.req.json<{ cycleId: string; personId: string; useCloud?: boolean }>();
   const ctx = buildEvidenceContext(body.personId, body.cycleId);
   const cfg = getAiConfig();
-  const dataClassesSent = ["dossier_public"];
   let outputText: string;
   let model = "local-grounded";
 
@@ -1186,14 +1370,14 @@ app.post("/api/ai/digest", async (c) => {
     model,
     outputText,
     citations: filtered.citationsUsed,
-    dataClassesSent,
+    dataClassesSent: ctx.dataClassesSent,
   });
   return c.json({
     generationId,
     outputText,
     citations: filtered.citationsUsed,
     citationsDropped: filtered.citationsDropped,
-    dataClassesSent,
+    dataClassesSent: ctx.dataClassesSent,
     model,
   });
 });
@@ -1232,7 +1416,7 @@ ${ctx.lines.join("\n")}`,
       model: result.model,
       outputText: filtered.text,
       citations: filtered.citationsUsed,
-      dataClassesSent: ["dossier_public"],
+      dataClassesSent: ctx.dataClassesSent,
     });
     return c.json({
       generationId,
@@ -1241,10 +1425,85 @@ ${ctx.lines.join("\n")}`,
       model: result.model,
       citations: filtered.citationsUsed,
       citationsDropped: filtered.citationsDropped,
+      dataClassesSent: ctx.dataClassesSent,
     });
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
   }
+});
+
+app.post("/api/ai/peer-synthesize", async (c) => {
+  const body = await c.req.json<{ cycleId: string; personId: string; useCloud?: boolean }>();
+  const db = getDb();
+  const peers = db
+    .select()
+    .from(reviews)
+    .where(
+      and(eq(reviews.cycleId, body.cycleId), eq(reviews.subjectPersonId, body.personId), eq(reviews.type, "peer")),
+    )
+    .all();
+  if (!peers.length) return c.json({ error: "No peer imports for this person/cycle" }, 400);
+
+  const ctx = buildEvidenceContext(body.personId, body.cycleId);
+  const peerInputs = peers.map((p) => ({
+    authorName: p.authorName,
+    payload: JSON.parse(p.payloadJson) as Record<string, unknown>,
+  }));
+  const peerBlock = peerInputs
+    .map(
+      (p, i) =>
+        `### Peer ${i + 1} (author EM-visible: ${p.authorName ?? "unknown"})\n${JSON.stringify(p.payload, null, 2)}`,
+    )
+    .join("\n\n");
+
+  const cfg = getAiConfig();
+  let outputText: string;
+  let model = "local-heuristic";
+
+  if (body.useCloud !== false && cfg.enabled && (cfg.hasApiKey || cfg.localOnly || cfg.provider === "ollama")) {
+    try {
+      const result = await runChat("peer_synthesize", [
+        { role: "system", content: buildSystemPrompt() },
+        {
+          role: "user",
+          content: `Synthesize peer feedback into themes for the manager writing desk.
+Return markdown with: ## Themes (strength / growth bullets), ## Representative quotes (short), ## Caveats.
+Cite only provided [ach_…] / [rexp_…] / [fb_…] ids. Do not invent evidence. Stay advisory.
+
+Peer imports:
+${peerBlock}
+
+Related evidence ids (optional citations):
+${ctx.citations.slice(0, 40).join(", ") || "(none)"}`,
+        },
+      ]);
+      outputText = result.text;
+      model = result.model;
+    } catch (e) {
+      outputText = `${localPeerSynthesize(peerInputs)}\n\n(Cloud synthesize failed: ${e instanceof Error ? e.message : "error"} — showing local rollup.)`;
+    }
+  } else {
+    outputText = localPeerSynthesize(peerInputs);
+  }
+
+  const filtered = filterCitationsAgainstAllowlist(outputText, ctx.citations);
+  const generationId = storeGeneration({
+    feature: "peer_synthesize",
+    subjectPersonId: body.personId,
+    cycleId: body.cycleId,
+    model,
+    outputText: filtered.text,
+    citations: filtered.citationsUsed,
+    dataClassesSent: ctx.dataClassesSent,
+  });
+  return c.json({
+    generationId,
+    outputText: filtered.text,
+    model,
+    citations: filtered.citationsUsed,
+    citationsDropped: filtered.citationsDropped,
+    dataClassesSent: ctx.dataClassesSent,
+  });
 });
 
 app.post("/api/ai/role-gap", async (c) => {
@@ -1273,13 +1532,14 @@ ${ctx.lines.join("\n")}`,
       model: result.model,
       outputText: filtered.text,
       citations: filtered.citationsUsed,
-      dataClassesSent: ["dossier_public"],
+      dataClassesSent: ctx.dataClassesSent,
     });
     return c.json({
       generationId,
       outputText: filtered.text,
       model: result.model,
       citationsDropped: filtered.citationsDropped,
+      dataClassesSent: ctx.dataClassesSent,
     });
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
@@ -1353,6 +1613,7 @@ app.post("/api/ai/chat", async (c) => {
           lines: evidence.lines,
           citations: evidence.citations,
           scopeLabel: evidence.person?.name ? `person: ${evidence.person.name}` : `person: ${personId}`,
+          dataClassesSent: evidence.dataClassesSent,
         };
       })()
     : buildWorkspaceContext(cycleId);
@@ -1381,7 +1642,7 @@ app.post("/api/ai/chat", async (c) => {
       model: result.model,
       outputText: filtered.text,
       citations: filtered.citationsUsed,
-      dataClassesSent: ["dossier_public"],
+      dataClassesSent: ctx.dataClassesSent,
     });
     return c.json({
       generationId,
@@ -1390,7 +1651,7 @@ app.post("/api/ai/chat", async (c) => {
       provider: result.provider,
       citations: filtered.citationsUsed,
       citationsDropped: filtered.citationsDropped,
-      dataClassesSent: ["dossier_public"],
+      dataClassesSent: ctx.dataClassesSent,
       scopeLabel: ctx.scopeLabel,
     });
   } catch (e) {
@@ -1502,17 +1763,47 @@ app.put("/api/promotions/:id", async (c) => {
   const body = await c.req.json<{
     status?: string;
     payload?: Record<string, unknown>;
+    decisionReason?: string;
     assessments?: Array<{ roleExpectationId: string; mark: string }>;
   }>();
   const db = getDb();
   const row = db.select().from(promotionCases).where(eq(promotionCases.id, c.req.param("id"))).all()[0];
   if (!row?.reviewId) return c.json({ error: "Not found" }, 404);
+
+  const review = db.select().from(reviews).where(eq(reviews.id, row.reviewId)).all()[0];
+  const prevPayload = review ? (JSON.parse(review.payloadJson) as Record<string, unknown>) : {};
+  const changes: Array<{ field: string; from: unknown; to: unknown }> = [];
+  if (body.status && body.status !== row.status) {
+    changes.push({ field: "status", from: row.status, to: body.status });
+  }
+  if (body.payload) {
+    const prevRec = String(prevPayload.recommendation ?? "");
+    const nextRec = String(body.payload.recommendation ?? "");
+    if (prevRec && nextRec && prevRec !== nextRec) {
+      changes.push({ field: "recommendation", from: prevRec, to: nextRec });
+    }
+  }
+  if (changes.length && !(body.decisionReason ?? "").trim()) {
+    return c.json(
+      {
+        error: "Decision reason required when promo status or recommendation changes.",
+        code: "decision_reason_required",
+        changes,
+      },
+      400,
+    );
+  }
+
   if (body.status) {
     db.update(promotionCases).set({ status: body.status }).where(eq(promotionCases.id, row.id)).run();
   }
   if (body.payload) {
     db.update(reviews)
-      .set({ payloadJson: JSON.stringify(body.payload), updatedAt: nowIso(), status: body.status === "submitted" ? "submitted" : "draft" })
+      .set({
+        payloadJson: JSON.stringify(body.payload),
+        updatedAt: nowIso(),
+        status: body.status === "submitted" ? "submitted" : "draft",
+      })
       .where(eq(reviews.id, row.reviewId))
       .run();
   }
@@ -1524,6 +1815,13 @@ app.put("/api/promotions/:id", async (c) => {
         .values({ id: id("nla"), reviewId: row.reviewId, roleExpectationId: a.roleExpectationId, mark: a.mark })
         .run();
     }
+  }
+  if (changes.length) {
+    logActivity("promo.decision", "promotion_case", row.id, {
+      reason: (body.decisionReason ?? "").trim(),
+      changes,
+      personId: row.personId,
+    });
   }
   return c.json({ ok: true });
 });
@@ -1557,13 +1855,14 @@ ${ctx.lines.join("\n")}`,
       model: result.model,
       outputText: filtered.text,
       citations: filtered.citationsUsed,
-      dataClassesSent: ["dossier_public"],
+      dataClassesSent: ctx.dataClassesSent,
     });
     return c.json({
       generationId,
       outputText: filtered.text,
       model: result.model,
       citationsDropped: filtered.citationsDropped,
+      dataClassesSent: ctx.dataClassesSent,
     });
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "AI failed" }, 500);
@@ -1629,23 +1928,28 @@ app.get("/api/consistency", (c) => {
     else distribution.unset += 1;
 
     const comps = (payload.competencies ?? {}) as Record<string, number>;
-    const linkCount = manager
-      ? db.select().from(evidenceLinks).where(eq(evidenceLinks.reviewId, manager.id)).all().length
-      : 0;
+    const allLinks = manager
+      ? db.select().from(evidenceLinks).where(eq(evidenceLinks.reviewId, manager.id)).all()
+      : [];
+    const linkCount = allLinks.length;
     const flags: string[] = [];
+    let evidenceGaps = 0;
     if (!role) flags.push("unassigned_role");
-    if (overall != null && overall !== MIDDLE_BAND && linkCount === 0) flags.push("missing_evidence");
+    if (overall != null && overall !== MIDDLE_BAND && linkCount === 0) {
+      flags.push("missing_evidence");
+      evidenceGaps += 1;
+    }
+    if ((overall === 1 || overall === 5) && linkCount < 2) {
+      flags.push("extreme_overall_thin");
+      evidenceGaps += 1;
+    }
     for (const [k, score] of Object.entries(comps)) {
       if (score !== MIDDLE_BAND) {
-        const has = manager
-          ? db
-              .select()
-              .from(evidenceLinks)
-              .where(eq(evidenceLinks.reviewId, manager.id))
-              .all()
-              .some((l) => l.targetType === "competency" && l.targetKey === k)
-          : false;
-        if (!has) flags.push(`thin:${k}`);
+        const has = allLinks.some((l) => l.targetType === "competency" && l.targetKey === k);
+        if (!has) {
+          flags.push(`thin:${k}`);
+          evidenceGaps += 1;
+        }
       }
     }
 
@@ -1657,6 +1961,7 @@ app.get("/api/consistency", (c) => {
       overall,
       competencies: comps,
       evidenceLinkCount: linkCount,
+      evidenceGaps,
       managerStatus: manager?.status ?? "missing",
       flags,
     });
@@ -1671,6 +1976,67 @@ app.get("/api/consistency", (c) => {
     cards,
   };
   return c.json(result);
+});
+
+app.get("/api/activity", (c) => {
+  const db = getDb();
+  const action = c.req.query("action");
+  const entityId = c.req.query("entityId");
+  const personId = c.req.query("personId");
+  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? 40)));
+  let rows = db.select().from(activityEvents).all().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (action) rows = rows.filter((r) => r.action === action);
+  if (entityId) rows = rows.filter((r) => r.entityId === entityId);
+  if (personId) {
+    rows = rows.filter((r) => {
+      if (r.entityType === "person" && r.entityId === personId) return true;
+      try {
+        const detail = JSON.parse(r.detailJson) as Record<string, unknown>;
+        return detail.subjectPersonId === personId || detail.personId === personId;
+      } catch {
+        return false;
+      }
+    });
+  }
+  const entries: DecisionLogEntry[] = rows.slice(0, limit).map((r) => ({
+    id: r.id,
+    action: r.action,
+    entityType: r.entityType,
+    entityId: r.entityId,
+    detail: JSON.parse(r.detailJson) as Record<string, unknown>,
+    createdAt: r.createdAt,
+  }));
+  return c.json({ entries });
+});
+
+app.get("/api/workspace/thin-dossiers", (c) => {
+  const db = getDb();
+  const allPeople = db.select().from(people).all().filter((p) => p.managerId);
+  const items = allPeople.map((p) => {
+    const a = assignmentFor(p.id);
+    const ach = db.select().from(achievements).where(eq(achievements.personId, p.id)).all().length;
+    const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, p.id)).all().length;
+    const docs = db.select().from(documents).where(eq(documents.personId, p.id)).all().length;
+    const goalsN = db.select().from(goals).where(eq(goals.personId, p.id)).all().length;
+    const evidenceCount = ach + fb + docs;
+    return {
+      personId: p.id,
+      name: p.name,
+      title: p.title,
+      roleTitle: a?.roleTitle ?? null,
+      achievementCount: ach,
+      feedbackCount: fb,
+      documentCount: docs,
+      goalCount: goalsN,
+      evidenceCount,
+      thin: evidenceCount < 2,
+    };
+  });
+  items.sort((a, b) => a.evidenceCount - b.evidenceCount || a.name.localeCompare(b.name));
+  return c.json({
+    thinCount: items.filter((i) => i.thin).length,
+    items,
+  });
 });
 
 app.get("/api/exports/subject/:cycleId/:personId", (c) => {
@@ -1712,6 +2078,65 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
   const competencyLabels = Object.fromEntries(COMPETENCY_CATALOG.map((x) => [x.key, x.name]));
   const exportedAt = nowIso();
 
+  const allCycles = db.select().from(cycles).all();
+  const priorCandidates = allCycles
+    .filter((cy) => cy.id !== cycleId)
+    .map((cy) => {
+      const mgr = db
+        .select()
+        .from(reviews)
+        .where(and(eq(reviews.cycleId, cy.id), eq(reviews.subjectPersonId, personId), eq(reviews.type, "manager")))
+        .all()
+        .find((r) => r.status === "finalized" || r.status === "shared");
+      return mgr ? { cycle: cy, review: mgr } : null;
+    })
+    .filter(Boolean) as Array<{ cycle: typeof cycles.$inferSelect; review: typeof reviews.$inferSelect }>;
+  priorCandidates.sort((a, b) => b.cycle.windowEnd.localeCompare(a.cycle.windowEnd));
+  const priorRow = priorCandidates[0] ?? null;
+  let priorCycle: {
+    cycleName: string;
+    windowEnd: string;
+    overall: number | null;
+    summary: string;
+    strengths: string;
+    growthAreas: string;
+  } | null = null;
+  if (priorRow) {
+    const p = JSON.parse(priorRow.review.payloadJson) as Record<string, unknown>;
+    priorCycle = {
+      cycleName: priorRow.cycle.name,
+      windowEnd: priorRow.cycle.windowEnd,
+      overall: typeof p.overall === "number" ? p.overall : null,
+      summary: String(p.summary ?? ""),
+      strengths: String(p.strengths ?? ""),
+      growthAreas: String(p.growth_areas ?? ""),
+    };
+  }
+
+  const timeline: Array<{ at: string; kind: string; title: string; detail?: string | null }> = [];
+  for (const aRow of db.select().from(achievements).where(eq(achievements.personId, personId)).all()) {
+    timeline.push({ at: aRow.occurredAt, kind: "achievement", title: aRow.title, detail: aRow.description });
+  }
+  for (const f of db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, personId)).all()) {
+    timeline.push({
+      at: f.occurredAt,
+      kind: "feedback",
+      title: `Feedback (${f.kind})`,
+      detail: f.body.slice(0, 160),
+    });
+  }
+  for (const cand of priorCandidates.slice(0, 3)) {
+    const p = JSON.parse(cand.review.payloadJson) as Record<string, unknown>;
+    timeline.push({
+      at: cand.cycle.windowEnd,
+      kind: "prior_review",
+      title: `${cand.cycle.name} manager review`,
+      detail: `Overall ${p.overall ?? "—"}`,
+    });
+  }
+  timeline.sort((a, b) => b.at.localeCompare(a.at));
+  const timelineSlice = timeline.slice(0, 24);
+
   if (format === "html" || format === "pdf") {
     const html = renderSubjectPacketHtml({
       subjectName: person.name,
@@ -1727,6 +2152,8 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
       competencyLabels,
       peerThemes: peers,
       citationSnapshots: snaps,
+      priorCycle,
+      timeline: timelineSlice,
       exportedAt,
     });
     return new Response(html, {
@@ -1749,6 +2176,8 @@ app.get("/api/exports/subject/:cycleId/:personId", (c) => {
     competencies,
     peerThemes: peers,
     citationSnapshots: snaps,
+    priorCycle,
+    timeline: timelineSlice,
     exportedAt,
   });
 });

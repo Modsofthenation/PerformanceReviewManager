@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CycleDTO } from "@prm/shared";
+import type { CycleDTO, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -22,11 +22,15 @@ export function HomePage() {
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
   const [items, setItems] = useState<CommandItem[]>([]);
   const [cycleId, setCycleId] = useState<string | null>(null);
+  const [thinEvidenceCount, setThinEvidenceCount] = useState(0);
 
   useEffect(() => {
     api<CycleDTO[]>("/api/cycles").then((c) => {
       setCycles(c);
       if (c[0]) setCycleId(c[0].id);
+    });
+    api<WorkspaceStatus>("/api/workspace/status").then((s) => {
+      setThinEvidenceCount(s.thinEvidenceCount ?? 0);
     });
   }, []);
 
@@ -81,6 +85,25 @@ export function HomePage() {
             <>
               <Link className="btn" to="/cycles">Export / import bundles</Link>
               <Link className="btn secondary" to={`/cycles/${cycleId}/write/${p.id}`}>Write anyway</Link>
+            </>
+          }
+        />
+      );
+    }
+    if (thinEvidenceCount > 0) {
+      return (
+        <NextStep
+          tone="brand"
+          label={`Backfill ${thinEvidenceCount} thin dossier${thinEvidenceCount === 1 ? "" : "s"}`}
+          detail="Cold-start dossiers block grounded reviews. Capture a few achievements/notes, or use MCP bulk load."
+          action={
+            <>
+              <Link className="btn" to="/backfill">Open backfill wizard</Link>
+              {stats.readyToWrite[0]?.person && (
+                <Link className="btn secondary" to={`/cycles/${cycleId}/write/${stats.readyToWrite[0].person.id}`}>
+                  Write anyway
+                </Link>
+              )}
             </>
           }
         />

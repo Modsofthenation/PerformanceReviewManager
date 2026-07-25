@@ -9,7 +9,8 @@ export type AiFeature =
   | "role_gap"
   | "promotion_draft"
   | "chat_dossier"
-  | "bias_lint";
+  | "bias_lint"
+  | "peer_synthesize";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
