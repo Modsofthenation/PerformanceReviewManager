@@ -37,7 +37,7 @@ export function NextStep({
 }: {
   label: string;
   detail: string;
-  action: ReactNode;
+  action?: ReactNode;
   tone?: "brand" | "warn" | "ok";
 }) {
   return (
@@ -46,7 +46,7 @@ export function NextStep({
         <div className="next-step-label">{label}</div>
         <p>{detail}</p>
       </div>
-      <div className="next-step-action">{action}</div>
+      {action != null ? <div className="next-step-action">{action}</div> : null}
     </div>
   );
 }
