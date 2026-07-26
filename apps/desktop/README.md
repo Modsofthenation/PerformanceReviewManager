@@ -38,7 +38,9 @@ pnpm desktop:build
 1. Bundles `@prm/api` into `src-tauri/sidecars/prm-api.mjs` (esbuild) and copies a portable **Node** binary + `better-sqlite3` next to it
 2. Builds the UI into `apps/ui/dist` (Tauri `frontendDist` is `../../ui/dist` from `src-tauri`)
 
-At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR`, waits until `/api/health` responds, and kills the child on exit — one process from the user’s point of view.
+At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR` / `PRM_UI_DIR`, waits until `/api/health` responds, then opens the webview at the API origin (same-origin `/api` + static UI from `ui-dist/`). On exit it kills the child — one process from the user’s point of view.
+
+On Windows the Node child is spawned with `CREATE_NO_WINDOW`. Sidecar stdout/stderr append to `%APPDATA%\com.prm.workbench\desktop-api.log`.
 
 Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 

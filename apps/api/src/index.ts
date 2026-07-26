@@ -1,7 +1,8 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { basename } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { basename, extname, join, normalize, resolve, sep } from "node:path";
 import { and, eq, isNull } from "drizzle-orm";
 import {
   achievements,
@@ -3832,6 +3833,56 @@ app.get("/api/exports/promotion/:id", (c) => {
     },
   });
 });
+
+/** Packaged desktop: serve the Vite UI from PRM_UI_DIR so the webview is same-origin with /api. */
+const uiDir = process.env.PRM_UI_DIR?.trim();
+if (uiDir) {
+  const root = resolve(uiDir);
+  const mime: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".json": "application/json",
+    ".map": "application/json",
+  };
+  const inside = (file: string) => {
+    const f = resolve(file);
+    return f === root || f.startsWith(root + sep);
+  };
+  app.get("*", async (c) => {
+    const urlPath = decodeURIComponent(new URL(c.req.url).pathname);
+    if (urlPath.startsWith("/api")) return c.json({ error: "Not found" }, 404);
+    const rel =
+      !urlPath || urlPath === "/"
+        ? "index.html"
+        : normalize(urlPath.replace(/^[/\\]+/, "")).replace(/^(\.\.([/\\]|$))+/g, "");
+    const candidates = [join(root, rel)];
+    if (!extname(rel)) candidates.push(join(root, rel, "index.html"));
+    candidates.push(join(root, "index.html"));
+    for (const file of candidates) {
+      if (!inside(file)) continue;
+      try {
+        await access(file);
+        const body = await readFile(file);
+        const type = mime[extname(file).toLowerCase()] ?? "application/octet-stream";
+        return new Response(body, { headers: { "content-type": type } });
+      } catch {
+        /* try next */
+      }
+    }
+    return c.text("Not found", 404);
+  });
+  console.log(`PRM UI static root: ${root}`);
+}
 
 const port = Number(process.env.PRM_PORT ?? 8787);
 console.log(`PRM API listening on http://127.0.0.1:${port}`);

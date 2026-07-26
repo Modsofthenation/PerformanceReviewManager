@@ -118,6 +118,12 @@ fn resolve_launch_config(data: &Path) -> LaunchConfig {
   }
 }
 
+fn exe_dir() -> Option<PathBuf> {
+  std::env::current_exe()
+    .ok()
+    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+}
+
 fn candidate_sidecar_dirs(resource_dir: Option<&Path>) -> Vec<PathBuf> {
   let mut dirs = Vec::new();
   if let Ok(custom) = std::env::var("PRM_API_SIDECAR_DIR") {
@@ -127,8 +133,36 @@ fn candidate_sidecar_dirs(resource_dir: Option<&Path>) -> Vec<PathBuf> {
     dirs.push(res.join("sidecars"));
     dirs.push(res.to_path_buf());
   }
+  if let Some(exe) = exe_dir() {
+    dirs.push(exe.join("sidecars"));
+    dirs.push(exe.join("resources").join("sidecars"));
+    dirs.push(exe.clone());
+    dirs.push(exe.join("resources"));
+  }
   dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sidecars"));
   dirs
+}
+
+fn resolve_ui_dir(resource_dir: Option<&Path>) -> Option<PathBuf> {
+  if let Ok(dir) = std::env::var("PRM_UI_DIR") {
+    let p = PathBuf::from(dir);
+    if p.join("index.html").exists() {
+      return Some(p);
+    }
+  }
+  let mut dirs = Vec::new();
+  if let Some(res) = resource_dir {
+    dirs.push(res.join("ui-dist"));
+    dirs.push(res.to_path_buf());
+  }
+  if let Some(exe) = exe_dir() {
+    dirs.push(exe.join("ui-dist"));
+    dirs.push(exe.join("resources").join("ui-dist"));
+  }
+  dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("ui-dist"));
+  dirs
+    .into_iter()
+    .find(|d| d.join("index.html").exists())
 }
 
 fn append_log(path: &Path, line: &str) {
@@ -142,6 +176,7 @@ fn maybe_spawn_api(
   token: &str,
   data: &Path,
   resource_dir: Option<&Path>,
+  ui_dir: Option<&Path>,
   log_path: &Path,
 ) -> Option<Child> {
   let force = std::env::var("PRM_SPAWN_API").ok().as_deref() == Some("1");
@@ -207,12 +242,29 @@ fn maybe_spawn_api(
   append_log(
     log_path,
     &format!(
-      "PRM: spawning API sidecar program={} cwd={} data={} port={port}",
+      "PRM: spawning API sidecar program={} cwd={} data={} port={port} ui={}",
       program.display(),
       cwd.display(),
-      data.display()
+      data.display(),
+      ui_dir.map(|p| p.display().to_string()).unwrap_or_else(|| "(none)".into())
     ),
   );
+
+  // Append child stdio to the same log (avoids pipe-buffer deadlocks on Windows).
+  let child_log = match fs::OpenOptions::new().create(true).append(true).open(log_path) {
+    Ok(f) => f,
+    Err(err) => {
+      append_log(log_path, &format!("PRM: could not open log for child stdio: {err}"));
+      return None;
+    }
+  };
+  let child_err = match child_log.try_clone() {
+    Ok(f) => f,
+    Err(err) => {
+      append_log(log_path, &format!("PRM: could not clone log for stderr: {err}"));
+      return None;
+    }
+  };
 
   let mut command = Command::new(&program);
   command
@@ -222,8 +274,11 @@ fn maybe_spawn_api(
     .env("PRM_DATA_DIR", data)
     .env("PRM_PORT", port.to_string())
     .stdin(Stdio::null())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped());
+    .stdout(Stdio::from(child_log))
+    .stderr(Stdio::from(child_err));
+  if let Some(ui) = ui_dir {
+    command.env("PRM_UI_DIR", ui);
+  }
   // GUI subsystem apps on Windows must not attach a console to Node or spawn can hang/fail.
   #[cfg(windows)]
   {
@@ -232,28 +287,8 @@ fn maybe_spawn_api(
 
   match command.spawn() {
     Ok(mut child) => {
-      let log = log_path.to_path_buf();
-      if let Some(mut out) = child.stdout.take() {
-        thread::spawn(move || {
-          let mut buf = String::new();
-          let _ = out.read_to_string(&mut buf);
-          if !buf.trim().is_empty() {
-            append_log(&log, &format!("PRM API stdout:\n{buf}"));
-          }
-        });
-      }
-      let log = log_path.to_path_buf();
-      if let Some(mut err) = child.stderr.take() {
-        thread::spawn(move || {
-          let mut buf = String::new();
-          let _ = err.read_to_string(&mut buf);
-          if !buf.trim().is_empty() {
-            append_log(&log, &format!("PRM API stderr:\n{buf}"));
-          }
-        });
-      }
       // Detect immediate crash (missing native module, bad path, etc.)
-      thread::sleep(Duration::from_millis(150));
+      thread::sleep(Duration::from_millis(200));
       match child.try_wait() {
         Ok(Some(status)) => {
           append_log(
@@ -342,10 +377,18 @@ fn main() {
       }
 
       let resource_dir = app.path().resource_dir().ok();
+      let ui_dir = resolve_ui_dir(resource_dir.as_deref());
+      if let Some(ref ui) = ui_dir {
+        append_log(&log_path, &format!("PRM: UI dir {}", ui.display()));
+      } else {
+        append_log(&log_path, "PRM: UI dir not found (will use bundled webview assets)");
+      }
+
       let child = maybe_spawn_api(
         &launch.launch_token,
         &data,
         resource_dir.as_deref(),
+        ui_dir.as_deref(),
         &log_path,
       );
       if let Ok(mut guard) = app.state::<ApiChild>().0.lock() {
@@ -364,15 +407,26 @@ fn main() {
       let inject = format!(
         "window.__PRM_LAUNCH_TOKEN__={};window.__PRM_API_BASE_URL__={};window.__PRM_DESKTOP_LOG__={};window.__PRM_DESKTOP__=true;",
         serde_json::to_string(&launch.launch_token).unwrap_or_else(|_| "\"\"".into()),
-        serde_json::to_string(&launch.api_base_url).unwrap_or_else(|_| {
-          serde_json::to_string(DEFAULT_API_BASE).unwrap_or_else(|_| "\"\"".into())
-        }),
+        // Same-origin when loading the API-served UI: leave base empty so /api is relative.
+        // Offline bundled webview still needs an absolute base to reach the sidecar.
+        serde_json::to_string(if ready && ui_dir.is_some() {
+          ""
+        } else {
+          launch.api_base_url.as_str()
+        })
+        .unwrap_or_else(|_| serde_json::to_string(DEFAULT_API_BASE).unwrap_or_else(|_| "\"\"".into())),
         serde_json::to_string(&log_path.to_string_lossy()).unwrap_or_else(|_| "\"\"".into()),
       );
 
       let url = if cfg!(debug_assertions) {
         WebviewUrl::External(DEV_UI_URL.parse().expect("dev ui url"))
+      } else if ready && ui_dir.is_some() {
+        // Same-origin with the API — avoids WebView2 CORS / mixed-content / Failed to fetch.
+        let page = format!("{}/", launch.api_base_url.trim_end_matches('/'));
+        append_log(&log_path, &format!("PRM: opening same-origin UI at {page}"));
+        WebviewUrl::External(page.parse().expect("api ui url"))
       } else {
+        append_log(&log_path, "PRM: opening bundled offline UI assets");
         WebviewUrl::App("index.html".into())
       };
       if app.get_webview_window("main").is_none() {

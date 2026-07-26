@@ -55,6 +55,20 @@ export function App() {
     const desktop = typeof window !== "undefined" && Boolean(window.__PRM_DESKTOP__ || window.__PRM_API_BASE_URL__);
     const logPath = typeof window !== "undefined" ? window.__PRM_DESKTOP_LOG__ : undefined;
     const apiBase = typeof window !== "undefined" ? window.__PRM_API_BASE_URL__ : undefined;
+    async function retryDesktop() {
+      // Prefer same-origin UI served by the sidecar once it is healthy.
+      const base = (apiBase || "http://127.0.0.1:8787").replace(/\/$/, "");
+      try {
+        const res = await fetch(`${base}/api/health`);
+        if (res.ok) {
+          window.location.href = `${base}/`;
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      await refresh();
+    }
     return (
       <div className="unlock-screen">
         <div className="panel unlock-card">
@@ -74,7 +88,7 @@ export function App() {
             <p>Start the API on port 8787 (`pnpm dev:api`), then refresh.</p>
           )}
           <p className="mono">{error}</p>
-          <button className="btn" onClick={refresh}>Retry</button>
+          <button className="btn" onClick={desktop ? retryDesktop : refresh}>Retry</button>
           <div style={{ marginTop: "0.75rem" }}>{themeToggle}</div>
         </div>
       </div>
