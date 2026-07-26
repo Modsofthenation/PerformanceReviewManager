@@ -61,7 +61,7 @@ pnpm desktop:dev      # native window (needs WebView + Rust)
 pnpm desktop:build
 ```
 
-Packaged builds on `main` CI upload installers as Actions artifacts (`desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
+Desktop installers are built on demand: Actions → **CI** → **Run workflow** (uploads `desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Merges to `main` only run unit tests. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
 
 The desktop shell spawns a bundled Node API sidecar, serves the UI from that same origin (avoids WebView `Failed to fetch`), injects a launch token into the webview, and stores vault data under the OS app-data directory (not a CI build path). If unlock hangs, check `desktop-api.log` next to the vault.
 
