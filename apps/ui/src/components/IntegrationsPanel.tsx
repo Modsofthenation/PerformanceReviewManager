@@ -19,7 +19,24 @@ export function IntegrationsPanel() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    setState(await api<IntegrationsState>("/api/integrations"));
+    const raw = await api<Partial<IntegrationsState> & IntegrationsState>("/api/integrations");
+    setState({
+      jira: raw.jira,
+      bitbucket: raw.bitbucket,
+      github: raw.github,
+      linear: raw.linear ?? {
+        id: "linear",
+        enabled: false,
+        baseUrl: "https://api.linear.app/graphql",
+        workspaceSlug: null,
+        authEmail: null,
+        authUsername: null,
+        hasToken: false,
+        extra: {},
+        lastSyncAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+    });
   }
 
   useEffect(() => {
