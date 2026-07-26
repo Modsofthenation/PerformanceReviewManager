@@ -378,6 +378,106 @@ a:hover { color: var(--brand-strong); }
   min-width: 0;
 }
 
+/* ---------- Sticky page section nav (Settings) ---------- */
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 10.5rem;
+  gap: var(--space-6);
+  align-items: start;
+}
+.settings-section {
+  scroll-margin-top: 1.25rem;
+}
+.page-section-nav {
+  position: sticky;
+  top: var(--space-6);
+  align-self: start;
+  padding: var(--space-3) 0 var(--space-3) var(--space-3);
+  border-left: 1px solid var(--line);
+}
+.page-section-nav-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-2);
+}
+.page-section-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.page-section-nav-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+}
+.page-section-nav-link:hover {
+  color: var(--ink);
+  background: var(--bg-soft);
+}
+.page-section-nav-link.on {
+  color: var(--brand-strong);
+  background: var(--brand-tint);
+  border-left-color: var(--brand);
+}
+
+@media (max-width: 960px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+  .page-section-nav {
+    order: -1;
+    position: sticky;
+    top: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+    z-index: 8;
+    margin: 0 calc(var(--space-4) * -1);
+    padding: var(--space-2) var(--space-4);
+    border-left: none;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+  }
+  .page-section-nav-label { display: none; }
+  .page-section-nav-list {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 0.15rem;
+  }
+  .page-section-nav-link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    margin-left: 0;
+    padding: 0.45rem 0.7rem;
+  }
+  .page-section-nav-link.on {
+    border-left-color: transparent;
+    border-bottom-color: var(--brand);
+  }
+}
+
 /* ---------- Surfaces ---------- */
 .panel {
   background: var(--panel);

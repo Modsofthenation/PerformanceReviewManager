@@ -4,8 +4,20 @@ import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
 import { ACCENTS, type Accent, type ColorMode } from "../lib/theme";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionNav, type SectionNavItem } from "../components/PageSectionNav";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
 import { RetentionPanel } from "../components/RetentionPanel";
+
+const SETTINGS_SECTIONS: SectionNavItem[] = [
+  { id: "settings-appearance", label: "Appearance" },
+  { id: "settings-retention", label: "Retention" },
+  { id: "settings-integrations", label: "Integrations" },
+  { id: "settings-audit", label: "Audit" },
+  { id: "settings-backup", label: "Backup" },
+  { id: "settings-ai", label: "AI" },
+  { id: "settings-danger", label: "Danger zone" },
+  { id: "settings-desktop", label: "Desktop" },
+];
 
 type AiSettings = {
   enabled: boolean;
@@ -115,7 +127,9 @@ export function SettingsPage({
         }
       />
 
-      <div className="panel stack">
+      <div className="settings-layout">
+        <div className="settings-main stack">
+      <div id="settings-appearance" className="panel stack settings-section">
         <div className="panel-title">
           <h2>Appearance</h2>
         </div>
@@ -166,11 +180,15 @@ export function SettingsPage({
         </div>
       </div>
 
-      <RetentionPanel />
+      <div id="settings-retention" className="settings-section">
+        <RetentionPanel />
+      </div>
 
-      <IntegrationsPanel />
+      <div id="settings-integrations" className="settings-section">
+        <IntegrationsPanel />
+      </div>
 
-      <div className="panel">
+      <div id="settings-audit" className="panel settings-section">
         <h2>Activity audit</h2>
         <p className="muted">
           Hash-chained local activity log with append-only SQLite triggers. Verify recomputes the chain;
@@ -237,7 +255,7 @@ export function SettingsPage({
         )}
       </div>
 
-      <div className="panel stack">
+      <div id="settings-backup" className="panel stack settings-section">
         <h2>Backup & restore</h2>
         <p className="muted">
           Encrypted snapshots of the unlocked SQLite DB under data/backups. Restore replaces the live
@@ -348,6 +366,7 @@ export function SettingsPage({
         />
       )}
 
+      <div id="settings-ai" className="settings-section">
       <form
         id="ai-settings-form"
         className="panel"
@@ -511,8 +530,9 @@ export function SettingsPage({
         </div>
         {msg && <p className="muted">{msg}</p>}
       </form>
+      </div>
 
-      <div className="panel stack">
+      <div id="settings-danger" className="panel stack settings-section">
         <h2>Danger zone</h2>
         <p className="muted" style={{ margin: 0 }}>
           Permanently erase this local workspace (database, vault, uploads, and backups), then create a
@@ -601,7 +621,7 @@ export function SettingsPage({
         )}
       </div>
 
-      <div className="panel stack">
+      <div id="settings-desktop" className="panel stack settings-section">
         <h2>Desktop updates</h2>
         <p className="muted" style={{ margin: 0 }}>
           Packaged builds serve the UI from the local API (same-origin) to avoid WebView “Failed to fetch”. Check GitHub
@@ -647,6 +667,10 @@ export function SettingsPage({
         >
           Check for updates
         </button>
+      </div>
+        </div>
+
+        <PageSectionNav items={SETTINGS_SECTIONS} ariaLabel="On this page" />
       </div>
     </div>
   );
