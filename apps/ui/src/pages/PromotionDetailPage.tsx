@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import type { GapMark, RoleDefinitionDTO } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 type PromoDetail = {
   id: string;
@@ -191,8 +192,14 @@ export function PromotionDetailPage() {
       {msg && <p className="muted">{msg}</p>}
       {error && <p className="chat-error" style={{ padding: 0 }}>{error}</p>}
 
+      <PageSectionsLayout
+        sections={[
+          { id: "promo-expectations", label: "Expectations" },
+          { id: "promo-narrative", label: "Narrative" },
+        ]}
+      >
       <div className="writing">
-        <div className="panel stack">
+        <div className="panel stack page-section" id="promo-expectations">
           <div className="row">
             <h2 style={{ flex: 1, margin: 0 }}>Next-role expectations</h2>
             <button
@@ -238,7 +245,7 @@ export function PromotionDetailPage() {
           {aiOut && <pre className="digest">{aiOut}</pre>}
         </div>
 
-        <div className="panel stack">
+        <div className="panel stack page-section" id="promo-narrative">
           <h2>Case narrative</h2>
           <div className="field">
             <label>Case summary</label>
@@ -276,6 +283,7 @@ export function PromotionDetailPage() {
           )}
         </div>
       </div>
+      </PageSectionsLayout>
     </div>
   );
 }

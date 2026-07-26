@@ -378,14 +378,19 @@ a:hover { color: var(--brand-strong); }
   min-width: 0;
 }
 
-/* ---------- Sticky page section nav (Settings) ---------- */
+/* ---------- Sticky page section nav ---------- */
+.page-sections-layout,
 .settings-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 10.5rem;
   gap: var(--space-6);
   align-items: start;
 }
-.settings-section {
+.page-sections-main {
+  min-width: 0;
+}
+.settings-section,
+.page-section {
   scroll-margin-top: 1.25rem;
 }
 .page-section-nav {
@@ -438,7 +443,8 @@ a:hover { color: var(--brand-strong); }
   border-left-color: var(--brand);
 }
 
-@media (max-width: 960px) {
+@media (max-width: 900px) {
+  .page-sections-layout,
   .settings-layout {
     grid-template-columns: 1fr;
   }

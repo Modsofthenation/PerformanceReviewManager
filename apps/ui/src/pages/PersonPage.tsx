@@ -13,6 +13,7 @@ import type {
 } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
 export function PersonPage() {
@@ -109,6 +110,18 @@ export function PersonPage() {
   const activeCycle = cycles[0];
   const needsRole = !person.roleDefinitionId;
 
+  const sections: SectionNavItem[] = [
+    ...(activeCycle ? [{ id: "person-reassign", label: "Reassign" }] : []),
+    { id: "timeline", label: "Timeline" },
+    { id: "integrations", label: "Integrations" },
+    { id: "capture-achievements", label: "Achievements" },
+    { id: "person-goals", label: "Goals" },
+    { id: "person-feedback", label: "Feedback" },
+    { id: "person-documents", label: "Documents" },
+    { id: "person-meetings", label: "Meetings" },
+    { id: "person-concerns", label: "Concerns" },
+  ];
+
   return (
     <div className="stack">
       <PageHeader
@@ -155,8 +168,9 @@ export function PersonPage() {
         />
       )}
 
+      <PageSectionsLayout sections={sections}>
       {activeCycle && (
-        <div className="panel stack">
+        <div className="panel stack page-section" id="person-reassign">
           <h2 style={{ margin: 0 }}>Mid-cycle manager change</h2>
           <p className="muted" style={{ margin: 0 }}>
             Reassign for <strong>{activeCycle.name}</strong>: supersedes prior manager drafts/finals as contribution
@@ -216,7 +230,7 @@ export function PersonPage() {
         </div>
       )}
 
-      <div className="panel stack" id="timeline">
+      <div className="panel stack page-section" id="timeline">
         <h2 style={{ margin: 0 }}>Timeline</h2>
         <p className="muted" style={{ margin: 0 }}>
           Chronological dossier, reviews, concerns, and rating decisions. Use this to prep a 1:1 or reconstruct
@@ -237,7 +251,7 @@ export function PersonPage() {
         )}
       </div>
 
-      <div className="panel stack" id="integrations">
+      <div className="panel stack page-section" id="integrations">
         <h2>Integrations</h2>
         <p className="muted">
           Link remote accounts, then pull tickets / merged PRs for the active review window into achievements.
@@ -398,7 +412,7 @@ export function PersonPage() {
       {id ? <DeliveryRollupPanel personId={id} cycleId={cycles[0]?.id} /> : null}
 
       <div className="grid-2">
-        <div className="panel" id="capture-achievements">
+        <div className="panel page-section" id="capture-achievements">
           <h2>Achievements</h2>
           <ul>
             {dossier.achievements.map((a) => (
@@ -430,7 +444,7 @@ export function PersonPage() {
             <button className="btn">Add achievement</button>
           </form>
         </div>
-        <div className="panel">
+        <div className="panel page-section" id="person-goals">
           <h2>Goals</h2>
           <ul>
             {dossier.goals.map((g) => (
@@ -453,7 +467,7 @@ export function PersonPage() {
         </div>
       </div>
 
-      <div className="panel stack">
+      <div className="panel stack page-section" id="person-feedback">
         <h2>Feedback</h2>
         <p className="muted">EM-entered notes from 1:1s, partners, or incidents. Author names stay on your workspace.</p>
         {dossier.feedback.length === 0 && <p className="muted">No feedback yet — capture a coaching or praise note.</p>}
@@ -520,7 +534,7 @@ export function PersonPage() {
         </form>
       </div>
 
-      <div className="panel stack">
+      <div className="panel stack page-section" id="person-documents">
         <h2>Documents</h2>
         <p className="muted">PDF/DOCX/PPTX/CSV/images — allowlisted. Sealed into the encrypted vault when you lock the workspace.</p>
         <ul>
@@ -582,7 +596,7 @@ export function PersonPage() {
 
       {captureMsg && <p className="muted">{captureMsg}</p>}
 
-      <div className="panel stack">
+      <div className="panel stack page-section" id="person-meetings">
         <h2>Meeting summaries</h2>
         <p className="muted">
           Structured notes from 1:1s / meetings. Default visibility is <strong>EM only</strong>. Raw transcripts stay
@@ -709,7 +723,7 @@ export function PersonPage() {
         </form>
       </div>
 
-      <div className="panel stack">
+      <div className="panel stack page-section" id="person-concerns">
         <h2>Concern log</h2>
         <p className="muted">
           Private performance concerns and follow-up plans. AI is off by default — these stay out of digests and drafts unless you later opt a concern in.
@@ -824,6 +838,7 @@ export function PersonPage() {
           action={<Link className="btn" to="/promotions">Start promotion packet</Link>}
         />
       )}
+      </PageSectionsLayout>
     </div>
   );
 }

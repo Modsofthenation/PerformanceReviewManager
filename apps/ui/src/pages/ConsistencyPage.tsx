@@ -5,6 +5,7 @@ import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
 import { downloadBinaryExport, openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 export function ConsistencyPage() {
   const [params, setParams] = useSearchParams();
@@ -94,8 +95,18 @@ export function ConsistencyPage() {
         </div>
       </div>
 
-      {data && (
-        <div className="panel stack">
+
+      {!data ? (
+        <p>Loading…</p>
+      ) : (
+        <PageSectionsLayout
+          sections={[
+            { id: "cons-calib", label: "Calibration" },
+            { id: "cons-distribution", label: "Distribution" },
+            { id: "cons-cards", label: "People" },
+          ]}
+        >
+<div className="panel stack page-section" id="cons-calib">
           <h2>Calibration bundles</h2>
           <p className="muted" style={{ margin: 0 }}>
             Director round-trip: export cards, capture decisions in the form (or paste JSON), then import
@@ -309,12 +320,7 @@ export function ConsistencyPage() {
           </button>
           {calibMsg && <p className="muted">{calibMsg}</p>}
         </div>
-      )}
 
-      {!data ? (
-        <p>Loading…</p>
-      ) : (
-        <>
           {thin.length > 0 ? (
             <NextStep
               tone="warn"
@@ -335,7 +341,7 @@ export function ConsistencyPage() {
             />
           )}
 
-          <div className="panel">
+          <div className="panel page-section" id="cons-distribution">
             <h2>Overall distribution</h2>
             <div className="consistency-bars">
               {["1", "2", "3", "4", "5", "unset"].map((bucket) => {
@@ -356,7 +362,7 @@ export function ConsistencyPage() {
             </div>
           </div>
 
-          <div className="consistency-grid">
+          <div className="consistency-grid page-section" id="cons-cards">
             {data.cards.map((card) => (
               <div key={card.personId} className="panel consistency-card">
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -395,7 +401,7 @@ export function ConsistencyPage() {
               </div>
             ))}
           </div>
-        </>
+        </PageSectionsLayout>
       )}
     </div>
   );

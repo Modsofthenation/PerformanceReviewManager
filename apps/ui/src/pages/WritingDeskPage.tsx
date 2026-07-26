@@ -6,6 +6,7 @@ import { api, getToken, apiUrl } from "../lib/api";
 import { estimateThenConfirm } from "../lib/aiEstimate";
 import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
 type EvidenceLinkDraft = {
@@ -345,6 +346,17 @@ export function WritingDeskPage() {
 
   if (!packet) return <p>Loading packet…</p>;
 
+  const sections: SectionNavItem[] = [
+    ...(hasOutOfWindow ? [{ id: "desk-oow", label: "Out of window" }] : []),
+    { id: "desk-digest", label: "Digest" },
+    { id: "desk-expectations", label: "Expectations" },
+    { id: "desk-peer", label: "Peer synth" },
+    ...(packet.priorCycle ? [{ id: "desk-prior", label: "Prior cycle" }] : []),
+    { id: "desk-timeline", label: "Timeline" },
+    { id: "desk-imports", label: "Imports" },
+    { id: "desk-draft", label: "Manager draft" },
+  ];
+
   return (
     <div className="stack">
       <PageHeader
@@ -473,8 +485,9 @@ export function WritingDeskPage() {
       {status && <p className="muted">{status}</p>}
       {error && <p className="chat-error" style={{ padding: 0 }}>{error}</p>}
 
+      <PageSectionsLayout sections={sections}>
       {hasOutOfWindow && outOfWindowTray && (
-        <div className="panel">
+        <div className="panel page-section" id="desk-oow">
           <h2>Out of window</h2>
           <p className="muted">Evidence dated outside the cycle window — still citable.</p>
           <ul>
@@ -501,7 +514,7 @@ export function WritingDeskPage() {
       <div className="writing">
         <div className="stack">
           {personId ? <DeliveryRollupPanel personId={personId} cycleId={cycleId} /> : null}
-          <div className="panel stack">
+          <div className="panel stack page-section" id="desk-digest">
             <div className="row">
               <h2 style={{ flex: 1, margin: 0 }}>Evidence digest</h2>
               <button
@@ -594,7 +607,7 @@ export function WritingDeskPage() {
               </div>
             )}
           </div>
-          <div className="panel">
+          <div className="panel page-section" id="desk-expectations">
             <h2>Current role expectations</h2>
             <ol>
               {(packet.currentRole?.expectations ?? []).map((e) => (
@@ -604,7 +617,7 @@ export function WritingDeskPage() {
               ))}
             </ol>
           </div>
-          <div className="panel">
+          <div className="panel page-section" id="desk-peer">
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0 }}>Peer synthesize</h2>
               <button
@@ -642,7 +655,7 @@ export function WritingDeskPage() {
           </div>
 
           {packet.priorCycle && (
-            <div className="panel">
+            <div className="panel page-section" id="desk-prior">
               <h2>Prior cycle — {packet.priorCycle.cycleName}</h2>
               <p className="muted">
                 Ended {packet.priorCycle.windowEnd}
@@ -666,7 +679,7 @@ export function WritingDeskPage() {
             </div>
           )}
 
-          <div className="panel">
+          <div className="panel page-section" id="desk-timeline">
             <h2>Person timeline</h2>
             {(packet.timeline ?? []).length === 0 ? (
               <p className="muted">No dossier milestones yet.</p>
@@ -685,7 +698,7 @@ export function WritingDeskPage() {
             )}
           </div>
 
-          <div className="panel">
+          <div className="panel page-section" id="desk-imports">
             <h2>Imports & dossier</h2>
             <p>
               <strong>Self:</strong> {packet.selfReview ? "imported" : "missing"}
@@ -730,7 +743,7 @@ export function WritingDeskPage() {
           </div>
         </div>
 
-        <div className="panel stack">
+        <div className="panel stack page-section" id="desk-draft">
           <h2>Manager draft</h2>
           <div className="field">
             <label>Overall (1–5)</label>
@@ -1172,6 +1185,7 @@ export function WritingDeskPage() {
           {subjectExport != null ? <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre> : null}
         </div>
       </div>
+      </PageSectionsLayout>
     </div>
   );
 }

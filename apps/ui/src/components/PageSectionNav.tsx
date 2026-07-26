@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type SectionNavItem = {
   id: string;
@@ -14,6 +14,11 @@ export function PageSectionNav({
 }) {
   const [activeId, setActiveId] = useState(items[0]?.id ?? "");
   const sectionKey = items.map((item) => item.id).join("|");
+  const clickLockUntil = useRef(0);
+
+  useEffect(() => {
+    if (items[0]?.id) setActiveId(items[0].id);
+  }, [sectionKey, items]);
 
   useEffect(() => {
     const nodes = items
@@ -24,6 +29,7 @@ export function PageSectionNav({
     const ratios = new Map<string, number>();
     const observer = new IntersectionObserver(
       (entries) => {
+        if (Date.now() < clickLockUntil.current) return;
         for (const entry of entries) {
           ratios.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0);
         }
@@ -55,6 +61,7 @@ export function PageSectionNav({
   function goTo(id: string) {
     const el = document.getElementById(id);
     if (!el) return;
+    clickLockUntil.current = Date.now() + 700;
     setActiveId(id);
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }

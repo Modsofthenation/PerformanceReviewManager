@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DirectorAttentionDTO, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout } from "../components/PageSectionsLayout";
 import { OnboardingWizard } from "../components/OnboardingWizard";
 
 type CommandItem = {
@@ -246,7 +247,19 @@ export function HomePage() {
 
       {next}
 
-      <div className="panel row">
+      <PageSectionsLayout
+        sections={[
+          { id: "home-cycle", label: "Cycle" },
+          ...(attention && attention.items.length > 0
+            ? [{ id: "home-attention", label: "Attention" }]
+            : []),
+          ...(dueWeek.length > 0 ? [{ id: "home-due", label: "Due" }] : []),
+          ...(cycleStats ? [{ id: "home-dashboard", label: "Dashboard" }] : []),
+          ...(cycleId && nudges.length > 0 ? [{ id: "home-nudges", label: "Nudges" }] : []),
+          { id: "home-queue", label: "Queue" },
+        ]}
+      >
+      <div className="panel row page-section" id="home-cycle">
         <label className="muted">Cycle</label>
         <select value={cycleId ?? ""} onChange={(e) => setCycleId(e.target.value || null)}>
           {cycles.length === 0 && <option value="">No cycles yet</option>}
@@ -258,7 +271,7 @@ export function HomePage() {
       </div>
 
       {attention && attention.items.length > 0 && (
-        <div className="panel stack">
+        <div className="panel stack page-section" id="home-attention">
           <h2 style={{ margin: 0 }}>Needs director attention</h2>
           <p className="muted" style={{ margin: 0 }}>
             Flags only — stagnant ratings, thin evidence, promo-ready, open concern counts. No private note bodies.
@@ -286,7 +299,7 @@ export function HomePage() {
       )}
 
       {dueWeek.length > 0 && (
-        <div className="panel stack" style={{ borderColor: "var(--warn, #c4a35a)" }}>
+        <div className="panel stack page-section" id="home-due" style={{ borderColor: "var(--warn, #c4a35a)" }}>
           <h2 style={{ margin: 0 }}>Due this week</h2>
           <p className="muted" style={{ margin: 0 }}>
             Sticky tray for cycle work ending within 7 days. OS notification fires once per session when permission is
@@ -309,7 +322,7 @@ export function HomePage() {
       )}
 
       {cycleStats && (
-        <div className="panel stack">
+        <div className="panel stack page-section" id="home-dashboard">
           <h2 style={{ margin: 0 }}>Cycle dashboard</h2>
           <p className="muted" style={{ margin: 0 }}>
             Writing time, evidence coverage, and thin dossiers for {cycleStats.cycleName}.
@@ -362,7 +375,7 @@ export function HomePage() {
       )}
 
       {cycleId && nudges.length > 0 && (
-        <div className="panel stack">
+        <div className="panel stack page-section" id="home-nudges">
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ margin: 0 }}>Deadline nudges</h2>
             <button
@@ -400,7 +413,7 @@ export function HomePage() {
         </div>
       )}
 
-      <div className="panel">
+      <div className="panel page-section" id="home-queue">
         {items.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
             {cycleId ? "No participants in this cycle." : "Create a cycle to see your writing queue."}
@@ -469,6 +482,7 @@ export function HomePage() {
           </table>
         )}
       </div>
+      </PageSectionsLayout>
     </div>
   );
 }

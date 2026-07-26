@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { CycleDTO, PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 const PHASE_STATUSES = [
   { value: "self_open", label: "Self open" },
@@ -81,7 +82,15 @@ export function CyclesPage() {
         />
       )}
 
-      <div className="panel">
+      <PageSectionsLayout
+        sections={[
+          { id: "cycles-list", label: "Cycles" },
+          ...(selected ? [{ id: "cycles-phases", label: "Phases" }] : []),
+          { id: "cycles-export", label: "Export" },
+          { id: "import-bundle", label: "Import" },
+        ]}
+      >
+      <div className="panel page-section" id="cycles-list">
         <h2>Cycles</h2>
         {cycles.length === 0 ? (
           <p className="muted">No cycles yet.</p>
@@ -156,7 +165,7 @@ export function CyclesPage() {
       </div>
 
       {selected && (
-        <div className="panel stack">
+        <div className="panel stack page-section" id="cycles-phases">
           <h2>Phase wizard — {selected.name}</h2>
           <p className="muted">
             Soft gates only: advance phases when ready. Waive missing self/peer from the writing desk with a reason.
@@ -266,7 +275,7 @@ export function CyclesPage() {
           <button className="btn" disabled={!selectedCycle || !subjectId}>Download JSON bundle</button>
         </form>
 
-        <div className="panel stack" id="import-bundle">
+        <div className="panel stack page-section" id="import-bundle">
           <h2>2. Import completed bundle</h2>
           <div className="field">
             <label>Paste completed bundle JSON</label>
@@ -320,6 +329,7 @@ export function CyclesPage() {
           action={<Link className="btn" to="/">Open command center</Link>}
         />
       )}
+      </PageSectionsLayout>
     </div>
   );
 }
