@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { SprintPulseDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 const PRESETS = [
   { id: "last_7", label: "Last 7 days" },
@@ -63,7 +64,15 @@ export function SprintPulsePage() {
         />
       )}
 
-      <div className="panel stack">
+      <PageSectionsLayout
+        sections={[
+          { id: "pulse-window", label: "Window" },
+          { id: "pulse-themes", label: "Themes" },
+          { id: "pulse-freshness", label: "Freshness" },
+          { id: "pulse-people", label: "People" },
+        ]}
+      >
+      <div className="panel stack page-section" id="pulse-window">
         <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: "end" }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="pulse-preset">Preset</label>
@@ -156,7 +165,7 @@ export function SprintPulsePage() {
           </div>
 
           <div className="tp-grid">
-            <div className="panel stack">
+            <div className="panel stack page-section" id="pulse-themes">
               <h2 style={{ margin: 0 }}>1:1 themes in window</h2>
               {data.themes.length === 0 ? (
                 <p className="muted">No themes tagged on feedback in this range.</p>
@@ -179,7 +188,7 @@ export function SprintPulsePage() {
                 </div>
               )}
             </div>
-            <div className="panel stack">
+            <div className="panel stack page-section" id="pulse-freshness">
               <h2 style={{ margin: 0 }}>Evidence freshness</h2>
               <p className="muted" style={{ margin: 0 }}>
                 In-window dossier items vs older items, plus whether current draft cites are stale.
@@ -199,7 +208,7 @@ export function SprintPulsePage() {
             </div>
           </div>
 
-          <div className="panel stack">
+          <div className="panel stack page-section" id="pulse-people">
             <h2 style={{ margin: 0 }}>People</h2>
             <div className="table-wrap">
               <table className="table">
@@ -252,6 +261,7 @@ export function SprintPulsePage() {
           </div>
         </>
       )}
+      </PageSectionsLayout>
     </div>
   );
 }

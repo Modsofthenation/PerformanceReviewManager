@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
 import { ACCENTS, type Accent, type ColorMode } from "../lib/theme";
 import { NextStep, PageHeader } from "../components/PageChrome";
-import { PageSectionNav, type SectionNavItem } from "../components/PageSectionNav";
+import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
 import { RetentionPanel } from "../components/RetentionPanel";
 
@@ -127,9 +127,8 @@ export function SettingsPage({
         }
       />
 
-      <div className="settings-layout">
-        <div className="settings-main stack">
-      <div id="settings-appearance" className="panel stack settings-section">
+      <PageSectionsLayout sections={SETTINGS_SECTIONS}>
+      <div id="settings-appearance" className="panel stack settings-section page-section">
         <div className="panel-title">
           <h2>Appearance</h2>
         </div>
@@ -668,10 +667,7 @@ export function SettingsPage({
           Check for updates
         </button>
       </div>
-        </div>
-
-        <PageSectionNav items={SETTINGS_SECTIONS} ariaLabel="On this page" />
-      </div>
+      </PageSectionsLayout>
     </div>
   );
 }

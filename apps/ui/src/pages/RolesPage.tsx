@@ -8,6 +8,7 @@ import type {
 } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 type ExpectationEdit = { id?: string; kind: "responsibility" | "expectation"; text: string };
 
@@ -377,7 +378,15 @@ export function RolesPage() {
         />
       )}
 
-      <div className="grid-2">
+      <PageSectionsLayout
+        sections={[
+          { id: "roles-catalog", label: "Catalog" },
+          { id: "roles-detail", label: "Detail" },
+          { id: "roles-extract", label: "Extract" },
+          { id: "roles-assign", label: "Assign" },
+        ]}
+      >
+      <div className="grid-2 page-section" id="roles-catalog">
         <div className="panel">
           <h2>Catalog</h2>
           {roles.length === 0 && <p className="muted">No roles yet — add one or extract from a document.</p>}
@@ -405,7 +414,7 @@ export function RolesPage() {
             </button>
           ))}
         </div>
-        <div className="panel">
+        <div className="panel page-section" id="roles-detail">
           <h2>{selected?.title ?? "Select a role"}</h2>
           {selected ? (
             <>
@@ -558,7 +567,7 @@ export function RolesPage() {
         </form>
       )}
 
-      <div className="panel">
+      <div className="panel page-section" id="roles-extract">
         <h2>Extract from document</h2>
         <p className="muted">
           Upload an R&amp;R / career framework file (.txt/.md preferred; PDF/DOCX best-effort), or paste text.
@@ -688,6 +697,7 @@ export function RolesPage() {
           {saved && <span className="muted">{saved}</span>}
         </div>
       </form>
+      </PageSectionsLayout>
     </div>
   );
 }

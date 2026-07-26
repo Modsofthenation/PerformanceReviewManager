@@ -5,6 +5,7 @@ import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
 import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 
 const PROMO_LABELS: Record<string, string> = {
   ready: "Ready",
@@ -334,7 +335,16 @@ export function TeamPerformancePage() {
             action={<Link className="btn secondary" to="/">Command center</Link>}
           />
 
-          <div className="tp-metrics">
+          <PageSectionsLayout
+            sections={[
+              { id: "tp-overview", label: "Overview" },
+              { id: "tp-charts", label: "Charts" },
+              { id: "tp-people", label: "People" },
+              { id: "tp-trends", label: "Trends" },
+              { id: "tp-compare", label: "Compare" },
+            ] satisfies SectionNavItem[]}
+          >
+          <div className="tp-metrics page-section" id="tp-overview">
             <div className="tp-metric">
               <div className="muted">Avg overall</div>
               <strong>{data.avgOverall ?? "—"}</strong>
@@ -355,7 +365,7 @@ export function TeamPerformancePage() {
             </div>
           </div>
 
-          <div className="tp-grid">
+          <div className="tp-grid page-section" id="tp-charts">
             <div className="panel stack">
               <h2 style={{ margin: 0 }}>Overall distribution</h2>
               <p className="muted" style={{ margin: 0 }}>
@@ -459,7 +469,7 @@ export function TeamPerformancePage() {
             </div>
           </div>
 
-          <div className="panel stack">
+          <div className="panel stack page-section" id="tp-people">
             <h2 style={{ margin: 0 }}>People</h2>
             <div className="table-wrap">
               <table className="table">
@@ -548,7 +558,7 @@ export function TeamPerformancePage() {
           </div>
 
           {trends && trends.cycles.length > 0 && (
-            <div className="tp-grid">
+            <div className="tp-grid page-section" id="tp-trends">
               <div className="panel stack tp-span-2">
                 <h2 style={{ margin: 0 }}>Rating trends across cycles</h2>
                 <p className="muted" style={{ margin: 0 }}>
@@ -591,7 +601,7 @@ export function TeamPerformancePage() {
           )}
 
           {compare && (
-            <div className="panel stack">
+            <div className="panel stack page-section" id="tp-compare">
               <h2 style={{ margin: 0 }}>Cycle compare</h2>
               <p className="muted" style={{ margin: 0 }}>
                 {compare.prior
@@ -667,6 +677,7 @@ export function TeamPerformancePage() {
               )}
             </div>
           )}
+          </PageSectionsLayout>
         </>
       )}
     </div>
