@@ -17,6 +17,7 @@ import { ChatPage } from "./pages/ChatPage";
 import { ConsistencyPage } from "./pages/ConsistencyPage";
 import { TeamPerformancePage } from "./pages/TeamPerformancePage";
 import { SprintPulsePage } from "./pages/SprintPulsePage";
+import { SearchPage } from "./pages/SearchPage";
 import { BackfillPage } from "./pages/BackfillPage";
 
 export function App() {
@@ -123,6 +124,7 @@ export function App() {
           <NavLink to="/cycles">Cycles</NavLink>
           <NavLink to="/promotions">Promotions</NavLink>
           <NavLink to="/consistency">Consistency</NavLink>
+          <NavLink to="/search">Search</NavLink>
           <NavLink to="/team-performance">Team performance</NavLink>
           <NavLink to="/sprint-pulse">Sprint pulse</NavLink>
           <NavLink to="/backfill">Backfill</NavLink>
@@ -154,6 +156,7 @@ export function App() {
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/promotions/:id" element={<PromotionDetailPage />} />
           <Route path="/consistency" element={<ConsistencyPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/team-performance" element={<TeamPerformancePage />} />
           <Route path="/sprint-pulse" element={<SprintPulsePage />} />
           <Route path="/backfill" element={<BackfillPage />} />

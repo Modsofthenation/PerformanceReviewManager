@@ -43,6 +43,11 @@ fn get_launch_config(state: State<'_, LaunchState>) -> Result<LaunchConfig, Stri
     .map_err(|_| "launch config lock poisoned".into())
 }
 
+#[tauri::command]
+fn get_app_version() -> String {
+  env!("CARGO_PKG_VERSION").into()
+}
+
 fn api_port() -> u16 {
   std::env::var("PRM_PORT")
     .ok()
@@ -363,7 +368,7 @@ fn main() {
       launch_token: String::new(),
     })))
     .manage(ApiChild(Mutex::new(None)))
-    .invoke_handler(tauri::generate_handler![get_launch_config])
+    .invoke_handler(tauri::generate_handler![get_launch_config, get_app_version])
     .setup(move |app| {
       let data = resolve_data_dir(app.handle());
       let _ = fs::create_dir_all(&data);

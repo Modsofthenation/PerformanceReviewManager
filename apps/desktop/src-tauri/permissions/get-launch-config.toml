@@ -2,3 +2,8 @@
 identifier = "allow-get-launch-config"
 description = "Allows the frontend to read API base URL and desktop launch token"
 commands.allow = ["get_launch_config"]
+
+[[permission]]
+identifier = "allow-get-app-version"
+description = "Allows the frontend to read the packaged app version"
+commands.allow = ["get_app_version"]

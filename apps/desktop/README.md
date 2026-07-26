@@ -42,6 +42,10 @@ At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API
 
 On Windows the Node child is spawned with `CREATE_NO_WINDOW`. Sidecar stdout/stderr append to `%APPDATA%\com.prm.workbench\desktop-api.log`.
 
+### Updates
+
+Settings → **Check for updates** compares the packaged version (`get_app_version` IPC) to the latest GitHub Release. Fully signed silent auto-update still needs `tauri-plugin-updater` + CI signing keys.
+
 Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 
 CI builds the same matrix (Ubuntu / macOS / Windows) on pushes to `main`. Each green desktop job uploads an Actions artifact (retained 30 days):

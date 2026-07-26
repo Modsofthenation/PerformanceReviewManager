@@ -141,6 +141,11 @@ export interface RoleFrameworkInfo {
   versionLabel: string;
   sourceFilename: string | null;
   roleCount: number;
+  ownerName: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  /** Soft warnings: missing expectations, broken next keys, unassigned directs. */
+  insufficient: string[];
 }
 
 export interface CycleDTO {
@@ -239,6 +244,20 @@ export interface ConcernLogDTO {
   updatedAt: string;
 }
 
+export interface MeetingSummaryDTO {
+  id: string;
+  personId: string;
+  sourceDocumentId: string | null;
+  occurredAt: string;
+  title: string;
+  summaryText: string;
+  themes: string[];
+  visibility: Visibility;
+  consentNoted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DeadlineNudge {
   personId: string;
   personName: string;
@@ -250,6 +269,69 @@ export interface DeadlineNudge {
   missingSelf: boolean;
   selfStatus: string;
   mailtoHref: string;
+}
+
+export interface DueThisWeekItem {
+  personId: string;
+  personName: string;
+  cycleId: string;
+  cycleName: string;
+  windowEnd: string;
+  daysUntilDue: number;
+  missingSelf: boolean;
+  missingPeer: boolean;
+  managerStatus: string;
+}
+
+export interface CalibCardDTO {
+  personId: string;
+  personName: string;
+  title: string | null;
+  roleTitle: string | null;
+  overall: number | null;
+  competencies: Record<string, number>;
+  evidenceLinkCount: number;
+  evidenceGaps: number;
+  managerStatus: string;
+  flags: string[];
+  summaryExcerpt: string;
+}
+
+export interface CalibBundleDTO {
+  version: 1;
+  kind: "calib";
+  cycleId: string;
+  cycleName: string;
+  exportedAt: string;
+  cards: CalibCardDTO[];
+}
+
+export interface CalibDecisionInput {
+  personId: string;
+  overall?: number | null;
+  note?: string;
+  competencies?: Record<string, number>;
+}
+
+export interface ReviewSearchHit {
+  reviewId: string;
+  personId: string;
+  personName: string;
+  cycleId: string;
+  cycleName: string;
+  status: string;
+  overall: number | null;
+  snippet: string;
+  updatedAt: string;
+}
+
+export interface StagnationHint {
+  personId: string;
+  personName: string;
+  kind: "flat_overall" | "thin_evidence";
+  detail: string;
+  overalls: number[];
+  cycleCount: number;
 }
 
 export type IntegrationProvider = "jira" | "bitbucket";

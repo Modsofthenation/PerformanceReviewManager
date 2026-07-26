@@ -6,6 +6,7 @@ import type {
   IntegrationProvider,
   IntegrationRemoteUser,
   IntegrationSyncResult,
+  MeetingSummaryDTO,
   PersonDTO,
   PersonExternalLinkDTO,
   PersonTimelineDTO,
@@ -41,6 +42,11 @@ export function PersonPage() {
   const [docMsg, setDocMsg] = useState<string | null>(null);
   const [captureMsg, setCaptureMsg] = useState<string | null>(null);
   const [concerns, setConcerns] = useState<ConcernLogDTO[]>([]);
+  const [meetings, setMeetings] = useState<MeetingSummaryDTO[]>([]);
+  const [meetTitle, setMeetTitle] = useState("");
+  const [meetTranscript, setMeetTranscript] = useState("");
+  const [meetConsent, setMeetConsent] = useState(false);
+  const [meetUseAi, setMeetUseAi] = useState(false);
   const [concernTitle, setConcernTitle] = useState("");
   const [concernBody, setConcernBody] = useState("");
   const [concernExpectation, setConcernExpectation] = useState("");
@@ -63,6 +69,11 @@ export function PersonPage() {
       setConcerns(res.items);
     } catch {
       setConcerns([]);
+    }
+    try {
+      setMeetings(await api<MeetingSummaryDTO[]>(`/api/people/${id}/meeting-summaries`));
+    } catch {
+      setMeetings([]);
     }
     try {
       const links = await api<{ items: PersonExternalLinkDTO[] }>(`/api/people/${id}/external-links`);
@@ -476,6 +487,81 @@ export function PersonPage() {
       </div>
 
       {captureMsg && <p className="muted">{captureMsg}</p>}
+
+      <div className="panel stack">
+        <h2>Meeting summaries</h2>
+        <p className="muted">
+          Structured notes from 1:1s / meetings. Default visibility is <strong>EM only</strong>. Raw transcripts stay
+          private on the dossier. Confirm consent before storing — local vault notes are not a legal privilege.
+        </p>
+        {meetings.length === 0 ? (
+          <p className="muted">No meeting summaries yet.</p>
+        ) : (
+          <ul>
+            {meetings.map((m) => (
+              <li key={m.id} style={{ marginBottom: 10 }}>
+                <strong>{m.title}</strong>{" "}
+                <span className="muted">
+                  {m.occurredAt} · {m.visibility}
+                  {m.themes.length ? ` · ${m.themes.join(", ")}` : ""}
+                </span>
+                <p style={{ margin: "4px 0", whiteSpace: "pre-wrap" }}>{m.summaryText}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          className="stack"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!id) return;
+            await api(`/api/people/${id}/meeting-summaries`, {
+              method: "POST",
+              body: JSON.stringify({
+                title: meetTitle || "1:1 notes",
+                transcript: meetTranscript,
+                consentNoted: meetConsent,
+                useAi: meetUseAi,
+                visibility: "em_only",
+              }),
+            });
+            setMeetTitle("");
+            setMeetTranscript("");
+            setMeetConsent(false);
+            setCaptureMsg("Meeting summary saved (em_only)");
+            await load();
+          }}
+        >
+          <div className="field">
+            <label>Title</label>
+            <input value={meetTitle} onChange={(e) => setMeetTitle(e.target.value)} placeholder="1:1 — week of…" />
+          </div>
+          <div className="field">
+            <label>Transcript / paste</label>
+            <textarea
+              value={meetTranscript}
+              onChange={(e) => setMeetTranscript(e.target.value)}
+              required
+              rows={6}
+              placeholder="Paste notes or transcript…"
+            />
+          </div>
+          <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={meetConsent} onChange={(e) => setMeetConsent(e.target.checked)} required />
+            <span>
+              I confirmed with the participant (or policy) that these notes may be stored in my local EM vault. Private
+              by default — not legal privilege or HRIS custody.
+            </span>
+          </label>
+          <label className="row" style={{ gap: 8 }}>
+            <input type="checkbox" checked={meetUseAi} onChange={(e) => setMeetUseAi(e.target.checked)} />
+            <span>Use AI to summarize (requires Settings → AI / meeting egress or local-only)</span>
+          </label>
+          <button className="btn" type="submit" disabled={!meetConsent || !meetTranscript.trim()}>
+            Save meeting summary
+          </button>
+        </form>
+      </div>
 
       <div className="panel stack">
         <h2>Concern log</h2>

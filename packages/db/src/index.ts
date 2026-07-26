@@ -49,7 +49,10 @@ CREATE TABLE IF NOT EXISTS role_framework_versions (
   version_label TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'published',
   published_at TEXT NOT NULL,
-  source_filename TEXT
+  source_filename TEXT,
+  owner_name TEXT,
+  effective_from TEXT,
+  effective_to TEXT
 );
 
 CREATE TABLE IF NOT EXISTS role_definitions (
@@ -89,7 +92,8 @@ CREATE TABLE IF NOT EXISTS cycles (
   window_start TEXT NOT NULL,
   window_end TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  framework_version_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS cycle_participants (
@@ -232,6 +236,20 @@ CREATE TABLE IF NOT EXISTS concern_logs (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS meeting_summaries (
+  id TEXT PRIMARY KEY,
+  person_id TEXT NOT NULL,
+  source_document_id TEXT,
+  occurred_at TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary_text TEXT NOT NULL,
+  themes_json TEXT NOT NULL DEFAULT '[]',
+  visibility TEXT NOT NULL DEFAULT 'em_only',
+  consent_noted INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ai_settings (
   id TEXT PRIMARY KEY,
   enabled INTEGER NOT NULL DEFAULT 0,
@@ -316,6 +334,10 @@ export function openDatabase(dbPath: string): { sqlite: Database.Database; db: D
     "ALTER TABLE achievements ADD COLUMN external_id TEXT",
     "ALTER TABLE achievements ADD COLUMN external_url TEXT",
     "ALTER TABLE achievements ADD COLUMN external_payload_json TEXT",
+    "ALTER TABLE role_framework_versions ADD COLUMN owner_name TEXT",
+    "ALTER TABLE role_framework_versions ADD COLUMN effective_from TEXT",
+    "ALTER TABLE role_framework_versions ADD COLUMN effective_to TEXT",
+    "ALTER TABLE cycles ADD COLUMN framework_version_id TEXT",
   ]) {
     try {
       sqlite.exec(col);
@@ -323,6 +345,28 @@ export function openDatabase(dbPath: string): { sqlite: Database.Database; db: D
       /* column exists */
     }
   }
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS meeting_summaries (
+      id TEXT PRIMARY KEY,
+      person_id TEXT NOT NULL,
+      source_document_id TEXT,
+      occurred_at TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary_text TEXT NOT NULL,
+      themes_json TEXT NOT NULL DEFAULT '[]',
+      visibility TEXT NOT NULL DEFAULT 'em_only',
+      consent_noted INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE VIRTUAL TABLE IF NOT EXISTS reviews_fts USING fts5(
+      review_id UNINDEXED,
+      person_name,
+      cycle_name,
+      body,
+      tokenize = 'porter'
+    );
+  `);
   sqlite.exec(`
     CREATE TRIGGER IF NOT EXISTS activity_events_no_update
     BEFORE UPDATE ON activity_events

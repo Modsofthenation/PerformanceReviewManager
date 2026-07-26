@@ -33,6 +33,7 @@ upload role R&R → tag people → year-round dossier
 | Subject export | Done | HTML (+ Print→PDF tip); requires finalized/shared; strips `private_notes` / `em_only`; redacts peer names in cites |
 | Consistency + bias + faithfulness | Partial | Advisory invention checks + golden eval set + cite/soften actions — not fairness certification |
 | Continuous 1:1 themes | Done | Feedback notes accept comma-separated theme tags; included in AI evidence context |
+| Meeting summaries | Done | Structured MeetingSummary (em_only default + consent); optional AI; raw transcript kept private |
 | Jira + Bitbucket integrations | Done | Settings credentials (encrypted); person account link; sync tickets/merged PRs into achievements |
 | Decision log + audit pack | Done* | Append-only triggers; verify + HMAC export in Settings. *Tamper-evident / EM-keyed — not external legal custody (TRUST_MODEL) |
 | Promotion packets | Done | Next-role marks + AI case draft |
@@ -42,10 +43,22 @@ upload role R&R → tag people → year-round dossier
 
 ## Remaining gaps (honest)
 
-1. **Faithfulness depth** — golden eval set + cite/soften actions exist; still not a full groundedness model eval.
+1. **Faithfulness model eval** — expanded golden heuristics + apply-all fixes on the writing desk; still not a full groundedness model eval / injection suite.
 2. **External / multi-party audit custody** — local HMAC pack is still EM-controlled; not WORM / HRIS-grade.
-3. **Deadline delivery** — mailto / copy only while the app is open; no Slack or scheduled OS notifications.
-4. **Meeting transcript → summary** — egress gate exists; structured MeetingSummary entity still planned.
+3. **Deadline delivery when app closed** — OS Notification API + due-this-week tray while open; no scheduled background agent.
+4. **Signed auto-update** — Settings “Check for updates” hits GitHub Releases; Tauri updater + code-signing keys still needed for silent install.
+
+## Shipped in P1 core-loop slice
+
+| Item | Notes |
+|------|--------|
+| MeetingSummary | Person page paste/AI summarize; `em_only` default; consent gate; raw transcript stored as private doc |
+| Faithfulness depth | Allowlist always built with cycle/person; Apply all fixes; expanded golden evals |
+| Due this week | `/api/due-this-week` + Home sticky tray + session OS notification |
+| Calibration bundles | Consistency page export/import director decisions |
+| Framework polish | Owner/effective dates, insufficient warnings, migrate & publish |
+| Search + stagnation | FTS on finalized reviews; `/search` page; flat/thin heuristics |
+| Desktop reliability | Same-origin UI serve (PR #25 lineage); version IPC; update check in Settings |
 
 ## Explicit non-goals (unchanged)
 

@@ -27,6 +27,7 @@ import {
   roleFrameworks,
   workspace,
   concernLogs,
+  meetingSummaries,
   integrationSettings,
   personExternalLinks,
 } from "@prm/db";
@@ -60,6 +61,7 @@ import {
   encryptSecret,
   encryptionStatus,
   getDb,
+  getSqlite,
   getSessionToken,
   getWorkspaceSecret,
   id,
@@ -92,6 +94,8 @@ import {
 import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations.js";
 import { runBiasToneLint } from "./bias.js";
 import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
+import { registerP1Routes } from "./p1Routes.js";
+import { indexReviewFts } from "./reviewSearch.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import { localPeerSynthesize } from "./peerSynth.js";
 import { bitbucketSearchMembers, bitbucketTestConnection } from "./bitbucket.js";
@@ -547,6 +551,25 @@ function ensurePublishedVersion() {
   return db.select().from(roleFrameworkVersions).where(eq(roleFrameworkVersions.id, fwvId)).all()[0]!;
 }
 
+function frameworkInsufficient(versionId: string): string[] {
+  const db = getDb();
+  const warnings: string[] = [];
+  const roles = db.select().from(roleDefinitions).where(eq(roleDefinitions.frameworkVersionId, versionId)).all();
+  if (roles.length === 0) warnings.push("No role definitions in the published version.");
+  const keys = new Set(roles.map((r) => r.key));
+  for (const role of roles) {
+    const exps = db.select().from(roleExpectations).where(eq(roleExpectations.roleDefinitionId, role.id)).all();
+    if (exps.length === 0) warnings.push(`Role “${role.title}” has no expectations.`);
+    for (const next of JSON.parse(role.nextRoleKeysJson) as string[]) {
+      if (!keys.has(next)) warnings.push(`Role “${role.title}” points to missing next key “${next}”.`);
+    }
+  }
+  const directs = db.select().from(people).all().filter((p) => p.managerId && p.status === "active");
+  const unassigned = directs.filter((p) => !assignmentFor(p.id));
+  if (unassigned.length) warnings.push(`${unassigned.length} active direct(s) have no role assignment.`);
+  return warnings;
+}
+
 function frameworkInfo(): RoleFrameworkInfo | null {
   const db = getDb();
   const version = getPublishedVersion();
@@ -564,6 +587,10 @@ function frameworkInfo(): RoleFrameworkInfo | null {
     versionLabel: version.versionLabel,
     sourceFilename: version.sourceFilename,
     roleCount,
+    ownerName: version.ownerName ?? null,
+    effectiveFrom: version.effectiveFrom ?? null,
+    effectiveTo: version.effectiveTo ?? null,
+    insufficient: frameworkInsufficient(version.id),
   };
 }
 
@@ -1751,6 +1778,19 @@ app.put("/api/reviews/manager", async (c) => {
       evidenceLinks: links.length,
       timelineEntries: frozenTimeline.length,
     });
+
+    try {
+      const person = db.select().from(people).where(eq(people.id, body.subjectPersonId)).all()[0];
+      const cycle = db.select().from(cycles).where(eq(cycles.id, body.cycleId)).all()[0];
+      indexReviewFts(getSqlite(), {
+        reviewId,
+        personName: person?.name ?? "",
+        cycleName: cycle?.name ?? "",
+        body: narrative,
+      });
+    } catch {
+      /* FTS optional */
+    }
   }
 
   if (ratingChanges.length && reviewId) {
@@ -3260,8 +3300,8 @@ app.post("/api/ai/bias-lint", async (c) => {
   }>();
   let text = body.text?.trim() ?? "";
   let allowlist: string[] = [];
-  if (!text && body.cycleId && body.personId) {
-    const db = getDb();
+  const db = getDb();
+  if (body.cycleId && body.personId) {
     const manager = db
       .select()
       .from(reviews)
@@ -3274,28 +3314,32 @@ app.post("/api/ai/bias-lint", async (c) => {
       )
       .all()
       .find((r) => r.status !== "superseded");
-    if (manager) {
+    if (!text && manager) {
       const p = JSON.parse(manager.payloadJson) as Record<string, unknown>;
       text = [p.summary, p.strengths, p.growth_areas, p.dev_plan, p.role_fit].map((x) => String(x ?? "")).join("\n\n");
+    }
+    if (manager) {
       allowlist = db
         .select()
         .from(evidenceLinks)
         .where(eq(evidenceLinks.reviewId, manager.id))
         .all()
         .map((l) => l.sourceId);
-      allowlist.push(
-        ...db.select().from(achievements).where(eq(achievements.personId, body.personId)).all().map((a) => a.id),
-        ...db.select().from(goals).where(eq(goals.personId, body.personId)).all().map((g) => g.id),
-        ...db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, body.personId)).all().map((f) => f.id),
-        ...db.select().from(documents).where(eq(documents.personId, body.personId)).all().map((d) => d.id),
-      );
     }
+    allowlist.push(
+      ...db.select().from(achievements).where(eq(achievements.personId, body.personId)).all().map((a) => a.id),
+      ...db.select().from(goals).where(eq(goals.personId, body.personId)).all().map((g) => g.id),
+      ...db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, body.personId)).all().map((f) => f.id),
+      ...db.select().from(documents).where(eq(documents.personId, body.personId)).all().map((d) => d.id),
+      ...db.select().from(meetingSummaries).where(eq(meetingSummaries.personId, body.personId)).all().map((m) => m.id),
+    );
+    allowlist = [...new Set(allowlist)];
   }
   const findings = mergeLintFindings(
     runBiasToneLint(text),
     runFaithfulnessLint(text, allowlist),
   );
-  return c.json({ findings, ephemeral: true });
+  return c.json({ findings, ephemeral: true, allowlistSize: allowlist.length });
 });
 
 app.get("/api/sprint-pulse", (c) => {
@@ -3832,6 +3876,25 @@ app.get("/api/exports/promotion/:id", (c) => {
       "content-disposition": `inline; filename="promo-${(person?.name ?? "case").replace(/\s+/g, "-").toLowerCase()}.html"`,
     },
   });
+});
+
+registerP1Routes(app, {
+  loadRole,
+  assignmentFor,
+  getPublishedVersion: () => {
+    const v = getPublishedVersion();
+    if (!v) return null;
+    return {
+      id: v.id,
+      frameworkId: v.frameworkId,
+      versionLabel: v.versionLabel,
+      sourceFilename: v.sourceFilename,
+      ownerName: v.ownerName ?? null,
+      effectiveFrom: v.effectiveFrom ?? null,
+      effectiveTo: v.effectiveTo ?? null,
+    };
+  },
+  frameworkInsufficient,
 });
 
 /** Packaged desktop: serve the Vite UI from PRM_UI_DIR so the webview is same-origin with /api. */

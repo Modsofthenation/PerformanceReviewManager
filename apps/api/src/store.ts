@@ -166,6 +166,12 @@ export function getDb(): Db {
   return dbHandle;
 }
 
+export function getSqlite() {
+  getDb();
+  if (!sqliteHandle) throw new Error("Workspace locked or not initialized");
+  return sqliteHandle;
+}
+
 export function isInitialized(): boolean {
   return Boolean(readVault()) || existsSync(DB_PATH) || existsSync(DB_ENC_PATH);
 }

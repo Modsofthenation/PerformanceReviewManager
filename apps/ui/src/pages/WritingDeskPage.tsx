@@ -923,26 +923,65 @@ export function WritingDeskPage() {
           <div className="panel" style={{ background: "var(--panel-alt)" }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <h3 style={{ margin: 0 }}>Bias / faithfulness lint</h3>
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={async () => {
-                  const res = await api<{ findings: BiasFinding[] }>("/api/ai/bias-lint", {
-                    method: "POST",
-                    body: JSON.stringify({
-                      cycleId,
-                      personId,
-                      text: [summary, strengths, growth, devPlan, roleFit].join("\n\n"),
-                    }),
-                  });
-                  setBiasFindings(res.findings);
-                }}
-              >
-                Run lint
-              </button>
+              <div className="row" style={{ gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={async () => {
+                    const res = await api<{ findings: BiasFinding[] }>("/api/ai/bias-lint", {
+                      method: "POST",
+                      body: JSON.stringify({
+                        cycleId,
+                        personId,
+                        text: [summary, strengths, growth, devPlan, roleFit].join("\n\n"),
+                      }),
+                    });
+                    setBiasFindings(res.findings);
+                  }}
+                >
+                  Run lint
+                </button>
+                {!finalized && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={async () => {
+                      const res = await api<{
+                        fields: Record<string, string>;
+                        applied: number;
+                        findings: BiasFinding[];
+                      }>("/api/ai/apply-all-faithfulness-fixes", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          cycleId,
+                          personId,
+                          fields: {
+                            summary,
+                            strengths,
+                            growth_areas: growth,
+                            dev_plan: devPlan,
+                            role_fit: roleFit,
+                          },
+                        }),
+                      });
+                      markDirty();
+                      setSummary(res.fields.summary ?? summary);
+                      setStrengths(res.fields.strengths ?? strengths);
+                      setGrowth(res.fields.growth_areas ?? growth);
+                      setDevPlan(res.fields.dev_plan ?? devPlan);
+                      setRoleFit(res.fields.role_fit ?? roleFit);
+                      setBiasFindings(res.findings);
+                      setStatus(`Applied ${res.applied} faithfulness fix(es)`);
+                    }}
+                  >
+                    Apply all fixes
+                  </button>
+                )}
+              </div>
             </div>
             <p className="muted">
-              Advisory only — ephemeral findings. Use cite/soften to patch draft text in place.
+              Advisory groundedness checks. Cite/soften patches draft text in place; allowlist is built from this
+              person’s evidence.
             </p>
             {biasFindings && (
               <ul className="bias-list">

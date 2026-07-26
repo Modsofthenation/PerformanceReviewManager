@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CycleDTO, CycleStatsDTO, DeadlineNudge, WorkspaceStatus } from "@prm/shared";
+import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -37,6 +37,7 @@ export function HomePage() {
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [thinEvidenceCount, setThinEvidenceCount] = useState(0);
   const [nudges, setNudges] = useState<DeadlineNudge[]>([]);
+  const [dueWeek, setDueWeek] = useState<DueThisWeekItem[]>([]);
   const [nudgeDays, setNudgeDays] = useState<number | null>(null);
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
   const [cycleStats, setCycleStats] = useState<CycleStatsDTO | null>(null);
@@ -49,6 +50,27 @@ export function HomePage() {
     api<WorkspaceStatus>("/api/workspace/status").then((s) => {
       setThinEvidenceCount(s.thinEvidenceCount ?? 0);
     });
+    api<{ items: DueThisWeekItem[] }>("/api/due-this-week?days=7")
+      .then(async (r) => {
+        setDueWeek(r.items);
+        const actionable = r.items.filter((i) => i.missingSelf || i.managerStatus === "missing" || i.managerStatus === "draft");
+        if (actionable.length && typeof Notification !== "undefined") {
+          const key = `prm_due_notify_${new Date().toISOString().slice(0, 10)}`;
+          if (sessionStorage.getItem(key)) return;
+          const show = () => {
+            new Notification("PRM — due this week", {
+              body: `${actionable.length} person(s) need attention before cycle window ends.`,
+            });
+            sessionStorage.setItem(key, "1");
+          };
+          if (Notification.permission === "granted") show();
+          else if (Notification.permission !== "denied") {
+            const perm = await Notification.requestPermission();
+            if (perm === "granted") show();
+          }
+        }
+      })
+      .catch(() => setDueWeek([]));
   }, []);
 
   useEffect(() => {
@@ -198,6 +220,29 @@ export function HomePage() {
         </select>
         {active && <span className="muted">{active.windowStart} → {active.windowEnd} · {active.status}</span>}
       </div>
+
+      {dueWeek.length > 0 && (
+        <div className="panel stack" style={{ borderColor: "var(--warn, #c4a35a)" }}>
+          <h2 style={{ margin: 0 }}>Due this week</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Sticky tray for cycle work ending within 7 days. OS notification fires once per session when permission is
+            granted (app must be open).
+          </p>
+          <ul>
+            {dueWeek.slice(0, 12).map((d) => (
+              <li key={`${d.cycleId}-${d.personId}`}>
+                <Link to={`/cycles/${d.cycleId}/write/${d.personId}`}>
+                  <strong>{d.personName}</strong>
+                </Link>{" "}
+                <span className="muted">
+                  {d.cycleName} · {d.daysUntilDue}d · mgr {d.managerStatus}
+                  {d.missingSelf ? " · missing self" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {cycleStats && (
         <div className="panel stack">
