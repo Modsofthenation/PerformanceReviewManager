@@ -176,6 +176,21 @@ fn append_log(path: &Path, line: &str) {
   }
 }
 
+/// Strip Windows `\\?\` / `\\?\UNC\` prefixes so Node can resolve the main script.
+///
+/// Tauri `resource_dir()` often returns verbatim paths. Node's module loader then
+/// mis-parses them and dies with `EISDIR: illegal operation on a directory, lstat 'C:'`.
+fn strip_windows_verbatim(path: &Path) -> PathBuf {
+  let s = path.to_string_lossy();
+  if let Some(rest) = s.strip_prefix(r"\\?\") {
+    if let Some(unc) = rest.strip_prefix(r"UNC\") {
+      return PathBuf::from(format!(r"\\{unc}"));
+    }
+    return PathBuf::from(rest);
+  }
+  path.to_path_buf()
+}
+
 /// Spawn the local Node API when a bundled sidecar exists or `PRM_SPAWN_API=1`.
 fn maybe_spawn_api(
   token: &str,
@@ -215,13 +230,16 @@ fn maybe_spawn_api(
     } else {
       dir.join("node")
     };
+    // Prefer relative entry + cwd so Node never sees a verbatim absolute script path.
+    let safe_cwd = strip_windows_verbatim(&dir);
     if bundled_node.exists() {
-      program = Some(bundled_node);
+      let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+      program = Some(safe_cwd.join(node_name));
     } else {
       program = Some(PathBuf::from("node"));
     }
-    args = vec![script];
-    cwd = Some(dir);
+    args = vec![PathBuf::from("prm-api.mjs")];
+    cwd = Some(safe_cwd);
     break;
   }
 
@@ -243,7 +261,9 @@ fn maybe_spawn_api(
     }
   };
 
-  let _ = fs::create_dir_all(data);
+  let data = strip_windows_verbatim(data);
+  let ui_dir = ui_dir.map(strip_windows_verbatim);
+  let _ = fs::create_dir_all(&data);
   append_log(
     log_path,
     &format!(
@@ -251,7 +271,10 @@ fn maybe_spawn_api(
       program.display(),
       cwd.display(),
       data.display(),
-      ui_dir.map(|p| p.display().to_string()).unwrap_or_else(|| "(none)".into())
+      ui_dir
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "(none)".into())
     ),
   );
 
@@ -276,12 +299,12 @@ fn maybe_spawn_api(
     .args(&args)
     .current_dir(&cwd)
     .env("PRM_LAUNCH_TOKEN", token)
-    .env("PRM_DATA_DIR", data)
+    .env("PRM_DATA_DIR", &data)
     .env("PRM_PORT", port.to_string())
     .stdin(Stdio::null())
     .stdout(Stdio::from(child_log))
     .stderr(Stdio::from(child_err));
-  if let Some(ui) = ui_dir {
+  if let Some(ref ui) = ui_dir {
     command.env("PRM_UI_DIR", ui);
   }
   // GUI subsystem apps on Windows must not attach a console to Node or spawn can hang/fail.
@@ -462,4 +485,34 @@ fn main() {
         }
       }
     });
+}
+
+#[cfg(test)]
+mod tests {
+  use super::strip_windows_verbatim;
+  use std::path::{Path, PathBuf};
+
+  #[test]
+  fn strips_extended_length_prefix() {
+    let p = Path::new(r"\\?\C:\Program Files\Performance Review Manager\sidecars");
+    assert_eq!(
+      strip_windows_verbatim(p),
+      PathBuf::from(r"C:\Program Files\Performance Review Manager\sidecars")
+    );
+  }
+
+  #[test]
+  fn strips_unc_verbatim_prefix() {
+    let p = Path::new(r"\\?\UNC\server\share\sidecars");
+    assert_eq!(
+      strip_windows_verbatim(p),
+      PathBuf::from(r"\\server\share\sidecars")
+    );
+  }
+
+  #[test]
+  fn leaves_normal_paths_alone() {
+    let p = Path::new(r"C:\Program Files\sidecars");
+    assert_eq!(strip_windows_verbatim(p), p);
+  }
 }

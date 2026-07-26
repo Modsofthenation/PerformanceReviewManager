@@ -40,7 +40,7 @@ pnpm desktop:build
 
 At runtime the shell resolves `sidecars/` from the app resource dir (or `PRM_API_SIDECAR_DIR`), spawns bundled Node with the API entry, sets `PRM_LAUNCH_TOKEN` / `PRM_DATA_DIR` / `PRM_UI_DIR`, waits until `/api/health` responds, then opens the webview at the API origin (same-origin `/api` + static UI from `ui-dist/`). On exit it kills the child — one process from the user’s point of view.
 
-On Windows the Node child is spawned with `CREATE_NO_WINDOW`. Sidecar stdout/stderr append to `%APPDATA%\com.prm.workbench\desktop-api.log`.
+On Windows the Node child is spawned with `CREATE_NO_WINDOW`. Sidecar stdout/stderr append to `%APPDATA%\com.prm.workbench\desktop-api.log`. Tauri resource paths often use the `\\?\` extended prefix — the shell strips that (and passes a relative `prm-api.mjs` with cwd = sidecars) so Node does not crash with `EISDIR: lstat 'C:'`.
 
 ### Updates
 
