@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IntegrationSettingsDTO, IntegrationSyncResult } from "@prm/shared";
 import { api } from "../lib/api";
+import { Section } from "./PageChrome";
 
 type IntegrationsState = {
   jira: IntegrationSettingsDTO;
@@ -48,12 +49,48 @@ export function IntegrationsPanel() {
   const jiraExtra = state.jira.extra ?? {};
 
   return (
-    <div className="panel stack">
-      <h2>Integrations</h2>
-      <p className="muted">
-        Pull cycle-scoped Jira / Linear issues and merged Bitbucket / GitHub PRs into each person’s dossier as
-        achievements (citable on the writing desk). Tokens are encrypted with the workspace secret.
-        Sync is explicit egress — no leaderboards, LOC scores, or Slack mining.
+    <Section
+      id="settings-integrations"
+      title="Integrations"
+      when="Connect trackers when you want cycle-scoped issues and merged PRs as citable dossier achievements."
+      how="Enable a provider, save credentials (encrypted with the workspace secret), test, then sync linked people."
+      action={
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const res = await api<{ count: number; results: IntegrationSyncResult[] }>(
+                "/api/integrations/sync-all",
+                { method: "POST", body: "{}" },
+              );
+              const imported = res.results.reduce(
+                (n, r) =>
+                  n +
+                  r.jira.imported +
+                  r.bitbucket.imported +
+                  r.github.imported +
+                  (r.linear?.imported ?? 0),
+                0,
+              );
+              setMsg(`Synced ${res.count} linked people (${imported} new achievements)`);
+              await load();
+            } catch (err) {
+              setMsg(err instanceof Error ? err.message : "Sync-all failed");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Sync all linked people
+        </button>
+      }
+    >
+      <p className="muted" style={{ marginTop: 0 }}>
+        Sync is explicit egress — no leaderboards, LOC scores, or Slack mining. Link each direct’s accounts
+        on their person page, then sync there or use Sync all above (active review cycle window).
       </p>
 
       <form
@@ -143,7 +180,7 @@ export function IntegrationsPanel() {
         </div>
         <div className="cta-primary-row">
           <button className="btn" disabled={busy}>
-            Save Jira
+            Save Jira settings
           </button>
           <button
             type="button"
@@ -164,7 +201,7 @@ export function IntegrationsPanel() {
               }
             }}
           >
-            Test Jira
+            Test Jira connection
           </button>
         </div>
         {state.jira.lastSyncAt && (
@@ -250,7 +287,7 @@ export function IntegrationsPanel() {
         </div>
         <div className="cta-primary-row">
           <button className="btn" disabled={busy}>
-            Save Bitbucket
+            Save Bitbucket settings
           </button>
           <button
             type="button"
@@ -275,7 +312,7 @@ export function IntegrationsPanel() {
               }
             }}
           >
-            Test Bitbucket
+            Test Bitbucket connection
           </button>
         </div>
         {state.bitbucket.lastSyncAt && (
@@ -357,7 +394,7 @@ export function IntegrationsPanel() {
         </div>
         <div className="cta-primary-row">
           <button className="btn" disabled={busy}>
-            Save GitHub
+            Save GitHub settings
           </button>
           <button
             type="button"
@@ -378,38 +415,7 @@ export function IntegrationsPanel() {
               }
             }}
           >
-            Test GitHub
-          </button>
-          <button
-            type="button"
-            className="btn secondary"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const res = await api<{ count: number; results: IntegrationSyncResult[] }>(
-                  "/api/integrations/sync-all",
-                  { method: "POST", body: "{}" },
-                );
-                const imported = res.results.reduce(
-                  (n, r) =>
-                    n +
-                    r.jira.imported +
-                    r.bitbucket.imported +
-                    r.github.imported +
-                    (r.linear?.imported ?? 0),
-                  0,
-                );
-                setMsg(`Synced ${res.count} linked people (${imported} new achievements)`);
-                await load();
-              } catch (err) {
-                setMsg(err instanceof Error ? err.message : "Sync-all failed");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            Sync all linked people
+            Test GitHub connection
           </button>
         </div>
         {state.github.lastSyncAt && (
@@ -489,7 +495,7 @@ export function IntegrationsPanel() {
         </div>
         <div className="cta-primary-row">
           <button className="btn" disabled={busy}>
-            Save Linear
+            Save Linear settings
           </button>
           <button
             type="button"
@@ -510,17 +516,13 @@ export function IntegrationsPanel() {
               }
             }}
           >
-            Test Linear
+            Test Linear connection
           </button>
         </div>
         {state.linear.lastSyncAt && <p className="muted">Last sync: {state.linear.lastSyncAt}</p>}
       </form>
 
-      <p className="muted">
-        Link each direct’s Jira / Bitbucket / GitHub / Linear account on their person page, then sync there or use Sync
-        all above. Sync uses the active review cycle window.
-      </p>
       {msg && <p className="muted">{msg}</p>}
-    </div>
+    </Section>
   );
 }

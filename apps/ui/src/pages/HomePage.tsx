@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DirectorAttentionDTO, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 import { OnboardingWizard } from "../components/OnboardingWizard";
 
@@ -259,23 +259,46 @@ export function HomePage() {
           { id: "home-queue", label: "Queue" },
         ]}
       >
-      <div className="panel row page-section" id="home-cycle">
-        <label className="muted">Cycle</label>
-        <select value={cycleId ?? ""} onChange={(e) => setCycleId(e.target.value || null)}>
-          {cycles.length === 0 && <option value="">No cycles yet</option>}
-          {cycles.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        {active && <span className="muted">{active.windowStart} → {active.windowEnd} · {active.status}</span>}
-      </div>
+      <Section
+        id="home-cycle"
+        title="Active cycle"
+        when="Switch cycles when you start a new review window or need to revisit a closed one."
+        how="Pick the cycle below. The rest of this page filters to that window’s pipeline and flags."
+      >
+        <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+          <label className="muted" htmlFor="home-cycle-select">
+            Cycle
+          </label>
+          <select
+            id="home-cycle-select"
+            value={cycleId ?? ""}
+            onChange={(e) => setCycleId(e.target.value || null)}
+          >
+            {cycles.length === 0 && <option value="">No cycles yet</option>}
+            {cycles.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          {active && (
+            <span className="muted">
+              {active.windowStart} → {active.windowEnd} · {active.status}
+            </span>
+          )}
+        </div>
+      </Section>
 
       {attention && attention.items.length > 0 && (
-        <div className="panel stack page-section" id="home-attention">
-          <h2 style={{ margin: 0 }}>Needs director attention</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Flags only — stagnant ratings, thin evidence, promo-ready, open concern counts. No private note bodies.
-          </p>
+        <Section
+          id="home-attention"
+          title="Needs director attention"
+          when="Use before a skip-level or calibration conversation — flags only, no private note bodies."
+          how="Scan reasons, open a writing desk to fix evidence, or jump to consistency / director packs."
+          action={
+            <Link className="btn" to={`/consistency?cycleId=${attention.cycleId}`}>
+              Open consistency packs
+            </Link>
+          }
+        >
           <ul>
             {attention.items.slice(0, 10).map((item) => (
               <li key={item.personId}>
@@ -286,25 +309,26 @@ export function HomePage() {
                   {item.reasons.join(" · ")}
                   {item.overall != null ? ` · overall ${item.overall}` : ""}
                 </span>{" "}
-                <Link className="btn ghost" to={`/cycles/${attention.cycleId}/write/${item.personId}`}>
-                  Desk
+                <Link
+                  className="btn secondary"
+                  to={`/cycles/${attention.cycleId}/write/${item.personId}`}
+                >
+                  Open writing desk
                 </Link>
               </li>
             ))}
           </ul>
-          <Link className="btn secondary" to={`/consistency?cycleId=${attention.cycleId}`}>
-            Open consistency / director packs
-          </Link>
-        </div>
+        </Section>
       )}
 
       {dueWeek.length > 0 && (
-        <div className="panel stack page-section" id="home-due" style={{ borderColor: "var(--warn, #c4a35a)" }}>
-          <h2 style={{ margin: 0 }}>Due this week</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Sticky tray for cycle work ending within 7 days. OS notification fires once per session when permission is
-            granted (app must be open).
-          </p>
+        <Section
+          id="home-due"
+          title="Due this week"
+          when="Use in the last 7 days of a cycle window when drafts or self-reviews are still open."
+          how="Open each person’s writing desk from the list. OS notifications fire once per session if permitted."
+          className="section-due"
+        >
           <ul>
             {dueWeek.slice(0, 12).map((d) => (
               <li key={`${d.cycleId}-${d.personId}`}>
@@ -318,15 +342,29 @@ export function HomePage() {
               </li>
             ))}
           </ul>
-        </div>
+        </Section>
       )}
 
       {cycleStats && (
-        <div className="panel stack page-section" id="home-dashboard">
-          <h2 style={{ margin: 0 }}>Cycle dashboard</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Writing time, evidence coverage, and thin dossiers for {cycleStats.cycleName}.
-          </p>
+        <Section
+          id="home-dashboard"
+          title="Cycle dashboard"
+          when={`Use mid-cycle or before finalize to see whether ${cycleStats.cycleName} is on track.`}
+          how="Check writing time, evidence coverage, and thin dossiers. Open charts when the shape looks off."
+          action={
+            <>
+              <Link
+                className="btn secondary"
+                to={cycleId ? `/team-performance?cycleId=${cycleId}` : "/team-performance"}
+              >
+                Open team performance
+              </Link>
+              <Link className="btn secondary" to="/sprint-pulse">
+                Open sprint pulse
+              </Link>
+            </>
+          }
+        >
           <div className="row" style={{ flexWrap: "wrap", gap: 16 }}>
             <div>
               <div className="muted">Avg writing time</div>
@@ -358,29 +396,26 @@ export function HomePage() {
               {cycleStats.thinDossierCount > 0 ? (
                 <>
                   {" "}
-                  <Link to="/backfill">Backfill</Link>
+                  <Link className="btn secondary" to="/backfill">
+                    Open backfill
+                  </Link>
                 </>
               ) : null}
             </div>
-            <div>
-              <div className="muted">Charts</div>
-              <Link to={cycleId ? `/team-performance?cycleId=${cycleId}` : "/team-performance"}>
-                Team performance
-              </Link>
-              {" · "}
-              <Link to="/sprint-pulse">Sprint pulse</Link>
-            </div>
           </div>
-        </div>
+        </Section>
       )}
 
       {cycleId && nudges.length > 0 && (
-        <div className="panel stack page-section" id="home-nudges">
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ margin: 0 }}>Deadline nudges</h2>
+        <Section
+          id="home-nudges"
+          title="Deadline nudges"
+          when="Use when self-reviews are still missing near the cycle deadline."
+          how="Copy mailto links (or all at once) and send outside the app — ICs never log in here."
+          action={
             <button
               type="button"
-              className="btn secondary"
+              className="btn"
               onClick={async () => {
                 const text = nudges
                   .map((n) => `${n.personName}${n.email ? ` <${n.email}>` : ""} — ${n.mailtoHref}`)
@@ -393,9 +428,10 @@ export function HomePage() {
                 }
               }}
             >
-              Copy all
+              Copy all nudge links
             </button>
-          </div>
+          }
+        >
           <p className="muted" style={{ margin: 0 }}>
             {nudges.length} missing self-review
             {nudgeDays != null ? ` · ${nudgeDays} day(s) until window end` : ""}
@@ -405,15 +441,31 @@ export function HomePage() {
               <li key={n.personId}>
                 <strong>{n.personName}</strong>{" "}
                 <span className="muted">({n.selfStatus})</span>{" "}
-                <a href={n.mailtoHref}>mailto</a>
+                <a href={n.mailtoHref}>Email nudge</a>
               </li>
             ))}
           </ul>
           {nudgeMsg && <p className="muted">{nudgeMsg}</p>}
-        </div>
+        </Section>
       )}
 
-      <div className="panel page-section" id="home-queue">
+      <Section
+        id="home-queue"
+        title="Writing queue"
+        when="Use throughout the cycle to see who still needs a role, self-review, or manager draft."
+        how="Read each row’s status, then take the action in Your move — or open Cycles to export self-review packs."
+        action={
+          cycleId ? (
+            <Link className="btn secondary" to="/cycles">
+              Manage cycle roster
+            </Link>
+          ) : (
+            <Link className="btn" to="/cycles">
+              Create cycle
+            </Link>
+          )
+        }
+      >
         {items.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
             {cycleId ? "No participants in this cycle." : "Create a cycle to see your writing queue."}
@@ -422,14 +474,14 @@ export function HomePage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Person</th>
-                <th>Role</th>
-                <th>Self</th>
-                <th>Self pipeline</th>
-                <th>Peers</th>
-                <th>Peer pipeline</th>
-                <th>Manager</th>
-                <th>Your move</th>
+                <th scope="col">Person</th>
+                <th scope="col">Role</th>
+                <th scope="col">Self</th>
+                <th scope="col">Self pipeline</th>
+                <th scope="col">Peers</th>
+                <th scope="col">Peer pipeline</th>
+                <th scope="col">Manager</th>
+                <th scope="col">Your move</th>
               </tr>
             </thead>
             <tbody>
@@ -446,16 +498,30 @@ export function HomePage() {
                 } else if (needsSelf) {
                   cta = (
                     <div className="row">
-                      <Link className="btn" to="/cycles">Get self-review</Link>
-                      <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>Write</Link>
+                      <Link className="btn" to="/cycles">Export self-review pack</Link>
+                      <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>
+                        Open writing desk
+                      </Link>
                     </div>
                   );
                 } else if (finalized) {
-                  cta = <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>Open / export</Link>;
+                  cta = (
+                    <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>
+                      Open or export draft
+                    </Link>
+                  );
                 } else if (item.managerStatus === "draft") {
-                  cta = <Link className="btn" to={`/cycles/${cycleId}/write/${person.id}`}>Continue writing</Link>;
+                  cta = (
+                    <Link className="btn" to={`/cycles/${cycleId}/write/${person.id}`}>
+                      Continue writing
+                    </Link>
+                  );
                 } else {
-                  cta = <Link className="btn" to={`/cycles/${cycleId}/write/${person.id}`}>Write review</Link>;
+                  cta = (
+                    <Link className="btn" to={`/cycles/${cycleId}/write/${person.id}`}>
+                      Start writing review
+                    </Link>
+                  );
                 }
                 return (
                   <tr key={person.id}>
@@ -481,7 +547,7 @@ export function HomePage() {
             </tbody>
           </table>
         )}
-      </div>
+      </Section>
       </PageSectionsLayout>
     </div>
   );

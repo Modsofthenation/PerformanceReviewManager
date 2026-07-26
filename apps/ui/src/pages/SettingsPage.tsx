@@ -3,7 +3,7 @@ import type { AuditVerifyResult } from "@prm/shared";
 import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
 import { ACCENTS, type Accent, type ColorMode } from "../lib/theme";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
 import { RetentionPanel } from "../components/RetentionPanel";
@@ -122,19 +122,18 @@ export function SettingsPage({
               setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
             }}
           >
-            Test connection
+            Test AI connection
           </button>
         }
       />
 
       <PageSectionsLayout sections={SETTINGS_SECTIONS}>
-      <div id="settings-appearance" className="panel stack settings-section page-section">
-        <div className="panel-title">
-          <h2>Appearance</h2>
-        </div>
-        <p className="muted" style={{ marginTop: 0 }}>
-          Color mode and accent are stored in this browser. System follows your OS preference ({resolved} right now).
-        </p>
+      <Section
+        id="settings-appearance"
+        title="Appearance"
+        when="Change color mode or accent whenever the UI feels too bright, too dark, or hard to scan."
+        how={`Pick a mode and accent below. Preferences stay in this browser; System follows your OS (${resolved} right now).`}
+      >
         <div className="field">
           <label htmlFor="theme-select">Color mode</label>
           <select
@@ -177,74 +176,75 @@ export function SettingsPage({
             ))}
           </div>
         </div>
-      </div>
+      </Section>
 
-      <div id="settings-retention" className="settings-section">
-        <RetentionPanel />
-      </div>
+      <RetentionPanel />
 
-      <div id="settings-integrations" className="settings-section">
-        <IntegrationsPanel />
-      </div>
+      <IntegrationsPanel />
 
-      <div id="settings-audit" className="panel settings-section">
-        <h2>Activity audit</h2>
-        <p className="muted">
-          Hash-chained local activity log with append-only SQLite triggers. Verify recomputes the chain;
-          export signs a pack with the unlocked workspace key. Tamper-evident for this machine — not
-          external legal custody (anyone with the vault password can re-sign).
+      <Section
+        id="settings-audit"
+        title="Activity audit"
+        when="Use when you want to check that the local activity log has not been tampered with on this machine."
+        how="Verify recomputes the hash chain; export downloads a pack signed with the unlocked workspace key."
+        action={
+          <>
+            <button
+              type="button"
+              className="btn"
+              disabled={auditBusy}
+              onClick={async () => {
+                setAuditBusy(true);
+                try {
+                  const result = await api<AuditVerifyResult>("/api/activity/verify");
+                  setAudit(result);
+                  setMsg(result.ok ? `Chain OK (${result.count} events)` : `Chain broken: ${result.error}`);
+                } catch (e) {
+                  setMsg(e instanceof Error ? e.message : "Verify failed");
+                } finally {
+                  setAuditBusy(false);
+                }
+              }}
+            >
+              Verify audit chain
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={auditBusy}
+              onClick={async () => {
+                setAuditBusy(true);
+                try {
+                  const pack = await api<Record<string, unknown>>("/api/activity/export", {
+                    method: "POST",
+                    body: "{}",
+                  });
+                  const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `prm-audit-${new Date().toISOString().slice(0, 10)}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  const v = pack.verification as AuditVerifyResult | undefined;
+                  if (v) setAudit(v);
+                  setMsg("Audit pack downloaded");
+                } catch (e) {
+                  setMsg(e instanceof Error ? e.message : "Export failed");
+                } finally {
+                  setAuditBusy(false);
+                }
+              }}
+            >
+              Export signed audit pack
+            </button>
+          </>
+        }
+      >
+        <p className="muted" style={{ margin: 0 }}>
+          Append-only SQLite triggers keep a local chain. Tamper-evident for this machine — not external legal
+          custody (anyone with the vault password can re-sign).
         </p>
-        <div className="cta-primary-row">
-          <button
-            type="button"
-            className="btn"
-            disabled={auditBusy}
-            onClick={async () => {
-              setAuditBusy(true);
-              try {
-                const result = await api<AuditVerifyResult>("/api/activity/verify");
-                setAudit(result);
-                setMsg(result.ok ? `Chain OK (${result.count} events)` : `Chain broken: ${result.error}`);
-              } catch (e) {
-                setMsg(e instanceof Error ? e.message : "Verify failed");
-              } finally {
-                setAuditBusy(false);
-              }
-            }}
-          >
-            Verify chain
-          </button>
-          <button
-            type="button"
-            className="btn secondary"
-            disabled={auditBusy}
-            onClick={async () => {
-              setAuditBusy(true);
-              try {
-                const pack = await api<Record<string, unknown>>("/api/activity/export", {
-                  method: "POST",
-                  body: "{}",
-                });
-                const blob = new Blob([JSON.stringify(pack, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `prm-audit-${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-                const v = pack.verification as AuditVerifyResult | undefined;
-                if (v) setAudit(v);
-                setMsg("Audit pack downloaded");
-              } catch (e) {
-                setMsg(e instanceof Error ? e.message : "Export failed");
-              } finally {
-                setAuditBusy(false);
-              }
-            }}
-          >
-            Export signed pack
-          </button>
-        </div>
         {audit && (
           <p className="muted" style={{ marginBottom: 0 }}>
             {audit.ok ? "Intact" : "Broken"} · {audit.count} events
@@ -252,15 +252,14 @@ export function SettingsPage({
             {audit.error ? ` · ${audit.error}` : ""}
           </p>
         )}
-      </div>
+      </Section>
 
-      <div id="settings-backup" className="panel stack settings-section">
-        <h2>Backup & restore</h2>
-        <p className="muted">
-          Encrypted snapshots of the unlocked SQLite DB under data/backups. Restore replaces the live
-          database — confirm carefully.
-        </p>
-        <div className="cta-primary-row">
+      <Section
+        id="settings-backup"
+        title="Backup & restore"
+        when="Snapshot before a risky restore, purge, or workspace change; restore only when you intend to replace the live DB."
+        how="Create an encrypted snapshot under data/backups, then restore a listed file if you need to roll back."
+        action={
           <button
             type="button"
             className="btn"
@@ -281,9 +280,10 @@ export function SettingsPage({
               }
             }}
           >
-            Create backup
+            Create encrypted backup
           </button>
-        </div>
+        }
+      >
         {backups.length === 0 ? (
           <p className="muted">No backups yet.</p>
         ) : (
@@ -320,13 +320,13 @@ export function SettingsPage({
                     }
                   }}
                 >
-                  Restore
+                  Restore this backup
                 </button>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </Section>
 
       {needsKey ? (
         <NextStep
@@ -352,7 +352,7 @@ export function SettingsPage({
                 setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
               }}
             >
-              Test connection
+              Test AI connection
             </button>
           }
         />
@@ -365,10 +365,16 @@ export function SettingsPage({
         />
       )}
 
-      <div id="settings-ai" className="settings-section">
+      <Section
+        id="settings-ai"
+        title="AI"
+        when="Enable when you want grounded digests and section drafts on the writing desk; leave off to draft from packet evidence only."
+        how="Choose a provider, paste a key if needed, set models and private-tier egress, then save and test the connection."
+        action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
+      >
       <form
         id="ai-settings-form"
-        className="panel"
+        className="stack"
         onSubmit={async (e) => {
           e.preventDefault();
           await api("/api/ai/settings", {
@@ -383,7 +389,6 @@ export function SettingsPage({
           await load();
         }}
       >
-        <h2>AI</h2>
         <div className="field">
           <label>
             <input
@@ -524,21 +529,20 @@ export function SettingsPage({
               setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
             }}
           >
-            Test connection
+            Test AI connection
           </button>
         </div>
         {msg && <p className="muted">{msg}</p>}
       </form>
-      </div>
+      </Section>
 
-      <div id="settings-danger" className="panel stack settings-section">
-        <h2>Danger zone</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          Permanently erase this local workspace (database, vault, uploads, and backups), then create a
-          new empty or demo workspace. Legal hold must be off. This cannot be undone.
-        </p>
-        {!destroyOpen ? (
-          <div className="cta-primary-row">
+      <Section
+        id="settings-danger"
+        title="Danger zone"
+        when="Only when you intend to wipe this local workspace and start over (empty or demo)."
+        how="Open the form, enter the workspace password, type DELETE, then erase permanently — legal hold must be off."
+        action={
+          !destroyOpen ? (
             <button
               type="button"
               className="btn danger"
@@ -551,8 +555,14 @@ export function SettingsPage({
             >
               Delete workspace…
             </button>
-          </div>
-        ) : (
+          ) : undefined
+        }
+      >
+        <p className="muted" style={{ margin: 0 }}>
+          Permanently erase this local workspace (database, vault, uploads, and backups), then create a
+          new empty or demo workspace. This cannot be undone.
+        </p>
+        {destroyOpen ? (
           <form
             className="stack"
             onSubmit={async (e) => {
@@ -613,60 +623,65 @@ export function SettingsPage({
                   setDestroyError(null);
                 }}
               >
-                Cancel
+                Cancel delete
               </button>
             </div>
           </form>
-        )}
-      </div>
+        ) : null}
+      </Section>
 
-      <div id="settings-desktop" className="panel stack settings-section">
-        <h2>Desktop updates</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          Packaged builds serve the UI from the local API (same-origin) to avoid WebView “Failed to fetch”. Check GitHub
-          Releases for a newer installer; signed auto-update needs Tauri updater keys in CI.
-        </p>
-        <button
-          type="button"
-          className="btn secondary"
+      <Section
+        id="settings-desktop"
+        title="Desktop updates"
+        when="Use on packaged desktop builds when you want to know if a newer installer is available."
+        how="Check GitHub Releases for the latest tag versus your installed version; signed auto-update needs Tauri updater keys in CI."
+        action={
+          <button
+            type="button"
+            className="btn secondary"
             onClick={async () => {
-            try {
-              let localVersion = "0.1.0";
-              const invoke = (window as unknown as {
-                __TAURI__?: { core?: { invoke?: (cmd: string) => Promise<string> } };
-              }).__TAURI__?.core?.invoke;
-              if (invoke) {
-                try {
-                  localVersion = await invoke("get_app_version");
-                } catch {
-                  /* browser / unsigned */
+              try {
+                let localVersion = "0.1.0";
+                const invoke = (window as unknown as {
+                  __TAURI__?: { core?: { invoke?: (cmd: string) => Promise<string> } };
+                }).__TAURI__?.core?.invoke;
+                if (invoke) {
+                  try {
+                    localVersion = await invoke("get_app_version");
+                  } catch {
+                    /* browser / unsigned */
+                  }
                 }
+                const res = await fetch(
+                  "https://api.github.com/repos/Modsofthenation/PerformanceReviewManager/releases/latest",
+                  { headers: { Accept: "application/vnd.github+json" } },
+                );
+                if (!res.ok) {
+                  setMsg(`Could not reach GitHub releases (${res.status}). Download artifacts from Actions on main.`);
+                  return;
+                }
+                const json = (await res.json()) as { tag_name?: string; html_url?: string; name?: string };
+                const tag = json.tag_name ?? json.name ?? "unknown";
+                setMsg(
+                  `Installed app version ${localVersion}. Latest GitHub release: ${tag}. ${json.html_url ?? ""}`,
+                );
+              } catch (e) {
+                setMsg(
+                  e instanceof Error
+                    ? `${e.message} — use CI artifact desktop-windows-x86_64 / desktop-linux / desktop-macos`
+                    : "Update check failed",
+                );
               }
-              const res = await fetch(
-                "https://api.github.com/repos/Modsofthenation/PerformanceReviewManager/releases/latest",
-                { headers: { Accept: "application/vnd.github+json" } },
-              );
-              if (!res.ok) {
-                setMsg(`Could not reach GitHub releases (${res.status}). Download artifacts from Actions on main.`);
-                return;
-              }
-              const json = (await res.json()) as { tag_name?: string; html_url?: string; name?: string };
-              const tag = json.tag_name ?? json.name ?? "unknown";
-              setMsg(
-                `Installed app version ${localVersion}. Latest GitHub release: ${tag}. ${json.html_url ?? ""}`,
-              );
-            } catch (e) {
-              setMsg(
-                e instanceof Error
-                  ? `${e.message} — use CI artifact desktop-windows-x86_64 / desktop-linux / desktop-macos`
-                  : "Update check failed",
-              );
-            }
-          }}
-        >
-          Check for updates
-        </button>
-      </div>
+            }}
+          >
+            Check for desktop updates
+          </button>
+        }
+      >
+        <p className="muted" style={{ margin: 0 }}>
+          Packaged builds serve the UI from the local API (same-origin) to avoid WebView “Failed to fetch”.
+        </p>
+      </Section>
       </PageSectionsLayout>
     </div>
   );

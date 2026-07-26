@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { CycleDTO, PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 const PHASE_STATUSES = [
@@ -51,7 +51,7 @@ export function CyclesPage() {
         job="Export fillable JSON for self/peer reviews, send outside the app, then import completed files. ICs do not log in."
         primary={
           cycles.length === 0 ? (
-            <button className="btn" form="create-cycle-form" type="submit">Create cycle</button>
+            <button className="btn" form="create-cycle-form" type="submit">Create cycle with directs</button>
           ) : (
             <button className="btn" type="submit" form="export-bundle-form">Download JSON bundle</button>
           )
@@ -66,7 +66,7 @@ export function CyclesPage() {
           tone="warn"
           label="Create your first cycle"
           detail="A cycle snapshots your directs as participants and unlocks self/peer bundle export."
-          action={<button className="btn" form="create-cycle-form" type="submit">Create cycle (directs)</button>}
+          action={<button className="btn" form="create-cycle-form" type="submit">Create cycle with directs</button>}
         />
       ) : (
         <NextStep
@@ -90,8 +90,17 @@ export function CyclesPage() {
           { id: "import-bundle", label: "Import" },
         ]}
       >
-      <div className="panel page-section" id="cycles-list">
-        <h2>Cycles</h2>
+      <Section
+        id="cycles-list"
+        title="Cycles"
+        when="Create a cycle when a review window starts; select a row anytime to export, import, or write for that cycle."
+        how="Fill name, window, and optional due dates, then create with your current directs — or click a cycle to select it."
+        action={
+          <button className="btn" form="create-cycle-form" type="submit">
+            Create cycle with directs
+          </button>
+        }
+      >
         {cycles.length === 0 ? (
           <p className="muted">No cycles yet.</p>
         ) : (
@@ -159,17 +168,27 @@ export function CyclesPage() {
               <label>Manager due (optional)</label>
               <input type="date" value={managerDue} onChange={(e) => setManagerDue(e.target.value)} />
             </div>
-            <button className="btn secondary" style={{ alignSelf: "end" }}>Create cycle (directs)</button>
+            <button className="btn secondary" style={{ alignSelf: "end" }}>Create cycle with directs</button>
           </div>
         </form>
-      </div>
+      </Section>
 
       {selected && (
-        <div className="panel stack page-section" id="cycles-phases">
-          <h2>Phase wizard — {selected.name}</h2>
-          <p className="muted">
-            Soft gates only: advance phases when ready. Waive missing self/peer from the writing desk with a reason.
-          </p>
+        <Section
+          id="cycles-phases"
+          title={`Phase wizard — ${selected.name}`}
+          when="Advance phases when self, peer, or manager writing is ready to open or close."
+          how="Tap a phase to set soft status, or update the review window dates below. Waive missing self/peer from the writing desk with a reason."
+          action={
+            <button
+              className="btn secondary"
+              type="submit"
+              form={`cycle-window-form-${selected.id}`}
+            >
+              Update cycle window
+            </button>
+          }
+        >
           <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
             {PHASE_STATUSES.map((phase) => (
               <button
@@ -185,11 +204,12 @@ export function CyclesPage() {
                   await load();
                 }}
               >
-                {phase.label}
+                Set phase: {phase.label}
               </button>
             ))}
           </div>
           <form
+            id={`cycle-window-form-${selected.id}`}
             className="row"
             style={{ flexWrap: "wrap", gap: 8, alignItems: "end" }}
             onSubmit={async (e) => {
@@ -214,112 +234,133 @@ export function CyclesPage() {
               <label>Window end</label>
               <input type="date" name="windowEnd" defaultValue={selected.windowEnd} key={`${selected.id}-end`} />
             </div>
-            <button className="btn secondary" type="submit">Update window</button>
+            <button className="btn secondary" type="submit">Update cycle window</button>
           </form>
-        </div>
+        </Section>
       )}
 
       <div className="grid-2">
-        <form
-          id="export-bundle-form"
-          className="panel stack"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!selectedCycle || !subjectId) return;
-            const bundle = await api<Record<string, unknown>>("/api/bundles/export", {
-              method: "POST",
-              body: JSON.stringify({
-                kind: bundleKind,
-                cycleId: selectedCycle,
-                subjectPersonId: subjectId,
-                peerAuthorName: peerName || undefined,
-              }),
-            });
-            const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${bundleKind}-${(bundle.subjectName as string)?.replace(/\s+/g, "-") ?? "bundle"}.json`;
-            a.click();
-            setMessage(
-              `Bundle downloaded — ${bundleKind} pipeline marked exported. Send outside the app, then import the filled JSON below.`,
-            );
-          }}
+        <Section
+          id="cycles-export"
+          title="Export bundle"
+          when="Export when you need a fillable self or peer JSON to send outside the app (ICs never log in)."
+          how="Pick cycle, subject, and kind, then download the JSON bundle and send it outside PRM."
+          action={
+            <button
+              className="btn"
+              type="submit"
+              form="export-bundle-form"
+              disabled={!selectedCycle || !subjectId}
+            >
+              Download JSON bundle
+            </button>
+          }
         >
-          <h2>1. Export bundle</h2>
-          <div className="field">
-            <label>Cycle</label>
-            <select value={selectedCycle} onChange={(e) => setSelectedCycle(e.target.value)}>
-              {cycles.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Subject</label>
-            <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Kind</label>
-            <select value={bundleKind} onChange={(e) => setBundleKind(e.target.value as "self" | "peer")}>
-              <option value="self">Self-review</option>
-              <option value="peer">Peer feedback</option>
-            </select>
-          </div>
-          {bundleKind === "peer" && (
+          <form
+            id="export-bundle-form"
+            className="stack"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!selectedCycle || !subjectId) return;
+              const bundle = await api<Record<string, unknown>>("/api/bundles/export", {
+                method: "POST",
+                body: JSON.stringify({
+                  kind: bundleKind,
+                  cycleId: selectedCycle,
+                  subjectPersonId: subjectId,
+                  peerAuthorName: peerName || undefined,
+                }),
+              });
+              const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${bundleKind}-${(bundle.subjectName as string)?.replace(/\s+/g, "-") ?? "bundle"}.json`;
+              a.click();
+              setMessage(
+                `Bundle downloaded — ${bundleKind} pipeline marked exported. Send outside the app, then import the filled JSON below.`,
+              );
+            }}
+          >
             <div className="field">
-              <label>Peer author name</label>
-              <input value={peerName} onChange={(e) => setPeerName(e.target.value)} placeholder="Jordan Lee" />
+              <label>Cycle</label>
+              <select value={selectedCycle} onChange={(e) => setSelectedCycle(e.target.value)}>
+                {cycles.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
-          )}
-          <button className="btn" disabled={!selectedCycle || !subjectId}>Download JSON bundle</button>
-        </form>
+            <div className="field">
+              <label>Subject</label>
+              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>Kind</label>
+              <select value={bundleKind} onChange={(e) => setBundleKind(e.target.value as "self" | "peer")}>
+                <option value="self">Self-review</option>
+                <option value="peer">Peer feedback</option>
+              </select>
+            </div>
+            {bundleKind === "peer" && (
+              <div className="field">
+                <label>Peer author name</label>
+                <input value={peerName} onChange={(e) => setPeerName(e.target.value)} placeholder="Jordan Lee" />
+              </div>
+            )}
+          </form>
+        </Section>
 
-        <div className="panel stack page-section" id="import-bundle">
-          <h2>2. Import completed bundle</h2>
+        <Section
+          id="import-bundle"
+          title="Import completed bundle"
+          when="Import after the IC or peer returns a filled JSON file so evidence lands in the dossier."
+          how="Paste the completed bundle JSON, import it, then open the writing desk to draft the manager review."
+          action={
+            <button
+              className="btn"
+              disabled={!importText.trim()}
+              onClick={async () => {
+                const parsed = JSON.parse(importText) as Record<string, unknown>;
+                const fields = (parsed.fields ?? {}) as Record<string, string>;
+                if (parsed.kind === "self" && !fields.top_outcomes) {
+                  fields.top_outcomes = "Shipped reliability work; mentored a new joiner; unblocked checkout migration.";
+                  fields.growth_areas = "Take more cross-team design leadership.";
+                  fields.proposed_goals = "Own Q3 platform migration milestones.";
+                  parsed.fields = fields;
+                }
+                if (parsed.kind === "peer" && !fields.strengths) {
+                  fields.context = "Paired on API design for 6 weeks.";
+                  fields.strengths = "Clear written RFCs; calm under incident pressure.";
+                  fields.growth = "Could socialize designs earlier with partner teams.";
+                  parsed.fields = fields;
+                  parsed.peerAuthorName = parsed.peerAuthorName || "Peer Reviewer";
+                }
+                await api("/api/bundles/import", {
+                  method: "POST",
+                  body: JSON.stringify({ bundle: parsed, sourceFilename: "paste.json" }),
+                });
+                const sid = String(parsed.subjectPersonId ?? subjectId);
+                const cid = String(parsed.cycleId ?? selectedCycle);
+                setMessage("Imported. Next: open the writing desk and draft the manager review.");
+                setImportText("");
+                setSubjectId(sid);
+                setSelectedCycle(cid);
+              }}
+            >
+              Import completed JSON
+            </button>
+          }
+        >
           <div className="field">
             <label>Paste completed bundle JSON</label>
             <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder='{ "kind": "self", ... }' />
           </div>
-          <button
-            className="btn"
-            disabled={!importText.trim()}
-            onClick={async () => {
-              const parsed = JSON.parse(importText) as Record<string, unknown>;
-              const fields = (parsed.fields ?? {}) as Record<string, string>;
-              if (parsed.kind === "self" && !fields.top_outcomes) {
-                fields.top_outcomes = "Shipped reliability work; mentored a new joiner; unblocked checkout migration.";
-                fields.growth_areas = "Take more cross-team design leadership.";
-                fields.proposed_goals = "Own Q3 platform migration milestones.";
-                parsed.fields = fields;
-              }
-              if (parsed.kind === "peer" && !fields.strengths) {
-                fields.context = "Paired on API design for 6 weeks.";
-                fields.strengths = "Clear written RFCs; calm under incident pressure.";
-                fields.growth = "Could socialize designs earlier with partner teams.";
-                parsed.fields = fields;
-                parsed.peerAuthorName = parsed.peerAuthorName || "Peer Reviewer";
-              }
-              await api("/api/bundles/import", {
-                method: "POST",
-                body: JSON.stringify({ bundle: parsed, sourceFilename: "paste.json" }),
-              });
-              const sid = String(parsed.subjectPersonId ?? subjectId);
-              const cid = String(parsed.cycleId ?? selectedCycle);
-              setMessage("Imported. Next: open the writing desk and draft the manager review.");
-              setImportText("");
-              setSubjectId(sid);
-              setSelectedCycle(cid);
-            }}
-          >
-            Import completed JSON
-          </button>
           {selectedCycle && subjectId && (
             <Link className="btn secondary" to={`/cycles/${selectedCycle}/write/${subjectId}`}>
-              3. Open writing desk for {subject?.name ?? "subject"}
+              Open writing desk for {subject?.name ?? "subject"}
             </Link>
           )}
-        </div>
+        </Section>
       </div>
       {message && (
         <NextStep
