@@ -85,9 +85,9 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Keep the workspace sealed when you walk away. The unlock gate is the trust boundary for local data.
 
-**How it works:** On first run you create a workspace password and choose an empty vault or a seeded demo org. Later sessions decrypt the vault with that password. **Lock & encrypt** re-seals SQLite and files so a stolen laptop disk is not a readable review archive.
+**How it works:** On first run you create a workspace password and choose an empty vault or a seeded demo org. Later sessions decrypt the vault with that password. **Lock & encrypt** re-seals SQLite and files so a stolen laptop disk is not a readable review archive. To wipe and start over, use **Erase workspace** on Unlock or **Delete workspace** in Settings (password + type `DELETE`).
 
-![Unlock workbench](./docs/screenshots/01-unlock.png)
+![Unlock / create workbench](./docs/screenshots/01-unlock.png)
 
 ### Home (command center)
 
@@ -179,6 +179,8 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **How it works:** Pick last 7 / 14 / 30 days or a custom range. See per-person achievement volume, Jira / Bitbucket throughput, feedback themes, open concerns, and evidence freshness (in-window vs older dossier items, plus stale-only cites on manager drafts).
 
+![Sprint pulse](./docs/screenshots/20-sprint-pulse.png)
+
 ### Backfill
 
 **Intent:** Unblock writing when dossiers are still empty after you first adopt the tool.
@@ -199,7 +201,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Configure providers, privacy gates, appearance, and vault maintenance in one place.
 
-**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira and Bitbucket credentials, run encrypted backup / restore, verify the activity log, and choose appearance (system / dark / light plus Teal, Ocean, Forest, or Slate accent).
+**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira / Bitbucket / GitHub / Linear credentials, run encrypted backup / restore, verify the activity log, and choose appearance (system / dark / light plus Teal, Ocean, Forest, or Slate accent). A sticky **On this page** nav jumps between sections. **Danger zone** permanently erases the local vault so you can create a new empty or demo workspace.
 
 ![Settings](./docs/screenshots/14-settings.png)
 
@@ -218,8 +220,9 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 - **Promotions** against next-role expectations
 - **Backfill** wizard plus MCP / Jira / Bitbucket paths for thin dossiers
 - **AI**: digests, section draft, peer synthesize, chat, with citation allowlist
-- **Desktop** packaging (Tauri) with CI installers on `main`
-- **Dark / light** theme preference
+- **Desktop** packaging (Tauri); installers via Actions **Run workflow** (not on every merge)
+- **Dark / light** theme preference plus accent colors
+- **Delete / recreate workspace** from Unlock or Settings
 
 ## Docs
 
