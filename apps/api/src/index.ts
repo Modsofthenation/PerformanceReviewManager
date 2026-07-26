@@ -521,7 +521,7 @@ app.get("/api/roles", (c) => {
 
 app.get("/api/roles/framework", (c) => {
   const info = frameworkInfo();
-  return c.json(info ?? { frameworkId: null, frameworkName: null, versionId: null, versionLabel: null, sourceFilename: null, roleCount: 0 });
+  return c.json(info ?? { frameworkId: null, frameworkName: null, versionId: null, versionLabel: null, sourceFilename: null, roleCount: 0, ownerName: null, effectiveFrom: null, effectiveTo: null, insufficient: [] });
 });
 
 function getPublishedVersion() {
