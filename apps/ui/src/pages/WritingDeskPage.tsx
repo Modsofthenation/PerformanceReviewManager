@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { BiasFinding, DecisionLogEntry, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
+import type { BiasFinding, DecisionLogEntry, DeliveryCiteSuggestion, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
 type EvidenceLinkDraft = {
   targetType: string;
@@ -33,6 +34,7 @@ export function WritingDeskPage() {
   const [links, setLinks] = useState<EvidenceLinkDraft[]>([]);
   const [gaps, setGaps] = useState<Record<string, GapMark>>({});
   const [digest, setDigest] = useState<string | null>(null);
+  const [citeSuggestions, setCiteSuggestions] = useState<DeliveryCiteSuggestion[]>([]);
   const [peerSynth, setPeerSynth] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -495,6 +497,7 @@ export function WritingDeskPage() {
 
       <div className="writing">
         <div className="stack">
+          {personId ? <DeliveryRollupPanel personId={personId} cycleId={cycleId} /> : null}
           <div className="panel stack">
             <div className="row">
               <h2 style={{ flex: 1, margin: 0 }}>Evidence digest</h2>
@@ -502,17 +505,45 @@ export function WritingDeskPage() {
                 className="btn secondary"
                 type="button"
                 onClick={async () => {
-                  const res = await api<{ outputText: string }>("/api/ai/digest", {
-                    method: "POST",
-                    body: JSON.stringify({ cycleId, personId }),
-                  });
+                  const res = await api<{ outputText: string; citeSuggestions?: DeliveryCiteSuggestion[] }>(
+                    "/api/ai/digest",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({ cycleId, personId }),
+                    },
+                  );
                   setDigest(res.outputText);
+                  setCiteSuggestions(res.citeSuggestions ?? []);
                 }}
               >
                 Generate digest
               </button>
             </div>
             <div className="digest">{digest ?? "Generate a grounded digest from dossier + imports before drafting."}</div>
+            {citeSuggestions.length > 0 && (
+              <div>
+                <p className="muted" style={{ marginBottom: 4 }}>
+                  Auto-suggested cites from Done-in-window delivery
+                </p>
+                <ul className="delivery-cite-list">
+                  {citeSuggestions.map((c) => (
+                    <li key={c.achievementId}>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(c.citeToken).catch(() => undefined);
+                          setStatus(`Copied ${c.citeToken}`);
+                        }}
+                      >
+                        <code>{c.citeToken}</code>
+                      </button>{" "}
+                      {c.label} <span className="muted">({c.reason})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <div className="panel">
             <h2>Current role expectations</h2>

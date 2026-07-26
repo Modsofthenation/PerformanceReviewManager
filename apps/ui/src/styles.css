@@ -746,6 +746,19 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .tp-trend { width: 160px; height: 36px; display: block; }
 .tp-trend-line { stroke: var(--brand); stroke-width: 2; }
 .tp-trend-dot { fill: var(--brand-strong); }
+.delivery-rollup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.75rem 1rem;
+}
+.delivery-cite-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.delivery-cite-list li {
+  padding: 0.2rem 0;
+}
 .compare-track { position: relative; height: 14px; }
 .compare-fill {
   position: absolute;

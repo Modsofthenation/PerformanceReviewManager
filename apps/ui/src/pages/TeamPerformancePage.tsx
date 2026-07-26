@@ -187,6 +187,28 @@ function TrendSparkline({
   );
 }
 
+function DeliverySparkline({ values, label }: { values: number[]; label: string }) {
+  const w = 100;
+  const h = 28;
+  if (values.length < 1) return <span className="muted">—</span>;
+  const max = Math.max(1, ...values);
+  const coords = values.map((v, i) => {
+    const x = values.length === 1 ? w / 2 : (i / (values.length - 1)) * (w - 8) + 4;
+    const y = h - 4 - (v / max) * (h - 8);
+    return `${x},${y}`;
+  });
+  return (
+    <svg className="tp-trend" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label}>
+      <polyline points={coords.join(" ")} className="tp-trend-line" fill="none" />
+      {values.map((v, i) => {
+        const x = values.length === 1 ? w / 2 : (i / (values.length - 1)) * (w - 8) + 4;
+        const y = h - 4 - (v / max) * (h - 8);
+        return <circle key={i} cx={x} cy={y} r={2} className="tp-trend-dot" />;
+      })}
+    </svg>
+  );
+}
+
 export function TeamPerformancePage() {
   const [params, setParams] = useSearchParams();
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
@@ -440,6 +462,7 @@ export function TeamPerformancePage() {
                     <th>Overall</th>
                     {data.priorCycle ? <th>Δ vs prior</th> : null}
                     <th>Writing</th>
+                    <th>Delivery</th>
                     <th>Evidence</th>
                     <th>Competencies</th>
                     <th />
@@ -450,11 +473,17 @@ export function TeamPerformancePage() {
                     const delta =
                       p.overall != null && p.priorOverall != null ? p.overall - p.priorOverall : null;
                     const comps = Object.entries(p.competencies);
+                    const trend = [...(p.deliveryTrend ?? []), p.deliveryDone ?? 0];
                     return (
                       <tr key={p.personId}>
                         <td>
                           <Link to={`/team/${p.personId}`}>{p.personName}</Link>
                           {p.thin ? <span className="flag">thin</span> : null}
+                          {p.thinDeliveryEvidence ? (
+                            <span className="flag" title={p.thinDeliveryEvidence}>
+                              thin delivery
+                            </span>
+                          ) : null}
                         </td>
                         <td className="muted">{p.levelKey ?? "—"}</td>
                         <td>
@@ -467,6 +496,17 @@ export function TeamPerformancePage() {
                           </td>
                         ) : null}
                         <td>{formatMinutes(p.writingSeconds)}</td>
+                        <td>
+                          <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                            <span>
+                              {p.deliveryDone ?? 0}
+                              {p.storyPointsDone != null ? (
+                                <span className="muted"> · {p.storyPointsDone} pts</span>
+                              ) : null}
+                            </span>
+                            <DeliverySparkline values={trend} label={`${p.personName} delivery trend`} />
+                          </div>
+                        </td>
                         <td>
                           {p.evidenceCount}
                           <span className="muted"> · {p.linkedSources} linked</span>

@@ -185,7 +185,7 @@ export function loadPersonTimeline(db: Db, personId: string): PersonTimelineDTO 
     const provider = a.sourceProvider ? ` · ${a.sourceProvider}` : "";
     entries.push({
       at: a.occurredAt,
-      kind: a.sourceProvider === "jira" || a.sourceProvider === "bitbucket" ? a.sourceProvider : "achievement",
+      kind: a.sourceProvider === "jira" || a.sourceProvider === "bitbucket" || a.sourceProvider === "github" ? a.sourceProvider : "achievement",
       title: a.title + provider,
       detail: a.description,
       sourceId: a.id,

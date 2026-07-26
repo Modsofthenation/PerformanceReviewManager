@@ -99,10 +99,13 @@ import { indexReviewFts } from "./reviewSearch.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import { localPeerSynthesize } from "./peerSynth.js";
 import { bitbucketSearchMembers, bitbucketTestConnection } from "./bitbucket.js";
+import { githubSearchUsers, githubTestConnection } from "./github.js";
 import { jiraSearchUsers, jiraTestConnection } from "./jira.js";
+import { buildDeliveryRollup } from "./deliveryRollup.js";
 import {
   ensureIntegrationRow,
   getBitbucketConfig,
+  getGitHubConfig,
   getJiraConfig,
   syncPersonIntegrations,
 } from "./integrations.js";
@@ -2200,22 +2203,27 @@ function mapExternalLink(row: typeof personExternalLinks.$inferSelect): PersonEx
   };
 }
 
+function isKnownIntegrationProvider(provider: string): provider is IntegrationProvider {
+  return provider === "jira" || provider === "bitbucket" || provider === "github";
+}
+
 app.get("/api/integrations", (c) => {
   return c.json({
     jira: mapIntegrationSettings("jira"),
     bitbucket: mapIntegrationSettings("bitbucket"),
+    github: mapIntegrationSettings("github"),
   });
 });
 
 app.get("/api/integrations/:provider", (c) => {
-  const provider = c.req.param("provider") as IntegrationProvider;
-  if (provider !== "jira" && provider !== "bitbucket") return c.json({ error: "Unknown provider" }, 404);
+  const provider = c.req.param("provider");
+  if (!isKnownIntegrationProvider(provider)) return c.json({ error: "Unknown provider" }, 404);
   return c.json(mapIntegrationSettings(provider));
 });
 
 app.put("/api/integrations/:provider", async (c) => {
-  const provider = c.req.param("provider") as IntegrationProvider;
-  if (provider !== "jira" && provider !== "bitbucket") return c.json({ error: "Unknown provider" }, 404);
+  const provider = c.req.param("provider");
+  if (!isKnownIntegrationProvider(provider)) return c.json({ error: "Unknown provider" }, 404);
   const body = await c.req.json<{
     enabled?: boolean;
     baseUrl?: string | null;
@@ -2258,7 +2266,7 @@ app.put("/api/integrations/:provider", async (c) => {
 });
 
 app.post("/api/integrations/:provider/test", async (c) => {
-  const provider = c.req.param("provider") as IntegrationProvider;
+  const provider = c.req.param("provider");
   try {
     if (provider === "jira") {
       const cfg = getJiraConfig();
@@ -2274,6 +2282,12 @@ app.post("/api/integrations/:provider/test", async (c) => {
       const result = await bitbucketTestConnection(cfg);
       return c.json(result);
     }
+    if (provider === "github") {
+      const cfg = getGitHubConfig();
+      if (!cfg) return c.json({ error: "Enable GitHub and save a personal access token first" }, 400);
+      const result = await githubTestConnection(cfg);
+      return c.json(result);
+    }
     return c.json({ error: "Unknown provider" }, 404);
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "Connection failed" }, 400);
@@ -2281,7 +2295,7 @@ app.post("/api/integrations/:provider/test", async (c) => {
 });
 
 app.get("/api/integrations/:provider/users", async (c) => {
-  const provider = c.req.param("provider") as IntegrationProvider;
+  const provider = c.req.param("provider");
   const q = (c.req.query("q") ?? "").trim();
   if (!q) return c.json({ error: "q required" }, 400);
   try {
@@ -2309,6 +2323,18 @@ app.get("/api/integrations/:provider/users", async (c) => {
       }));
       return c.json({ items });
     }
+    if (provider === "github") {
+      const cfg = getGitHubConfig();
+      if (!cfg) return c.json({ error: "GitHub not configured" }, 400);
+      const users = await githubSearchUsers(cfg, q);
+      const items: IntegrationRemoteUser[] = users.map((u) => ({
+        accountId: String(u.id),
+        displayName: u.name ?? u.login,
+        email: null,
+        username: u.login,
+      }));
+      return c.json({ items });
+    }
     return c.json({ error: "Unknown provider" }, 404);
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "User search failed" }, 400);
@@ -2329,8 +2355,8 @@ app.get("/api/people/:id/external-links", (c) => {
 
 app.put("/api/people/:id/external-links/:provider", async (c) => {
   const personId = c.req.param("id");
-  const provider = c.req.param("provider") as IntegrationProvider;
-  if (provider !== "jira" && provider !== "bitbucket") return c.json({ error: "Unknown provider" }, 404);
+  const provider = c.req.param("provider");
+  if (!isKnownIntegrationProvider(provider)) return c.json({ error: "Unknown provider" }, 404);
   const body = await c.req.json<{
     externalAccountId: string;
     externalDisplayName?: string | null;
@@ -2396,13 +2422,21 @@ app.delete("/api/people/:id/external-links/:provider", (c) => {
 
 app.post("/api/people/:id/integrations/sync", async (c) => {
   const personId = c.req.param("id");
-  const body = await c.req.json<{ providers?: IntegrationProvider[] }>().catch(() => ({} as { providers?: IntegrationProvider[] }));
+  const body = await c.req
+    .json<{ providers?: IntegrationProvider[]; cycleId?: string; includeComments?: boolean }>()
+    .catch(
+      () =>
+        ({} as { providers?: IntegrationProvider[]; cycleId?: string; includeComments?: boolean }),
+    );
   const db = getDb();
   if (!db.select().from(people).where(eq(people.id, personId)).all()[0]) {
     return c.json({ error: "Not found" }, 404);
   }
   try {
-    const result: IntegrationSyncResult = await syncPersonIntegrations(personId, body.providers);
+    const result: IntegrationSyncResult = await syncPersonIntegrations(personId, body.providers, {
+      cycleId: body.cycleId,
+      includeComments: body.includeComments,
+    });
     return c.json(result);
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "Sync failed" }, 400);
@@ -2411,16 +2445,52 @@ app.post("/api/people/:id/integrations/sync", async (c) => {
 
 app.post("/api/integrations/sync-all", async (c) => {
   const body = await c.req
-    .json<{ providers?: IntegrationProvider[] }>()
-    .catch(() => ({} as { providers?: IntegrationProvider[] }));
+    .json<{ providers?: IntegrationProvider[]; cycleId?: string; includeComments?: boolean }>()
+    .catch(
+      () =>
+        ({} as { providers?: IntegrationProvider[]; cycleId?: string; includeComments?: boolean }),
+    );
   const db = getDb();
   const links = db.select().from(personExternalLinks).all();
   const personIds = [...new Set(links.map((l) => l.personId))];
   const results: IntegrationSyncResult[] = [];
   for (const personId of personIds) {
-    results.push(await syncPersonIntegrations(personId, body.providers));
+    results.push(
+      await syncPersonIntegrations(personId, body.providers, {
+        cycleId: body.cycleId,
+        includeComments: body.includeComments,
+      }),
+    );
   }
   return c.json({ count: results.length, results });
+});
+
+app.get("/api/people/:id/delivery-rollup", (c) => {
+  const personId = c.req.param("id");
+  const cycleId = c.req.query("cycleId");
+  const db = getDb();
+  const person = db.select().from(people).where(eq(people.id, personId)).all()[0];
+  if (!person) return c.json({ error: "Not found" }, 404);
+  const allCycles = db.select().from(cycles).all().sort((a, b) => b.windowEnd.localeCompare(a.windowEnd));
+  const cycle = cycleId
+    ? allCycles.find((x) => x.id === cycleId)
+    : allCycles.find((x) => x.status !== "closed") ?? allCycles[0];
+  if (!cycle) return c.json({ error: "No cycle found" }, 404);
+  const achRows = db.select().from(achievements).where(eq(achievements.personId, personId)).all();
+  const dossierNonIntegrationCount = achRows.filter((a) => !a.sourceProvider).length
+    + db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, personId)).all().length
+    + db.select().from(documents).where(eq(documents.personId, personId)).all().length
+    + db.select().from(goals).where(eq(goals.personId, personId)).all().length;
+  return c.json(
+    buildDeliveryRollup({
+      personId,
+      cycleId: cycle.id,
+      windowStart: cycle.windowStart.slice(0, 10),
+      windowEnd: cycle.windowEnd.slice(0, 10),
+      achievements: achRows,
+      dossierNonIntegrationCount,
+    }),
+  );
 });
 
 app.post("/api/people/:id/documents", async (c) => {
@@ -2745,13 +2815,44 @@ app.post("/api/ai/digest", async (c) => {
   let outputText: string;
   let model = "local-grounded";
 
+  const db = getDb();
+  const cycle = body.cycleId
+    ? db.select().from(cycles).where(eq(cycles.id, body.cycleId)).all()[0]
+    : null;
+  const achRows = db.select().from(achievements).where(eq(achievements.personId, body.personId)).all();
+  const dossierNonIntegrationCount = achRows.filter((a) => !a.sourceProvider).length;
+  const rollup = cycle
+    ? buildDeliveryRollup({
+        personId: body.personId,
+        cycleId: cycle.id,
+        windowStart: cycle.windowStart.slice(0, 10),
+        windowEnd: cycle.windowEnd.slice(0, 10),
+        achievements: achRows,
+        dossierNonIntegrationCount,
+      })
+    : null;
+  const citeHint =
+    rollup && rollup.citeSuggestions.length
+      ? `\n\nPrefer citing these Done-in-window items when relevant:\n${rollup.citeSuggestions
+          .map((s) => `- ${s.citeToken} ${s.label} (${s.reason})`)
+          .join("\n")}`
+      : "";
+
   const localLines = [
     `Subject: ${ctx.person?.name} — role bar: ${ctx.role?.title ?? "unassigned"}${ctx.next ? ` → next: ${ctx.next.title}` : ""}.`,
     ctx.role
       ? `Current-role expectations in play: ${ctx.role.expectations.length} (stable ids).`
       : "Gap: unassigned role.",
+    ...(rollup
+      ? [
+          `Delivery rollup (${rollup.windowStart}→${rollup.windowEnd}): ${rollup.issuesDone} issues done, ${rollup.prsMerged} PRs merged, ${rollup.issuesInProgress} in progress` +
+            (rollup.storyPointsDone != null ? `, ${rollup.storyPointsDone} story points` : "") +
+            ".",
+        ]
+      : []),
     ...ctx.ach.slice(0, 5).map((item) => `Achievement [${item.id}]: ${item.title} (${item.occurredAt}).`),
     ...ctx.lines.filter((l) => l.startsWith("Goal") || l.startsWith("Feedback") || l.startsWith("Self") || l.startsWith("Peer") || l.startsWith("Gap") || l.startsWith("Thin")).slice(0, 12),
+    ...(rollup?.citeSuggestions.slice(0, 5).map((s) => `Suggested cite ${s.citeToken}: ${s.label}`) ?? []),
   ];
 
   if (body.useCloud !== false && cfg.enabled && (cfg.hasApiKey || cfg.localOnly || cfg.provider === "ollama")) {
@@ -2760,7 +2861,7 @@ app.post("/api/ai/digest", async (c) => {
         { role: "system", content: buildSystemPrompt() },
         {
           role: "user",
-          content: `Produce an 8–12 bullet evidence digest for the manager writing desk.\nCite ids.\n\nEVIDENCE:\n${ctx.lines.join("\n")}`,
+          content: `Produce an 8–12 bullet evidence digest for the manager writing desk.\nCite ids like [ach_…]. Prefer Done-in-window delivery items when summarizing shipping work.${citeHint}\n\nEVIDENCE:\n${ctx.lines.join("\n")}`,
         },
       ]);
       outputText = result.text;
@@ -2789,6 +2890,7 @@ app.post("/api/ai/digest", async (c) => {
     outputText,
     citations: filtered.citationsUsed,
     citationsDropped: filtered.citationsDropped,
+    citeSuggestions: rollup?.citeSuggestions ?? [],
     dataClassesSent: ctx.dataClassesSent,
     model,
   });
@@ -3384,6 +3486,10 @@ app.get("/api/team-performance", (c) => {
 
   const priorCycle =
     allCycles.find((x) => x.windowStart < cycle.windowStart && x.id !== cycle.id) ?? null;
+  const priorForTrend = allCycles
+    .filter((x) => x.windowStart < cycle.windowStart && x.id !== cycle.id)
+    .sort((a, b) => a.windowStart.localeCompare(b.windowStart))
+    .slice(-4);
 
   const participants = db.select().from(cycleParticipants).where(eq(cycleParticipants.cycleId, cycle.id)).all();
   const peopleInputs: TeamPerformancePersonInput[] = [];
@@ -3392,11 +3498,11 @@ app.get("/api/team-performance", (c) => {
     const person = db.select().from(people).where(eq(people.id, cp.personId)).all()[0];
     if (!person) continue;
 
-    const ach = db.select().from(achievements).where(eq(achievements.personId, person.id)).all().length;
+    const achRows = db.select().from(achievements).where(eq(achievements.personId, person.id)).all();
     const fbRows = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, person.id)).all();
     const docs = db.select().from(documents).where(eq(documents.personId, person.id)).all().length;
     const goalsN = db.select().from(goals).where(eq(goals.personId, person.id)).all().length;
-    const evidenceCount = ach + fbRows.length + docs + goalsN;
+    const evidenceCount = achRows.length + fbRows.length + docs + goalsN;
     const themes: string[] = [];
     for (const f of fbRows) {
       try {
@@ -3482,6 +3588,28 @@ app.get("/api/team-performance", (c) => {
       }
     }
 
+    const dossierNonIntegrationCount =
+      achRows.filter((a) => !a.sourceProvider).length + fbRows.length + docs + goalsN;
+    const rollup = buildDeliveryRollup({
+      personId: person.id,
+      cycleId: cycle.id,
+      windowStart: cycle.windowStart.slice(0, 10),
+      windowEnd: cycle.windowEnd.slice(0, 10),
+      achievements: achRows,
+      dossierNonIntegrationCount,
+    });
+    const deliveryTrend = priorForTrend.map((pc) => {
+      const r = buildDeliveryRollup({
+        personId: person.id,
+        cycleId: pc.id,
+        windowStart: pc.windowStart.slice(0, 10),
+        windowEnd: pc.windowEnd.slice(0, 10),
+        achievements: achRows,
+        dossierNonIntegrationCount,
+      });
+      return r.issuesDone + r.prsMerged;
+    });
+
     peopleInputs.push({
       personId: person.id,
       personName: person.name,
@@ -3499,6 +3627,10 @@ app.get("/api/team-performance", (c) => {
       coverageNeed,
       themes,
       openConcerns,
+      deliveryDone: rollup.issuesDone + rollup.prsMerged,
+      storyPointsDone: rollup.storyPointsDone,
+      deliveryTrend,
+      thinDeliveryEvidence: rollup.flags.thinDeliveryEvidence,
     });
   }
 

@@ -263,7 +263,7 @@ export const aiSettings = sqliteTable("ai_settings", {
   apiKeyEncrypted: text("api_key_encrypted"),
 });
 
-/** Per-provider BYO integration config (Jira / Bitbucket). Tokens encrypted like AI keys. */
+/** Per-provider BYO integration config (Jira / Bitbucket / GitHub). Tokens encrypted like AI keys. */
 export const integrationSettings = sqliteTable("integration_settings", {
   id: text("id").primaryKey(), // 'jira' | 'bitbucket'
   enabled: integer("enabled").notNull().default(0),
