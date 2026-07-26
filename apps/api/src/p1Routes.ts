@@ -304,6 +304,25 @@ export function registerP1Routes(app: Hono<any>, helpers: Helpers) {
       const links = manager
         ? db.select().from(evidenceLinks).where(eq(evidenceLinks.reviewId, manager.id)).all()
         : [];
+      const flags: string[] = [];
+      let evidenceGaps = 0;
+      const scored: Array<{ key: string; score: number }> = [
+        ...Object.entries(comps).map(([key, score]) => ({ key, score })),
+        ...(overall != null ? [{ key: "overall", score: overall }] : []),
+      ];
+      for (const s of scored) {
+        if (s.score === 3) continue;
+        const has = links.some(
+          (l) =>
+            (s.key === "overall" && l.targetType === "overall") ||
+            (l.targetType === "competency" && l.targetKey === s.key),
+        );
+        if (!has) {
+          evidenceGaps += 1;
+          flags.push(s.key === "overall" ? "missing_evidence" : `thin:${s.key}`);
+        }
+      }
+      if (overall != null && (overall <= 2 || overall >= 4) && evidenceGaps > 0) flags.push("extreme_overall_thin");
       cards.push({
         personId: person.id,
         personName: person.name,
@@ -312,9 +331,9 @@ export function registerP1Routes(app: Hono<any>, helpers: Helpers) {
         overall,
         competencies: comps,
         evidenceLinkCount: links.length,
-        evidenceGaps: 0,
+        evidenceGaps,
         managerStatus: manager?.status ?? "missing",
-        flags: [],
+        flags,
         summaryExcerpt: String(payload.summary ?? "").slice(0, 280),
       });
     }
