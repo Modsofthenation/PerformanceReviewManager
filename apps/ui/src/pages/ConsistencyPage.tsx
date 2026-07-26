@@ -4,7 +4,7 @@ import type { CalibBundleDTO, ConsistencyDTO, CycleDTO } from "@prm/shared";
 import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
 import { downloadBinaryExport, openHtmlExport } from "../lib/exports";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 export function ConsistencyPage() {
@@ -106,12 +106,28 @@ export function ConsistencyPage() {
             { id: "cons-cards", label: "People" },
           ]}
         >
-<div className="panel stack page-section" id="cons-calib">
-          <h2>Calibration bundles</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Director round-trip: export cards, capture decisions in the form (or paste JSON), then import
-            back into draft manager reviews for the same cycle.
-          </p>
+          <Section
+            id="cons-calib"
+            title="Calibration bundles"
+            when="Use before a calibration room or director review, once drafts are ready to share."
+            how="Export cards, capture director decisions in the form (or paste JSON), then import them back into drafts."
+            action={
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  try {
+                    await openHtmlExport(`/api/exports/calib-room/${data.cycleId}?format=html`);
+                    setCalibMsg("Opened calibration room pack — Print → Save as PDF");
+                  } catch (e) {
+                    setCalibMsg(e instanceof Error ? e.message : "Calib pack failed");
+                  }
+                }}
+              >
+                Print calib room pack
+              </button>
+            }
+          >
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -140,21 +156,7 @@ export function ConsistencyPage() {
                 setCalibMsg(`Exported ${bundle.cards.length} card(s) — fill director decisions below`);
               }}
             >
-              Export calib JSON
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={async () => {
-                try {
-                  await openHtmlExport(`/api/exports/calib-room/${data.cycleId}?format=html`);
-                  setCalibMsg("Opened calibration room pack — Print → Save as PDF");
-                } catch (e) {
-                  setCalibMsg(e instanceof Error ? e.message : "Calib pack failed");
-                }
-              }}
-            >
-              Print calib room pack
+              Export calibration JSON
             </button>
             <button
               type="button"
@@ -168,7 +170,7 @@ export function ConsistencyPage() {
                 }
               }}
             >
-              Director briefing
+              Open director briefing
             </button>
           </div>
           <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "end" }}>
@@ -205,7 +207,7 @@ export function ConsistencyPage() {
                 }
               }}
             >
-              Encrypted read-only bundle
+              Download encrypted bundle
             </button>
           </div>
 
@@ -316,10 +318,10 @@ export function ConsistencyPage() {
               await load(data.cycleId);
             }}
           >
-            Import decisions
+            Import calibration decisions
           </button>
           {calibMsg && <p className="muted">{calibMsg}</p>}
-        </div>
+          </Section>
 
           {thin.length > 0 ? (
             <NextStep
@@ -341,8 +343,12 @@ export function ConsistencyPage() {
             />
           )}
 
-          <div className="panel page-section" id="cons-distribution">
-            <h2>Overall distribution</h2>
+          <Section
+            id="cons-distribution"
+            title="Overall distribution"
+            when="Use after drafts have overall ratings, before you finalize the cycle."
+            how="Scan the bars for clustering (everyone a 4) or empty buckets, then open thin cards below."
+          >
             <div className="consistency-bars">
               {["1", "2", "3", "4", "5", "unset"].map((bucket) => {
                 const n = data.distribution[bucket] ?? 0;
@@ -360,9 +366,22 @@ export function ConsistencyPage() {
                 );
               })}
             </div>
-          </div>
+          </Section>
 
-          <div className="consistency-grid page-section" id="cons-cards">
+          <Section
+            id="cons-cards"
+            title="People"
+            when="Use when comparing side-by-side ratings and evidence across your directs."
+            how="Scan flags and competency scores, then open each person’s writing desk to adjust or link evidence."
+            action={
+              data.cards[0] ? (
+                <Link className="btn" to={`/cycles/${data.cycleId}/write/${data.cards[0].personId}`}>
+                  Open first writing desk
+                </Link>
+              ) : undefined
+            }
+          >
+            <div className="consistency-grid">
             {data.cards.map((card) => (
               <div key={card.personId} className="panel consistency-card">
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -396,11 +415,12 @@ export function ConsistencyPage() {
                   ))}
                 </ul>
                 <Link className="btn secondary" to={`/cycles/${data.cycleId}/write/${card.personId}`}>
-                  Writing desk
+                  Open writing desk
                 </Link>
               </div>
             ))}
-          </div>
+            </div>
+          </Section>
         </PageSectionsLayout>
       )}
     </div>

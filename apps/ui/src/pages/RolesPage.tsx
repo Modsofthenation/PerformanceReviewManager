@@ -7,7 +7,7 @@ import type {
   RoleFrameworkInfo,
 } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 type ExpectationEdit = { id?: string; kind: "responsibility" | "expectation"; text: string };
@@ -386,9 +386,18 @@ export function RolesPage() {
           { id: "roles-assign", label: "Assign" },
         ]}
       >
-      <div className="grid-2 page-section" id="roles-catalog">
-        <div className="panel">
-          <h2>Catalog</h2>
+      <div className="grid-2">
+        <Section
+          id="roles-catalog"
+          title="Catalog"
+          when="Use when browsing or picking a RoleDefinition to inspect, edit, or assign."
+          how="Select a role in the list. Create one with Add role, or extract from a framework doc below."
+          action={
+            <button className="btn" type="button" onClick={startCreate}>
+              Add role
+            </button>
+          }
+        >
           {roles.length === 0 && <p className="muted">No roles yet — add one or extract from a document.</p>}
           {roles.map((r) => (
             <button
@@ -413,11 +422,23 @@ export function RolesPage() {
               </div>
             </button>
           ))}
-        </div>
-        <div className="panel page-section" id="roles-detail">
-          <h2>{selected?.title ?? "Select a role"}</h2>
+        </Section>
+        <Section
+          id="roles-detail"
+          title="Role detail"
+          when="Use after picking a role from the catalog to review expectations before assigning."
+          how="Read the summary and bar, then edit or delete. Assign people in the section below."
+          action={
+            selected ? (
+              <button className="btn" type="button" onClick={() => startEdit(selected)}>
+                Edit role
+              </button>
+            ) : undefined
+          }
+        >
           {selected ? (
             <>
+              <h3 style={{ margin: 0 }}>{selected.title}</h3>
               <p>{selected.summary}</p>
               <ol>
                 {selected.expectations.map((e) => (
@@ -431,18 +452,15 @@ export function RolesPage() {
                 <p className="muted">Next keys: {selected.nextRoleKeys.join(", ")}</p>
               )}
               <div className="cta-primary-row">
-                <button className="btn secondary" type="button" onClick={() => startEdit(selected)}>
-                  Edit role
-                </button>
                 <button className="btn secondary" type="button" disabled={busy} onClick={() => void deleteRole(selected)}>
-                  Delete
+                  Delete role
                 </button>
               </div>
             </>
           ) : (
             <p className="muted">Pick a role from the catalog or create one.</p>
           )}
-        </div>
+        </Section>
       </div>
 
       {editing && (
@@ -558,7 +576,7 @@ export function RolesPage() {
               Add expectation
             </button>
             <button className="btn" disabled={busy || !editor.title.trim()}>
-              {editor.id ? "Save changes" : "Create role"}
+              {editor.id ? "Save role changes" : "Create role"}
             </button>
             <button type="button" className="btn secondary" onClick={() => setEditing(false)}>
               Cancel
@@ -567,12 +585,17 @@ export function RolesPage() {
         </form>
       )}
 
-      <div className="panel page-section" id="roles-extract">
-        <h2>Extract from document</h2>
-        <p className="muted">
-          Upload an R&amp;R / career framework file (.txt/.md preferred; PDF/DOCX best-effort), or paste text.
-          With AI enabled this proposes RoleDefinitions; otherwise a local markdown/CSV parser runs.
-        </p>
+      <Section
+        id="roles-extract"
+        title="Extract from document"
+        when="Use when you have an R&R or career-framework file to turn into RoleDefinitions."
+        how="Upload or paste text, extract roles & levels, preview the drafts, then add or replace the catalog."
+        action={
+          <button type="button" className="btn" disabled={busy || !extractText.trim()} onClick={() => void runExtract()}>
+            {busy ? "Working…" : "Extract roles & levels"}
+          </button>
+        }
+      >
         <div className="field">
           <label htmlFor="fw-file">Framework file</label>
           <input
@@ -601,11 +624,6 @@ export function RolesPage() {
             available
           </label>
         </div>
-        <div className="cta-primary-row">
-          <button type="button" className="btn" disabled={busy || !extractText.trim()} onClick={() => void runExtract()}>
-            {busy ? "Working…" : "Extract roles & levels"}
-          </button>
-        </div>
         {extractMeta && <p className="muted">{extractMeta}</p>}
         {drafts.length > 0 && (
           <>
@@ -622,19 +640,29 @@ export function RolesPage() {
             </ul>
             <div className="cta-primary-row">
               <button type="button" className="btn" disabled={busy} onClick={() => void applyDrafts(false)}>
-                Add to catalog
+                Add drafts to catalog
               </button>
               <button type="button" className="btn secondary" disabled={busy} onClick={() => void applyDrafts(true)}>
-                Replace catalog
+                Replace catalog with drafts
               </button>
             </div>
           </>
         )}
-      </div>
+      </Section>
 
+      <Section
+        id="roles-assign"
+        title="Assign role"
+        when="Use when a direct is unassigned or their ladder level changed."
+        how="Pick the person, current RoleDefinition, and optional next role, then save the assignment."
+        action={
+          <button className="btn" type="submit" form="assign-role-form" disabled={!personId || !roleId}>
+            Save role assignment
+          </button>
+        }
+      >
       <form
         id="assign-role-form"
-        className="panel"
         onSubmit={async (e) => {
           e.preventDefault();
           await api("/api/roles/assign", {
@@ -650,7 +678,6 @@ export function RolesPage() {
           await load();
         }}
       >
-        <h2>Assign role</h2>
         <p className="muted">
           {selectedPerson
             ? `Editing ${selectedPerson.name}${selectedPerson.roleTitle ? ` (currently ${selectedPerson.roleTitle})` : " (unassigned)"}.`
@@ -690,13 +717,9 @@ export function RolesPage() {
             </select>
           </div>
         </div>
-        <div className="cta-primary-row">
-          <button className="btn" disabled={!personId || !roleId}>
-            Save assignment
-          </button>
-          {saved && <span className="muted">{saved}</span>}
-        </div>
+        {saved && <p className="muted">{saved}</p>}
       </form>
+      </Section>
       </PageSectionsLayout>
     </div>
   );
