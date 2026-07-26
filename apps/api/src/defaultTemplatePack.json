@@ -1,0 +1,385 @@
+{
+  "$schema_comment": "v1 solo workbench pack — no upward; conditional next_level_gap; stable expectation ids added at publish time in-app",
+  "pack_id": "eng_default_v1_workbench",
+  "rating_scale": {
+    "id": "five_point",
+    "version": "1",
+    "labels": {
+      "1": "Does not meet expectations",
+      "2": "Partially meets expectations",
+      "3": "Meets expectations",
+      "4": "Exceeds expectations",
+      "5": "Far exceeds expectations"
+    }
+  },
+  "competencies": [
+    {
+      "key": "execution",
+      "name": "Execution & delivery",
+      "description": "Ships reliable outcomes on meaningful timelines; manages scope and quality."
+    },
+    {
+      "key": "technical_depth",
+      "name": "Technical depth",
+      "description": "Applies sound engineering judgment; improves system quality and correctness."
+    },
+    {
+      "key": "ownership",
+      "name": "Ownership",
+      "description": "Drives problems to resolution; anticipates risk; follows through without heavy oversight."
+    },
+    {
+      "key": "collaboration",
+      "name": "Collaboration",
+      "description": "Communicates clearly; elevates teammates; works effectively across boundaries."
+    },
+    {
+      "key": "impact",
+      "name": "Impact",
+      "description": "Connects work to user/business outcomes; multiplies value beyond individual tasks."
+    },
+    {
+      "key": "growth_leadership",
+      "name": "Growth & leadership",
+      "description": "Develops self and others; improves team practices; shows role-appropriate leadership."
+    },
+    {
+      "key": "people_leadership",
+      "name": "People leadership",
+      "description": "Coaches, develops, and delivers results through a team; fair and clear.",
+      "applies_to_tracks": ["manager"]
+    },
+    {
+      "key": "org_influence",
+      "name": "Organizational influence",
+      "description": "Aligns stakeholders; shapes priorities beyond the immediate team.",
+      "applies_to_tracks": ["manager"]
+    }
+  ],
+  "templates": {
+    "ic_self": {
+      "name": "IC Self-review",
+      "blocks": [
+        {
+          "type": "text",
+          "key": "top_outcomes",
+          "label": "Top outcomes this cycle",
+          "prompt": "List 3–5 outcomes. Link artifacts where possible.",
+          "required": true,
+          "min_length": 100
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "technical_depth", "ownership", "collaboration", "impact", "growth_leadership"],
+          "require_evidence_outside_middle": true
+        },
+        {
+          "type": "text",
+          "key": "collaboration_examples",
+          "label": "How you collaborated and influenced",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth_areas",
+          "label": "Where you want to grow",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "support_needed",
+          "label": "Support you need from your manager",
+          "required": false
+        },
+        {
+          "type": "goals_review",
+          "key": "goals",
+          "label": "Goal assessment"
+        },
+        {
+          "type": "text",
+          "key": "proposed_goals",
+          "label": "Proposed goals for next cycle",
+          "required": true
+        },
+        {
+          "type": "promo_interest",
+          "key": "promo_interest",
+          "label": "Promotion interest",
+          "options": ["interested", "not_interested", "unsure"],
+          "required": false,
+          "visibility": "em_only"
+        }
+      ]
+    },
+    "peer": {
+      "name": "Peer feedback",
+      "blocks": [
+        {
+          "type": "text",
+          "key": "context",
+          "label": "How you worked together",
+          "required": true,
+          "max_length": 500
+        },
+        {
+          "type": "text",
+          "key": "strengths",
+          "label": "Strengths you observed",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth",
+          "label": "Growth suggestion (optional if limited observation)",
+          "required": false
+        },
+        {
+          "type": "multi_select",
+          "key": "observation_confidence",
+          "label": "Observation basis",
+          "options": ["close_collaboration", "occasional", "limited_visibility"],
+          "required": true
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "ownership", "collaboration"],
+          "required": false
+        }
+      ]
+    },
+    "manager_ic": {
+      "name": "Manager review (IC)",
+      "blocks": [
+        {
+          "type": "overall_rating",
+          "key": "overall",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "summary",
+          "label": "Executive summary",
+          "prompt": "Judge against assigned RoleDefinition expectations.",
+          "required": true,
+          "min_length": 200
+        },
+        {
+          "type": "role_fit",
+          "key": "role_fit",
+          "label": "Fit to current role expectations",
+          "required": true
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "technical_depth", "ownership", "collaboration", "impact", "growth_leadership"],
+          "require_evidence_outside_middle": true
+        },
+        {
+          "type": "text",
+          "key": "strengths",
+          "label": "Strengths",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth_areas",
+          "label": "Growth areas",
+          "required": true
+        },
+        {
+          "type": "goals_review",
+          "key": "goals",
+          "label": "Goals this cycle"
+        },
+        {
+          "type": "promo_readiness",
+          "key": "promo_readiness",
+          "label": "Promotion readiness",
+          "options": ["ready", "not_yet", "too_early", "not_applicable"],
+          "required": true,
+          "visibility": "em_only"
+        },
+        {
+          "type": "next_level_gap",
+          "key": "next_level_gap",
+          "label": "Comparison to next progression",
+          "required_if": { "promo_readiness": ["ready", "not_yet"] },
+          "prompt": "Mark each target RoleExpectation: demonstrating / emerging / not_yet."
+        },
+        {
+          "type": "text",
+          "key": "dev_plan",
+          "label": "Development plan & next-cycle focus",
+          "required": true
+        },
+        {
+          "type": "private_text",
+          "key": "private_notes",
+          "label": "Private manager notes",
+          "visibility": "em_only"
+        }
+      ]
+    },
+    "manager_people_leader": {
+      "name": "Manager review (people manager)",
+      "blocks": [
+        {
+          "type": "overall_rating",
+          "key": "overall",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "summary",
+          "label": "Executive summary",
+          "required": true,
+          "min_length": 200
+        },
+        {
+          "type": "role_fit",
+          "key": "role_fit",
+          "label": "Fit to current manager RoleDefinition",
+          "required": true
+        },
+        {
+          "type": "competency_scores",
+          "key": "competencies",
+          "competencies": ["execution", "ownership", "collaboration", "impact", "people_leadership", "org_influence"],
+          "require_evidence_outside_middle": true
+        },
+        {
+          "type": "text",
+          "key": "strengths",
+          "label": "Strengths",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "growth_areas",
+          "label": "Growth areas",
+          "required": true
+        },
+        {
+          "type": "promo_readiness",
+          "key": "promo_readiness",
+          "options": ["ready", "not_yet", "too_early", "not_applicable"],
+          "required": true,
+          "visibility": "em_only"
+        },
+        {
+          "type": "next_level_gap",
+          "key": "next_level_gap",
+          "required_if": { "promo_readiness": ["ready", "not_yet"] }
+        },
+        {
+          "type": "text",
+          "key": "dev_plan",
+          "label": "Development plan",
+          "required": true
+        },
+        {
+          "type": "private_text",
+          "key": "private_notes",
+          "visibility": "em_only"
+        }
+      ]
+    },
+    "check_in": {
+      "name": "New-hire check-in",
+      "eligibility": "check_in",
+      "blocks": [
+        {
+          "type": "text",
+          "key": "onboarding_progress",
+          "label": "Onboarding & early impact",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "support_plan",
+          "label": "Support plan for next period",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "private_notes",
+          "label": "Private notes",
+          "visibility": "em_only",
+          "required": false
+        }
+      ]
+    },
+    "promotion": {
+      "name": "Promotion packet",
+      "requires_role_framework": true,
+      "blocks": [
+        {
+          "type": "text",
+          "key": "case_summary",
+          "label": "Promotion case summary",
+          "required": true,
+          "min_length": 200
+        },
+        {
+          "type": "next_level_gap",
+          "key": "next_role_expectations",
+          "label": "Evidence vs next-role expectations",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "scope_examples",
+          "label": "Examples of next-level scope already demonstrated",
+          "required": true
+        },
+        {
+          "type": "text",
+          "key": "remaining_gaps",
+          "label": "Remaining gaps and mitigation",
+          "required": true
+        },
+        {
+          "type": "promo_readiness",
+          "key": "recommendation",
+          "options": ["ready", "not_yet"],
+          "required": true
+        },
+        {
+          "type": "private_text",
+          "key": "sponsor_notes",
+          "visibility": "em_only"
+        }
+      ]
+    }
+  },
+  "anchors_example": {
+    "ownership": {
+      "IC3": {
+        "3": "Owns assigned projects end-to-end; escalates blockers with options.",
+        "4": "Owns ambiguous problem spaces; unblocks others; prevents repeat failures.",
+        "5": "Sets ownership norms for the team; reliably drives cross-team outcomes."
+      },
+      "IC4": {
+        "3": "Owns multi-sprint outcomes with clear stakeholder communication.",
+        "4": "Drives ambiguous initiatives; creates clarity for others.",
+        "5": "Defines ownership patterns adopted beyond the team."
+      },
+      "IC5": {
+        "3": "Owns multi-squad technical outcomes; anticipates dependency risk.",
+        "4": "Creates leverage via systems/process; develops other owners.",
+        "5": "Shapes org-level technical direction through owned initiatives."
+      }
+    },
+    "people_leadership": {
+      "M1": {
+        "3": "Runs effective 1:1s; clear expectations; team delivers committed work.",
+        "4": "Develops multiple engineers; improves team health and delivery systemically.",
+        "5": "Raises the bar for management practice across peer teams."
+      }
+    }
+  }
+}

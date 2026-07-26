@@ -388,7 +388,7 @@ export interface DirectorBriefingDTO {
   distribution: Record<string, number>;
 }
 
-export type IntegrationProvider = "jira" | "bitbucket" | "github";
+export type IntegrationProvider = "jira" | "bitbucket" | "github" | "linear";
 
 export interface IntegrationSettingsDTO {
   id: IntegrationProvider;
@@ -430,6 +430,7 @@ export interface IntegrationSyncResult {
   jira: { imported: number; updated: number; skipped: boolean; error: string | null };
   bitbucket: { imported: number; updated: number; skipped: boolean; error: string | null };
   github: { imported: number; updated: number; skipped: boolean; error: string | null };
+  linear: { imported: number; updated: number; skipped: boolean; error: string | null };
 }
 
 export interface DeliveryCiteSuggestion {
@@ -498,6 +499,34 @@ export interface WorkspaceStatus {
   encryptedAtRest?: boolean;
   /** Directs with thin dossiers — useful for backfill CTA after unlock. */
   thinEvidenceCount?: number;
+}
+
+export interface AiEstimateDTO {
+  feature: string;
+  provider: string;
+  model: string;
+  inputTokensApprox: number;
+  outputTokensMax: number;
+  costUsdApprox: number | null;
+  localOnly: boolean;
+  dataClassesSent: string[];
+  note: string;
+}
+
+export interface FormTemplateDTO {
+  key: string;
+  name: string;
+  blocks: Array<Record<string, unknown>>;
+  clonedFrom?: string | null;
+  updatedAt?: string;
+}
+
+export interface WorkspaceSettingsDTO {
+  retention: "current_plus_previous" | "current_only" | "keep_all";
+  legalHold: boolean;
+  retentionLabel?: string;
+  purgeEligible?: Array<{ id: string; name: string; windowEnd: string }>;
+  onboarding?: { completed?: boolean; step?: string };
 }
 
 export interface ConsistencyCardDTO {

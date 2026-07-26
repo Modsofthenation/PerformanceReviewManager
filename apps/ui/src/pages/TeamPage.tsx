@@ -112,19 +112,19 @@ export function TeamPage() {
             Roster is empty. Use Add person below — the first person without a manager is treated as the EM.
           </p>
         ) : (
-        <table className="table">
+        <table className="table table-cards">
           <thead>
             <tr><th>Name</th><th>Title</th><th>Level</th><th>Role</th><th>Next</th><th>Your move</th></tr>
           </thead>
           <tbody>
             {directs.map((p) => (
               <tr key={p.id}>
-                <td>{p.name}</td>
-                <td className="muted">{p.title}</td>
-                <td>{p.levelKey}</td>
-                <td>{p.roleTitle ?? <span className="flag">unassigned</span>}</td>
-                <td className="muted">{p.targetNextRoleTitle ?? "—"}</td>
-                <td>
+                <td data-label="Name">{p.name}</td>
+                <td data-label="Title" className="muted">{p.title}</td>
+                <td data-label="Level">{p.levelKey}</td>
+                <td data-label="Role">{p.roleTitle ?? <span className="flag">unassigned</span>}</td>
+                <td data-label="Next" className="muted">{p.targetNextRoleTitle ?? "—"}</td>
+                <td data-label="Your move">
                   {!p.roleDefinitionId ? (
                     <Link className="btn" to="/roles">Assign role</Link>
                   ) : (
@@ -135,11 +135,11 @@ export function TeamPage() {
             ))}
             {em && directs.length === 0 && (
               <tr>
-                <td>{em.name}</td>
-                <td className="muted">{em.title}</td>
-                <td>{em.levelKey}</td>
-                <td colSpan={2} className="muted">EM account</td>
-                <td><Link className="btn" to={`/team/${em.id}`}>Open dossier</Link></td>
+                <td data-label="Name">{em.name}</td>
+                <td data-label="Title" className="muted">{em.title}</td>
+                <td data-label="Level">{em.levelKey}</td>
+                <td data-label="Role" colSpan={2} className="muted">EM account</td>
+                <td data-label="Your move"><Link className="btn" to={`/team/${em.id}`}>Open dossier</Link></td>
               </tr>
             )}
           </tbody>

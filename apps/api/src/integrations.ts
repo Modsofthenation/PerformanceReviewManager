@@ -4,6 +4,7 @@ import type { IntegrationProvider, IntegrationSyncResult } from "@prm/shared";
 import { bitbucketMergedPrsForAuthor, bitbucketReviewsGiven, type BitbucketConfig } from "./bitbucket.js";
 import { githubMergedPrsForAuthor, githubReviewsGiven, type GitHubConfig } from "./github.js";
 import { jiraSearchIssuesForAssignee, type JiraConfig } from "./jira.js";
+import { linearIssuesForAssignee, type LinearConfig } from "./linear.js";
 import {
   decryptSecret,
   getDb,
@@ -32,7 +33,9 @@ export function ensureIntegrationRow(provider: IntegrationProvider) {
           ? "https://your-domain.atlassian.net"
           : provider === "github"
             ? "https://api.github.com"
-            : null,
+            : provider === "linear"
+              ? "https://api.linear.app/graphql"
+              : null,
       workspaceSlug: null,
       authEmail: null,
       authUsername: null,
@@ -85,6 +88,14 @@ export function getGitHubConfig(): GitHubConfig | null {
     org: typeof extra.org === "string" ? extra.org : row.workspaceSlug,
     apiBase: row.baseUrl || "https://api.github.com",
   };
+}
+
+export function getLinearConfig(): LinearConfig | null {
+  const row = getIntegrationRow("linear");
+  if (!row?.enabled) return null;
+  const token = resolveIntegrationToken("linear");
+  if (!token) return null;
+  return { apiKey: token, apiBase: row.baseUrl || "https://api.linear.app/graphql" };
 }
 
 function upsertAchievement(input: {
@@ -167,7 +178,7 @@ export async function syncPersonIntegrations(
   const db = getDb();
   const want = providers?.length
     ? providers
-    : (["jira", "bitbucket", "github"] as IntegrationProvider[]);
+    : (["jira", "bitbucket", "github", "linear"] as IntegrationProvider[]);
   const window = resolveCycleWindow(opts?.cycleId);
   const result: IntegrationSyncResult = {
     personId,
@@ -177,6 +188,7 @@ export async function syncPersonIntegrations(
     jira: { imported: 0, updated: 0, skipped: true, error: null },
     bitbucket: { imported: 0, updated: 0, skipped: true, error: null },
     github: { imported: 0, updated: 0, skipped: true, error: null },
+    linear: { imported: 0, updated: 0, skipped: true, error: null },
   };
 
   const jiraExtra = (() => {
@@ -387,6 +399,54 @@ export async function syncPersonIntegrations(
         .run();
     } catch (e) {
       result.github.error = e instanceof Error ? e.message : "GitHub sync failed";
+    }
+  }
+
+  if (want.includes("linear")) {
+    result.linear.skipped = false;
+    try {
+      const cfg = getLinearConfig();
+      if (!cfg) throw new Error("Linear is not configured or enabled");
+      const link = db
+        .select()
+        .from(personExternalLinks)
+        .where(and(eq(personExternalLinks.personId, personId), eq(personExternalLinks.provider, "linear")))
+        .all()[0];
+      if (!link) throw new Error("No Linear account linked for this person");
+      const issues = await linearIssuesForAssignee(cfg, link.externalAccountId, {
+        windowStart: window.windowStart ?? undefined,
+        windowEnd: window.windowEnd ?? undefined,
+        maxResults: 80,
+      });
+      for (const issue of issues) {
+        const desc = [
+          `State: ${issue.stateName}`,
+          issue.projectName ? `Project: ${issue.projectName}` : null,
+          issue.priorityLabel ? `Priority: ${issue.priorityLabel}` : null,
+          issue.completedAt ? `Completed: ${issue.completedAt}` : `Updated: ${issue.updatedAt}`,
+          issue.url,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        const up = upsertAchievement({
+          personId,
+          provider: "linear",
+          externalId: issue.identifier,
+          title: `[Linear ${issue.identifier}] ${issue.title}`,
+          description: desc,
+          occurredAt: (issue.completedAt ?? issue.updatedAt).slice(0, 10),
+          externalUrl: issue.url,
+          payload: issue as unknown as Record<string, unknown>,
+        });
+        if (up.created) result.linear.imported += 1;
+        else result.linear.updated += 1;
+      }
+      db.update(integrationSettings)
+        .set({ lastSyncAt: nowIso(), updatedAt: nowIso() })
+        .where(eq(integrationSettings.id, "linear"))
+        .run();
+    } catch (e) {
+      result.linear.error = e instanceof Error ? e.message : "Linear sync failed";
     }
   }
 

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import type { BiasFinding, DecisionLogEntry, DeliveryCiteSuggestion, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
+import { estimateThenConfirm } from "../lib/aiEstimate";
 import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
@@ -507,6 +508,12 @@ export function WritingDeskPage() {
                 className="btn secondary"
                 type="button"
                 onClick={async () => {
+                  const ok = await estimateThenConfirm(
+                    "evidence_digest",
+                    { cycleId, personId },
+                    "Generate evidence digest",
+                  );
+                  if (!ok) return;
                   const res = await api<{ outputText: string; citeSuggestions?: DeliveryCiteSuggestion[] }>(
                     "/api/ai/digest",
                     {
@@ -524,6 +531,12 @@ export function WritingDeskPage() {
                 className="btn secondary"
                 type="button"
                 onClick={async () => {
+                  const ok = await estimateThenConfirm(
+                    "skip_level_talking_points",
+                    { cycleId, personId },
+                    "Generate skip-level talking points",
+                  );
+                  if (!ok) return;
                   const res = await api<{ outputText: string }>("/api/ai/skip-level-talking-points", {
                     method: "POST",
                     body: JSON.stringify({ cycleId, personId }),
@@ -599,6 +612,12 @@ export function WritingDeskPage() {
                 type="button"
                 disabled={!packet.peerReviews.length}
                 onClick={async () => {
+                  const ok = await estimateThenConfirm(
+                    "peer_synthesize",
+                    { cycleId, personId },
+                    "Synthesize peer themes",
+                  );
+                  if (!ok) return;
                   const res = await api<{ outputText: string }>("/api/ai/peer-synthesize", {
                     method: "POST",
                     body: JSON.stringify({ cycleId, personId }),
@@ -845,6 +864,12 @@ export function WritingDeskPage() {
                 className="btn ghost"
                 disabled={finalized}
                 onClick={async () => {
+                  const ok = await estimateThenConfirm(
+                    "draft_section",
+                    { cycleId, personId, section: "summary" },
+                    "AI draft: summary",
+                  );
+                  if (!ok) return;
                   const res = await api<{ outputText: string }>("/api/ai/draft-section", {
                     method: "POST",
                     body: JSON.stringify({ cycleId, personId, section: "summary" }),
@@ -873,6 +898,12 @@ export function WritingDeskPage() {
                 className="btn ghost"
                 disabled={finalized}
                 onClick={async () => {
+                  const ok = await estimateThenConfirm(
+                    "draft_section",
+                    { cycleId, personId, section: "strengths" },
+                    "AI draft: strengths",
+                  );
+                  if (!ok) return;
                   const res = await api<{ outputText: string }>("/api/ai/draft-section", {
                     method: "POST",
                     body: JSON.stringify({ cycleId, personId, section: "strengths" }),
@@ -901,6 +932,12 @@ export function WritingDeskPage() {
                 className="btn ghost"
                 disabled={finalized}
                 onClick={async () => {
+                  const ok = await estimateThenConfirm(
+                    "draft_section",
+                    { cycleId, personId, section: "growth_areas" },
+                    "AI draft: growth areas",
+                  );
+                  if (!ok) return;
                   const res = await api<{ outputText: string }>("/api/ai/draft-section", {
                     method: "POST",
                     body: JSON.stringify({ cycleId, personId, section: "growth_areas" }),

@@ -22,3 +22,5 @@ Director / upward-pack close-ups (regenerated with the same script):
 | `17-consistency-director-packs.png` | Consistency — calib room / briefing / encrypted bundle |
 | `18-team-director-briefing.png` | Team performance — Director briefing |
 | `19-promo-committee.png` | Promotion detail — Promo committee export |
+
+`01-unlock` includes empty vs demo workspace choice; `14-settings` includes color mode + accent swatches.

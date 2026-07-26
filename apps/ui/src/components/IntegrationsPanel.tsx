@@ -6,6 +6,7 @@ type IntegrationsState = {
   jira: IntegrationSettingsDTO;
   bitbucket: IntegrationSettingsDTO;
   github: IntegrationSettingsDTO;
+  linear: IntegrationSettingsDTO;
 };
 
 export function IntegrationsPanel() {
@@ -13,11 +14,29 @@ export function IntegrationsPanel() {
   const [jiraToken, setJiraToken] = useState("");
   const [bbToken, setBbToken] = useState("");
   const [ghToken, setGhToken] = useState("");
+  const [linearToken, setLinearToken] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    setState(await api<IntegrationsState>("/api/integrations"));
+    const raw = await api<Partial<IntegrationsState> & IntegrationsState>("/api/integrations");
+    setState({
+      jira: raw.jira,
+      bitbucket: raw.bitbucket,
+      github: raw.github,
+      linear: raw.linear ?? {
+        id: "linear",
+        enabled: false,
+        baseUrl: "https://api.linear.app/graphql",
+        workspaceSlug: null,
+        authEmail: null,
+        authUsername: null,
+        hasToken: false,
+        extra: {},
+        lastSyncAt: null,
+        updatedAt: new Date().toISOString(),
+      },
+    });
   }
 
   useEffect(() => {
@@ -32,7 +51,7 @@ export function IntegrationsPanel() {
     <div className="panel stack">
       <h2>Integrations</h2>
       <p className="muted">
-        Pull cycle-scoped Jira issues and merged Bitbucket / GitHub PRs into each person’s dossier as
+        Pull cycle-scoped Jira / Linear issues and merged Bitbucket / GitHub PRs into each person’s dossier as
         achievements (citable on the writing desk). Tokens are encrypted with the workspace secret.
         Sync is explicit egress — no leaderboards, LOC scores, or Slack mining.
       </p>
@@ -373,7 +392,12 @@ export function IntegrationsPanel() {
                   { method: "POST", body: "{}" },
                 );
                 const imported = res.results.reduce(
-                  (n, r) => n + r.jira.imported + r.bitbucket.imported + r.github.imported,
+                  (n, r) =>
+                    n +
+                    r.jira.imported +
+                    r.bitbucket.imported +
+                    r.github.imported +
+                    (r.linear?.imported ?? 0),
                   0,
                 );
                 setMsg(`Synced ${res.count} linked people (${imported} new achievements)`);
@@ -393,8 +417,107 @@ export function IntegrationsPanel() {
         )}
       </form>
 
+      <form
+        className="stack"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            const next = await api<IntegrationSettingsDTO>("/api/integrations/linear", {
+              method: "PUT",
+              body: JSON.stringify({
+                enabled: state.linear.enabled,
+                baseUrl: state.linear.baseUrl || "https://api.linear.app/graphql",
+                token: linearToken || undefined,
+              }),
+            });
+            setState((s) => (s ? { ...s, linear: next } : s));
+            setLinearToken("");
+            setMsg("Linear settings saved");
+          } catch (err) {
+            setMsg(err instanceof Error ? err.message : "Save failed");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <h3>Linear</h3>
+        <div className="field">
+          <label>
+            <input
+              type="checkbox"
+              checked={Boolean(state.linear?.enabled)}
+              onChange={(e) =>
+                setState({
+                  ...state,
+                  linear: {
+                    ...(state.linear ?? {
+                      id: "linear",
+                      enabled: false,
+                      baseUrl: "https://api.linear.app/graphql",
+                      workspaceSlug: null,
+                      authEmail: null,
+                      authUsername: null,
+                      hasToken: false,
+                      extra: {},
+                      lastSyncAt: null,
+                      updatedAt: "",
+                    }),
+                    enabled: e.target.checked,
+                  },
+                })
+              }
+            />{" "}
+            Enabled
+          </label>
+        </div>
+        <div className="field">
+          <label>GraphQL endpoint</label>
+          <input
+            value={state.linear.baseUrl ?? "https://api.linear.app/graphql"}
+            onChange={(e) => setState({ ...state, linear: { ...state.linear, baseUrl: e.target.value } })}
+          />
+        </div>
+        <div className="field">
+          <label>API key {state.linear.hasToken ? "(on file — enter to replace)" : ""}</label>
+          <input
+            type="password"
+            value={linearToken}
+            onChange={(e) => setLinearToken(e.target.value)}
+            placeholder={state.linear.hasToken ? "••••••••" : "lin_api_…"}
+          />
+        </div>
+        <div className="cta-primary-row">
+          <button className="btn" disabled={busy}>
+            Save Linear
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const res = await api<{ displayName?: string }>("/api/integrations/linear/test", {
+                  method: "POST",
+                  body: "{}",
+                });
+                setMsg(`Linear OK${res.displayName ? ` — ${res.displayName}` : ""}`);
+              } catch (err) {
+                setMsg(err instanceof Error ? err.message : "Linear test failed");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Test Linear
+          </button>
+        </div>
+        {state.linear.lastSyncAt && <p className="muted">Last sync: {state.linear.lastSyncAt}</p>}
+      </form>
+
       <p className="muted">
-        Link each direct’s Jira / Bitbucket / GitHub account on their person page, then sync there or use Sync
+        Link each direct’s Jira / Bitbucket / GitHub / Linear account on their person page, then sync there or use Sync
         all above. Sync uses the active review cycle window.
       </p>
       {msg && <p className="muted">{msg}</p>}

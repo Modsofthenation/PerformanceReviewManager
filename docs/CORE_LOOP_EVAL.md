@@ -43,10 +43,23 @@ upload role R&R → tag people → year-round dossier
 
 ## Remaining gaps (honest)
 
-1. **Faithfulness model eval** — expanded golden heuristics + apply-all fixes on the writing desk; still not a full groundedness model eval / injection suite.
-2. **External / multi-party audit custody** — local HMAC pack is still EM-controlled; not WORM / HRIS-grade.
+1. **Faithfulness model eval** — expanded golden + bias suites (injection / cross-person cites); still not a full groundedness model eval.
+2. **External / multi-party audit custody** — local HMAC pack is still EM-controlled; not WORM / HRIS-grade. Legal-hold blocks purge locally.
 3. **Deadline delivery when app closed** — OS Notification API + due-this-week tray while open; no scheduled background agent.
 4. **Signed auto-update** — Settings “Check for updates” hits GitHub Releases; Tauri updater + code-signing keys still needed for silent install.
+
+## Shipped in P1 features slice (this branch)
+
+| Item | Notes |
+|------|--------|
+| AI cost/token estimate | `POST /api/ai/estimate` + confirm gate on digest/draft/chat |
+| Retention + legal hold | Settings policy + purge gate |
+| Mid-cycle manager reassign | Supersede prior manager reviews + new draft |
+| Custom templates | Clone/edit pack; bundle export uses saved fields |
+| Linear integration | First-class alongside Jira/BB/GitHub |
+| Meet/Drive transcript pick | Local file + dossier document loader |
+| Empty onboarding wizard | Home banner after empty create |
+| Phone table cards | `.table-cards` on Team |
 
 ## Shipped in P1 core-loop slice
 

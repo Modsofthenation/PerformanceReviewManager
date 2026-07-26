@@ -59,12 +59,21 @@ export function PersonPage() {
   const [linkMsg, setLinkMsg] = useState<string | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [timeline, setTimeline] = useState<PersonTimelineDTO | null>(null);
+  const [roster, setRoster] = useState<PersonDTO[]>([]);
+  const [reassignManagerId, setReassignManagerId] = useState("");
+  const [reassignReason, setReassignReason] = useState("");
+  const [reassignMsg, setReassignMsg] = useState<string | null>(null);
 
   async function load() {
     if (!id) return;
     setPerson(await api<PersonDTO>(`/api/people/${id}`));
     setDossier(await api(`/api/people/${id}/dossier`));
     setCycles(await api<CycleDTO[]>("/api/cycles"));
+    try {
+      setRoster(await api<PersonDTO[]>("/api/people"));
+    } catch {
+      setRoster([]);
+    }
     try {
       const res = await api<{ items: ConcernLogDTO[] }>(`/api/people/${id}/concerns`);
       setConcerns(res.items);
@@ -146,6 +155,67 @@ export function PersonPage() {
         />
       )}
 
+      {activeCycle && (
+        <div className="panel stack">
+          <h2 style={{ margin: 0 }}>Mid-cycle manager change</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Reassign for <strong>{activeCycle.name}</strong>: supersedes prior manager drafts/finals as contribution
+            history and opens a fresh draft for the new manager.
+          </p>
+          <div className="row" style={{ alignItems: "end" }}>
+            <div className="field" style={{ margin: 0, minWidth: 220 }}>
+              <label>New manager</label>
+              <select value={reassignManagerId} onChange={(e) => setReassignManagerId(e.target.value)}>
+                <option value="">Select…</option>
+                {roster
+                  .filter((p) => p.id !== person.id)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="field" style={{ margin: 0, flex: 1 }}>
+              <label>Reason</label>
+              <input
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="Org change / coverage"
+              />
+            </div>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={!reassignManagerId}
+              onClick={async () => {
+                try {
+                  const res = await api<{ supersededReviewIds: string[]; newDraftReviewId: string }>(
+                    `/api/cycles/${activeCycle.id}/participants/${person.id}/reassign-manager`,
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        newManagerPersonId: reassignManagerId,
+                        reason: reassignReason || undefined,
+                      }),
+                    },
+                  );
+                  setReassignMsg(
+                    `Superseded ${res.supersededReviewIds.length} review(s); new draft ${res.newDraftReviewId}`,
+                  );
+                  await load();
+                } catch (e) {
+                  setReassignMsg(e instanceof Error ? e.message : "Reassign failed");
+                }
+              }}
+            >
+              Reassign in cycle
+            </button>
+          </div>
+          {reassignMsg && <p className="muted">{reassignMsg}</p>}
+        </div>
+      )}
+
       <div className="panel stack" id="timeline">
         <h2 style={{ margin: 0 }}>Timeline</h2>
         <p className="muted" style={{ margin: 0 }}>
@@ -168,7 +238,7 @@ export function PersonPage() {
       </div>
 
       <div className="panel stack" id="integrations">
-        <h2>Jira, Bitbucket & GitHub</h2>
+        <h2>Integrations</h2>
         <p className="muted">
           Link remote accounts, then pull tickets / merged PRs for the active review window into achievements.
           Configure credentials in <Link to="/settings">Settings → Integrations</Link>.
@@ -206,6 +276,7 @@ export function PersonPage() {
               <option value="jira">Jira</option>
               <option value="bitbucket">Bitbucket</option>
               <option value="github">GitHub</option>
+              <option value="linear">Linear</option>
             </select>
           </div>
           <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
@@ -258,6 +329,11 @@ export function PersonPage() {
                   !res.github.skipped
                     ? `GH +${res.github.imported}/~${res.github.updated}${
                         res.github.error ? ` (${res.github.error})` : ""
+                      }`
+                    : null,
+                  res.linear && !res.linear.skipped
+                    ? `Linear +${res.linear.imported}/~${res.linear.updated}${
+                        res.linear.error ? ` (${res.linear.error})` : ""
                       }`
                     : null,
                 ].filter(Boolean);
@@ -579,6 +655,42 @@ export function PersonPage() {
                 }
               }}
             />
+          </div>
+          <div className="field">
+            <label>Or load from dossier documents</label>
+            <select
+              defaultValue=""
+              onChange={async (e) => {
+                const docId = e.target.value;
+                if (!docId) return;
+                try {
+                  const fileRes = await fetch(apiUrl(`/api/documents/${docId}/download`), {
+                    headers: { "x-prm-token": getToken() || "" },
+                  });
+                  if (!fileRes.ok) throw new Error("Could not load document");
+                  const text = await fileRes.text();
+                  setMeetTranscript(text);
+                  const doc = dossier?.documents.find((d) => d.id === docId);
+                  if (!meetTitle.trim() && doc) {
+                    setMeetTitle((doc.title || doc.filename).replace(/\.(txt|md|vtt)$/i, ""));
+                  }
+                } catch (err) {
+                  setCaptureMsg(err instanceof Error ? err.message : "Load failed");
+                }
+              }}
+            >
+              <option value="">Select a transcript-like document…</option>
+              {(dossier?.documents ?? [])
+                .filter((d) => /\.(txt|md|vtt)$/i.test(d.filename) || /transcript|meet|notes/i.test(d.filename))
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.title || d.filename}
+                  </option>
+                ))}
+            </select>
+            <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+              Tip: export Meet / Drive notes as .txt/.vtt, upload to the dossier, then pick them here.
+            </p>
           </div>
           <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>
             <input type="checkbox" checked={meetConsent} onChange={(e) => setMeetConsent(e.target.checked)} required />

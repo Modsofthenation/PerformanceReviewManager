@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
+import { estimateThenConfirm } from "../lib/aiEstimate";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 type CycleRow = {
@@ -106,6 +107,26 @@ export function ChatPage() {
     setError(null);
 
     try {
+      const ok = await estimateThenConfirm(
+        "chat_dossier",
+        {
+          cycleId: cycleId || undefined,
+          personId: personId || undefined,
+          confirmWorkspaceScope: !personId,
+          messages: [
+            ...nextHistory
+              .filter((m) => !m.error)
+              .map((m) => ({ role: m.role, content: m.content })),
+          ],
+        },
+        "Send chat message",
+      );
+      if (!ok) {
+        setMessages(messages);
+        setDraft(content);
+        setSending(false);
+        return;
+      }
       const payload = nextHistory
         .filter((m) => !m.error)
         .map((m) => ({ role: m.role, content: m.content }));
