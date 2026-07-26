@@ -137,12 +137,22 @@ const CORS_ORIGINS = [
   "tauri://localhost",
   "https://tauri.localhost",
   "http://tauri.localhost",
+  "https://asset.localhost",
+  "http://asset.localhost",
 ];
+
+function corsOrigin(origin: string): string | null {
+  if (CORS_ORIGINS.includes(origin)) return origin;
+  // Windows/Android custom-protocol workaround hosts: http(s)://*.localhost
+  if (/^https?:\/\/(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/i.test(origin)) return origin;
+  if (origin.startsWith("tauri://")) return origin;
+  return null;
+}
 
 app.use(
   "*",
   cors({
-    origin: CORS_ORIGINS,
+    origin: (origin) => (origin ? corsOrigin(origin) : CORS_ORIGINS[0]),
     credentials: true,
     allowHeaders: ["Content-Type", "x-prm-token", "x-prm-launch-token"],
   }),

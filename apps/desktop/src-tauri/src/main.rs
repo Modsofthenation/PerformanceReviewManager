@@ -11,6 +11,9 @@ use std::{
   time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
@@ -18,6 +21,8 @@ const DEFAULT_API_HOST: &str = "127.0.0.1";
 const DEFAULT_API_PORT: u16 = 8787;
 const DEFAULT_API_BASE: &str = "http://127.0.0.1:8787";
 const DEV_UI_URL: &str = "http://localhost:5173";
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -143,12 +148,25 @@ fn maybe_spawn_api(
   let api_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../api/src/index.ts");
   let port = api_port();
 
-  let mut program: Option<String> = None;
-  let mut args: Vec<String> = Vec::new();
+  let mut program: Option<PathBuf> = None;
+  let mut args: Vec<PathBuf> = Vec::new();
   let mut cwd: Option<PathBuf> = None;
 
   for dir in candidate_sidecar_dirs(resource_dir) {
     let script = dir.join("prm-api.mjs");
+    append_log(
+      log_path,
+      &format!(
+        "PRM: probe sidecar dir {} script_exists={} node_exists={}",
+        dir.display(),
+        script.exists(),
+        if cfg!(windows) {
+          dir.join("node.exe").exists()
+        } else {
+          dir.join("node").exists()
+        }
+      ),
+    );
     if !script.exists() {
       continue;
     }
@@ -158,18 +176,22 @@ fn maybe_spawn_api(
       dir.join("node")
     };
     if bundled_node.exists() {
-      program = Some(bundled_node.to_string_lossy().to_string());
+      program = Some(bundled_node);
     } else {
-      program = Some("node".into());
+      program = Some(PathBuf::from("node"));
     }
-    args = vec![script.to_string_lossy().to_string()];
+    args = vec![script];
     cwd = Some(dir);
     break;
   }
 
   if program.is_none() && force && api_entry.exists() {
-    program = Some("pnpm".into());
-    args = vec!["exec".into(), "tsx".into(), "src/index.ts".into()];
+    program = Some(PathBuf::from("pnpm"));
+    args = vec![
+      PathBuf::from("exec"),
+      PathBuf::from("tsx"),
+      PathBuf::from("src/index.ts"),
+    ];
     cwd = api_entry.parent()?.parent().map(|p| p.to_path_buf());
   }
 
@@ -185,13 +207,15 @@ fn maybe_spawn_api(
   append_log(
     log_path,
     &format!(
-      "PRM: spawning API sidecar program={program} cwd={} data={} port={port}",
+      "PRM: spawning API sidecar program={} cwd={} data={} port={port}",
+      program.display(),
       cwd.display(),
       data.display()
     ),
   );
 
-  match Command::new(&program)
+  let mut command = Command::new(&program);
+  command
     .args(&args)
     .current_dir(&cwd)
     .env("PRM_LAUNCH_TOKEN", token)
@@ -199,9 +223,14 @@ fn maybe_spawn_api(
     .env("PRM_PORT", port.to_string())
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .spawn()
+    .stderr(Stdio::piped());
+  // GUI subsystem apps on Windows must not attach a console to Node or spawn can hang/fail.
+  #[cfg(windows)]
   {
+    command.creation_flags(CREATE_NO_WINDOW);
+  }
+
+  match command.spawn() {
     Ok(mut child) => {
       let log = log_path.to_path_buf();
       if let Some(mut out) = child.stdout.take() {
@@ -223,7 +252,25 @@ fn maybe_spawn_api(
           }
         });
       }
-      append_log(log_path, &format!("PRM: spawned API sidecar ({program})"));
+      // Detect immediate crash (missing native module, bad path, etc.)
+      thread::sleep(Duration::from_millis(150));
+      match child.try_wait() {
+        Ok(Some(status)) => {
+          append_log(
+            log_path,
+            &format!("PRM: API sidecar exited immediately with {status}"),
+          );
+          return None;
+        }
+        Ok(None) => {}
+        Err(err) => {
+          append_log(log_path, &format!("PRM: try_wait failed: {err}"));
+        }
+      }
+      append_log(
+        log_path,
+        &format!("PRM: spawned API sidecar ({})", program.display()),
+      );
       Some(child)
     }
     Err(err) => {
@@ -315,11 +362,12 @@ fn main() {
       }
 
       let inject = format!(
-        "window.__PRM_LAUNCH_TOKEN__={};window.__PRM_API_BASE_URL__={};",
+        "window.__PRM_LAUNCH_TOKEN__={};window.__PRM_API_BASE_URL__={};window.__PRM_DESKTOP_LOG__={};window.__PRM_DESKTOP__=true;",
         serde_json::to_string(&launch.launch_token).unwrap_or_else(|_| "\"\"".into()),
         serde_json::to_string(&launch.api_base_url).unwrap_or_else(|_| {
           serde_json::to_string(DEFAULT_API_BASE).unwrap_or_else(|_| "\"\"".into())
         }),
+        serde_json::to_string(&log_path.to_string_lossy()).unwrap_or_else(|_| "\"\"".into()),
       );
 
       let url = if cfg!(debug_assertions) {
@@ -328,11 +376,13 @@ fn main() {
         WebviewUrl::App("index.html".into())
       };
       if app.get_webview_window("main").is_none() {
+        // Keep http://tauri.localhost on Windows so fetch to http://127.0.0.1:8787 is not mixed-content blocked.
         WebviewWindowBuilder::new(app, "main", url)
           .title("Performance Review Manager")
           .inner_size(1280.0, 840.0)
           .resizable(true)
           .initialization_script(&inject)
+          .use_https_scheme(false)
           .build()?;
       } else if let Some(window) = app.get_webview_window("main") {
         let _ = window.eval(&inject);

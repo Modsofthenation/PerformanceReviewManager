@@ -52,11 +52,27 @@ export function App() {
   );
 
   if (error) {
+    const desktop = typeof window !== "undefined" && Boolean(window.__PRM_DESKTOP__ || window.__PRM_API_BASE_URL__);
+    const logPath = typeof window !== "undefined" ? window.__PRM_DESKTOP_LOG__ : undefined;
+    const apiBase = typeof window !== "undefined" ? window.__PRM_API_BASE_URL__ : undefined;
     return (
       <div className="unlock-screen">
         <div className="panel unlock-card">
           <h1>API offline</h1>
-          <p>Start the API on port 8787 (`pnpm dev:api`), then refresh.</p>
+          {desktop ? (
+            <>
+              <p>
+                The desktop API sidecar did not become ready. Retry in a moment. If this persists, check the
+                sidecar log and reinstall from the latest CI artifact.
+              </p>
+              {apiBase ? <p className="mono">Expected API: {apiBase}</p> : null}
+              {logPath ? <p className="mono">Log: {logPath}</p> : (
+                <p className="mono">Log: %APPDATA%\com.prm.workbench\desktop-api.log (Windows)</p>
+              )}
+            </>
+          ) : (
+            <p>Start the API on port 8787 (`pnpm dev:api`), then refresh.</p>
+          )}
           <p className="mono">{error}</p>
           <button className="btn" onClick={refresh}>Retry</button>
           <div style={{ marginTop: "0.75rem" }}>{themeToggle}</div>
