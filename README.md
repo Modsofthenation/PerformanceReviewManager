@@ -199,7 +199,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Configure providers, privacy gates, appearance, and vault maintenance in one place.
 
-**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira and Bitbucket credentials, run encrypted backup / restore, verify the activity log, and switch dark / light theme.
+**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira and Bitbucket credentials, run encrypted backup / restore, verify the activity log, and choose appearance (system / dark / light plus Teal, Ocean, Forest, or Slate accent).
 
 ![Settings](./docs/screenshots/14-settings.png)
 
