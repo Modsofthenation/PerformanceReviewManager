@@ -36,6 +36,7 @@ export function HomePage() {
   const [items, setItems] = useState<CommandItem[]>([]);
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [thinEvidenceCount, setThinEvidenceCount] = useState(0);
+  const [personCount, setPersonCount] = useState(0);
   const [nudges, setNudges] = useState<DeadlineNudge[]>([]);
   const [dueWeek, setDueWeek] = useState<DueThisWeekItem[]>([]);
   const [nudgeDays, setNudgeDays] = useState<number | null>(null);
@@ -50,6 +51,7 @@ export function HomePage() {
     });
     api<WorkspaceStatus>("/api/workspace/status").then((s) => {
       setThinEvidenceCount(s.thinEvidenceCount ?? 0);
+      setPersonCount(s.personCount ?? 0);
     });
     api<{ items: DueThisWeekItem[] }>("/api/due-this-week?days=7")
       .then(async (r) => {
@@ -129,6 +131,16 @@ export function HomePage() {
   }, [items]);
 
   const next = (() => {
+    if (personCount === 0) {
+      return (
+        <NextStep
+          tone="brand"
+          label="Add your team"
+          detail="This workspace has no people yet. Add yourself as EM and your directs on Team, then assign roles and open a cycle."
+          action={<Link className="btn" to="/team">Open team</Link>}
+        />
+      );
+    }
     if (!cycleId) {
       return (
         <NextStep

@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { WorkspaceStatus } from "@prm/shared";
 import { api, getToken, setToken, waitForApi } from "./lib/api";
@@ -20,10 +20,60 @@ import { SprintPulsePage } from "./pages/SprintPulsePage";
 import { SearchPage } from "./pages/SearchPage";
 import { BackfillPage } from "./pages/BackfillPage";
 
+const NAV = [
+  {
+    label: "Work",
+    links: [
+      { to: "/", end: true, label: "Home" },
+      { to: "/team", label: "Team" },
+      { to: "/roles", label: "Roles" },
+      { to: "/cycles", label: "Cycles" },
+      { to: "/promotions", label: "Promotions" },
+    ],
+  },
+  {
+    label: "Review",
+    links: [
+      { to: "/consistency", label: "Consistency" },
+      { to: "/team-performance", label: "Team performance" },
+      { to: "/sprint-pulse", label: "Sprint pulse" },
+      { to: "/search", label: "Search" },
+      { to: "/backfill", label: "Backfill" },
+    ],
+  },
+  {
+    label: "Tools",
+    links: [
+      { to: "/chat", label: "AI Chat" },
+      { to: "/settings", label: "Settings" },
+    ],
+  },
+] as const;
+
 export function App() {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { theme, toggle } = useTheme();
+  const [navOpen, setNavOpen] = useState(false);
+  const { resolved, toggle } = useTheme();
+  const location = useLocation();
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setNavOpen(false);
+    }
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [navOpen]);
 
   async function refresh() {
     try {
@@ -45,10 +95,10 @@ export function App() {
       type="button"
       className="btn ghost theme-toggle"
       onClick={toggle}
-      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={resolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={resolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
     >
-      {theme === "dark" ? "Light mode" : "Dark mode"}
+      {resolved === "dark" ? "Light mode" : "Dark mode"}
     </button>
   );
 
@@ -57,7 +107,6 @@ export function App() {
     const logPath = typeof window !== "undefined" ? window.__PRM_DESKTOP_LOG__ : undefined;
     const apiBase = typeof window !== "undefined" ? window.__PRM_API_BASE_URL__ : undefined;
     async function retryDesktop() {
-      // Prefer same-origin UI served by the sidecar once it is healthy.
       const base = (apiBase || "http://127.0.0.1:8787").replace(/\/$/, "");
       try {
         const res = await fetch(`${base}/api/health`);
@@ -90,7 +139,7 @@ export function App() {
           )}
           <p className="mono">{error}</p>
           <button className="btn" onClick={desktop ? retryDesktop : refresh}>Retry</button>
-          <div style={{ marginTop: "0.75rem" }}>{themeToggle}</div>
+          <div className="unlock-actions">{themeToggle}</div>
         </div>
       </div>
     );
@@ -110,26 +159,68 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <h1 className="brand">PRM</h1>
-        <div className="brand-sub">
-          {status.name} · solo EM workbench
-          {status.encryptedAtRest ? " · vault sealed" : " · vault open"}
+    <div className={`app-shell${navOpen ? " nav-open" : ""}`}>
+      <header className="topbar">
+        <button
+          type="button"
+          className="nav-toggle"
+          aria-label="Open navigation"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen(true)}
+        >
+          <span className="nav-toggle-bars" aria-hidden />
+        </button>
+        <div className="topbar-brand">PRM</div>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={toggle}
+          aria-label={resolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {resolved === "dark" ? "Light" : "Dark"}
+        </button>
+      </header>
+
+      <div
+        className="nav-backdrop"
+        role="presentation"
+        onClick={() => setNavOpen(false)}
+      />
+
+      <aside className="sidebar" aria-label="Primary">
+        <div className="sidebar-header">
+          <div>
+            <h1 className="brand">PRM</h1>
+            <div className="brand-sub">
+              {status.name} · solo EM workbench
+              {status.encryptedAtRest ? " · vault sealed" : " · vault open"}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="nav-close"
+            aria-label="Close navigation"
+            onClick={() => setNavOpen(false)}
+          >
+            ✕
+          </button>
         </div>
         <nav className="nav">
-          <NavLink to="/" end>Home</NavLink>
-          <NavLink to="/team">Team</NavLink>
-          <NavLink to="/roles">Roles</NavLink>
-          <NavLink to="/cycles">Cycles</NavLink>
-          <NavLink to="/promotions">Promotions</NavLink>
-          <NavLink to="/consistency">Consistency</NavLink>
-          <NavLink to="/search">Search</NavLink>
-          <NavLink to="/team-performance">Team performance</NavLink>
-          <NavLink to="/sprint-pulse">Sprint pulse</NavLink>
-          <NavLink to="/backfill">Backfill</NavLink>
-          <NavLink to="/chat">AI Chat</NavLink>
-          <NavLink to="/settings">Settings</NavLink>
+          {NAV.map((section) => (
+            <div key={section.label}>
+              <div className="nav-section">{section.label}</div>
+              {section.links.map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={"end" in link ? link.end : undefined}
+                  onClick={() => setNavOpen(false)}
+                >
+                  {link.label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
         </nav>
         <div className="sidebar-actions">
           {themeToggle}

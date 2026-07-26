@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AuditVerifyResult } from "@prm/shared";
 import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
+import { ACCENTS, type Accent, type ColorMode } from "../lib/theme";
 import { NextStep, PageHeader } from "../components/PageChrome";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
 
@@ -31,7 +32,7 @@ export function SettingsPage() {
     Array<{ filename: string; byteSize: number; modifiedAt: string }>
   >([]);
   const [backupBusy, setBackupBusy] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { colorMode, setColorMode, accent, setAccent, resolved } = useTheme();
 
   async function load() {
     try {
@@ -104,19 +105,54 @@ export function SettingsPage() {
         }
       />
 
-      <div className="panel">
-        <h2>Appearance</h2>
-        <p className="muted">Theme preference is stored in this browser and defaults to dark.</p>
+      <div className="panel stack">
+        <div className="panel-title">
+          <h2>Appearance</h2>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Color mode and accent are stored in this browser. System follows your OS preference ({resolved} right now).
+        </p>
         <div className="field">
-          <label htmlFor="theme-select">Color theme</label>
+          <label htmlFor="theme-select">Color mode</label>
           <select
             id="theme-select"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value === "light" ? "light" : "dark")}
+            value={colorMode}
+            onChange={(e) => setColorMode(e.target.value as ColorMode)}
           >
+            <option value="system">System</option>
             <option value="dark">Dark</option>
             <option value="light">Light</option>
           </select>
+        </div>
+        <div className="field">
+          <label>Accent</label>
+          <div className="accent-swatches" role="radiogroup" aria-label="Accent color">
+            {ACCENTS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`accent-swatch${accent === item.id ? " on" : ""}`}
+                role="radio"
+                aria-checked={accent === item.id}
+                onClick={() => setAccent(item.id as Accent)}
+              >
+                <span
+                  className="accent-dot"
+                  style={{
+                    ["--swatch" as string]:
+                      item.id === "teal"
+                        ? "#14b8a6"
+                        : item.id === "ocean"
+                          ? "#38bdf8"
+                          : item.id === "forest"
+                            ? "#4ade80"
+                            : "#94a3b8",
+                  }}
+                />
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
