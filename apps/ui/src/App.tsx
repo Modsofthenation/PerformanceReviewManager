@@ -151,10 +151,22 @@ export function App() {
 
   const unlocked = Boolean(getToken()) && status.unlocked;
 
+  async function handleWorkspaceDestroyed() {
+    setToken(null);
+    await refresh();
+  }
+
   if (!status.initialized || !unlocked) {
     return (
       <>
-        <UnlockPage status={status} onUnlocked={async (token) => { setToken(token); await refresh(); }} />
+        <UnlockPage
+          status={status}
+          onUnlocked={async (token) => {
+            setToken(token);
+            await refresh();
+          }}
+          onDestroyed={handleWorkspaceDestroyed}
+        />
         <div className="theme-float">{themeToggle}</div>
       </>
     );
@@ -255,7 +267,7 @@ export function App() {
           <Route path="/backfill" element={<BackfillPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={<SettingsPage onWorkspaceDestroyed={handleWorkspaceDestroyed} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

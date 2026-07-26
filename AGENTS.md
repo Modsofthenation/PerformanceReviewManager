@@ -14,9 +14,10 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 - This repo requires **pnpm 10.33.3**. The VM's default corepack resolves pnpm 11, which (a) rejects this committed lockfile via a `minimumReleaseAge` supply-chain policy and (b) ignores the `pnpm.onlyBuiltDependencies` field in `package.json` that is needed to build the `better-sqlite3` native module. The update script pins 10.33.3 via `corepack prepare pnpm@10.33.3 --activate`; keep using pnpm 10.x. If native `better-sqlite3` is missing, run `pnpm rebuild better-sqlite3`.
 
 ### Data / running
-- Local data lives in `/workspace/data` (gitignored): SQLite DB, encrypted vault, uploaded files. Delete it to reset to a clean state (stop the API first, since it holds the DB handle).
+- Local data lives in `/workspace/data` (gitignored): SQLite DB, encrypted vault, uploaded files. Delete it to reset to a clean state (stop the API first, since it holds the DB handle), or use **Delete workspace** in Settings / **Erase workspace** on Unlock (password + type `DELETE`).
 - First app load offers **Empty workspace** or **Demo team** (seeds an 8-person org). After init it shows "Unlock". Default demo password: `workbench`.
 - Locking the workspace ("Lock & encrypt") seals the SQLite DB + files to `.enc` at rest; unlocking decrypts them.
+- After erase, the create flow returns so you can start a new empty or demo workspace.
 - `.session` stores the auth token only (not the AES key). After an API process restart you must unlock again even if the UI still has a token.
 
 ### Known pre-existing issues (not environment problems)

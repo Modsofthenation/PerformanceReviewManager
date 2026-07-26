@@ -22,7 +22,11 @@ type AiSettings = {
   apiKeyFromEnv?: boolean;
 };
 
-export function SettingsPage() {
+export function SettingsPage({
+  onWorkspaceDestroyed,
+}: {
+  onWorkspaceDestroyed: () => Promise<void>;
+}) {
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -33,6 +37,11 @@ export function SettingsPage() {
     Array<{ filename: string; byteSize: number; modifiedAt: string }>
   >([]);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [destroyOpen, setDestroyOpen] = useState(false);
+  const [destroyPassword, setDestroyPassword] = useState("");
+  const [destroyConfirm, setDestroyConfirm] = useState("");
+  const [destroyBusy, setDestroyBusy] = useState(false);
+  const [destroyError, setDestroyError] = useState<string | null>(null);
   const { colorMode, setColorMode, accent, setAccent, resolved } = useTheme();
 
   async function load() {
@@ -502,6 +511,95 @@ export function SettingsPage() {
         </div>
         {msg && <p className="muted">{msg}</p>}
       </form>
+
+      <div className="panel stack">
+        <h2>Danger zone</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Permanently erase this local workspace (database, vault, uploads, and backups), then create a
+          new empty or demo workspace. Legal hold must be off. This cannot be undone.
+        </p>
+        {!destroyOpen ? (
+          <div className="cta-primary-row">
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => {
+                setDestroyOpen(true);
+                setDestroyError(null);
+                setDestroyPassword("");
+                setDestroyConfirm("");
+              }}
+            >
+              Delete workspace…
+            </button>
+          </div>
+        ) : (
+          <form
+            className="stack"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setDestroyBusy(true);
+              setDestroyError(null);
+              try {
+                if (destroyConfirm !== "DELETE") {
+                  setDestroyError('Type DELETE to confirm.');
+                  setDestroyBusy(false);
+                  return;
+                }
+                await api("/api/workspace/destroy", {
+                  method: "POST",
+                  body: JSON.stringify({ password: destroyPassword, confirm: "DELETE" }),
+                });
+                await onWorkspaceDestroyed();
+              } catch (err) {
+                setDestroyError(err instanceof Error ? err.message : "Delete failed");
+              } finally {
+                setDestroyBusy(false);
+              }
+            }}
+          >
+            <div className="field">
+              <label htmlFor="destroy-password">Workspace password</label>
+              <input
+                id="destroy-password"
+                type="password"
+                value={destroyPassword}
+                onChange={(e) => setDestroyPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="destroy-confirm">Type DELETE to confirm</label>
+              <input
+                id="destroy-confirm"
+                value={destroyConfirm}
+                onChange={(e) => setDestroyConfirm(e.target.value)}
+                autoComplete="off"
+                placeholder="DELETE"
+                required
+              />
+            </div>
+            {destroyError && <p style={{ color: "var(--danger)" }}>{destroyError}</p>}
+            <div className="cta-primary-row">
+              <button className="btn danger" type="submit" disabled={destroyBusy}>
+                {destroyBusy ? "…" : "Erase workspace permanently"}
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={destroyBusy}
+                onClick={() => {
+                  setDestroyOpen(false);
+                  setDestroyError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
       <div className="panel stack">
         <h2>Desktop updates</h2>

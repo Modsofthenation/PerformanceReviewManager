@@ -356,6 +356,91 @@ export function lockVault() {
   clearSession();
 }
 
+/**
+ * Permanently delete the local workspace (DB, vault, files, backups).
+ * Requires the workspace password. Blocks when legal hold is enabled.
+ * After success, `/api/workspace/init` can create a fresh empty or demo workspace.
+ */
+export function destroyWorkspace(password: string): void {
+  if (!isInitialized()) {
+    throw new Error("No workspace to delete");
+  }
+
+  const wasUnlocked = Boolean(sessionToken && workspaceSecret && existsSync(DB_PATH) && dbHandle);
+  let unlockedForDestroy = false;
+
+  try {
+    if (!wasUnlocked) {
+      unlockVault(password);
+      unlockedForDestroy = true;
+    } else {
+      const vault = readVault();
+      if (vault) {
+        if (!verifyPassword(password, vault.passwordHash, vault.salt)) {
+          throw new Error("Invalid password");
+        }
+      } else {
+        const row = getDb().select().from(workspace).limit(1).all()[0];
+        if (!row || !verifyPassword(password, row.passwordHash, row.passwordSalt)) {
+          throw new Error("Invalid password");
+        }
+      }
+    }
+
+    const row = getDb().select().from(workspace).limit(1).all()[0];
+    if (row) {
+      let parsed: { legalHold?: boolean } = {};
+      try {
+        parsed = JSON.parse(row.settingsJson || "{}") as { legalHold?: boolean };
+      } catch {
+        parsed = {};
+      }
+      if (parsed.legalHold) {
+        const err = new Error(
+          "Legal hold is on — disable it in Settings → Retention before deleting the workspace.",
+        );
+        (err as Error & { code?: string }).code = "legal_hold";
+        throw err;
+      }
+    }
+  } catch (e) {
+    if (unlockedForDestroy) {
+      try {
+        lockVault();
+      } catch {
+        /* ignore re-seal failure */
+      }
+    }
+    throw e;
+  }
+
+  try {
+    if (sqliteHandle) {
+      sqliteHandle.pragma("wal_checkpoint(TRUNCATE)");
+    }
+  } catch {
+    /* ignore */
+  }
+  closeDbHandles();
+  removeSidecars();
+  clearSession();
+
+  for (const f of [DB_PATH, `${DB_PATH}-wal`, `${DB_PATH}-shm`, DB_ENC_PATH, VAULT_PATH, SESSION_PATH]) {
+    try {
+      if (existsSync(f)) unlinkSync(f);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  rmSync(paths.files, { recursive: true, force: true });
+  rmSync(paths.backups, { recursive: true, force: true });
+  mkdirSync(paths.documents, { recursive: true });
+  mkdirSync(paths.frameworks, { recursive: true });
+  mkdirSync(paths.exports, { recursive: true });
+  mkdirSync(paths.backups, { recursive: true });
+}
+
 export function encryptionStatus() {
   const vault = readVault();
   return {

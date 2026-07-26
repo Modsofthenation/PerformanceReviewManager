@@ -7,15 +7,20 @@ type SetupMode = "empty" | "demo";
 export function UnlockPage({
   status,
   onUnlocked,
+  onDestroyed,
 }: {
   status: WorkspaceStatus;
   onUnlocked: (token: string) => Promise<void>;
+  onDestroyed: () => Promise<void>;
 }) {
   const [setupMode, setSetupMode] = useState<SetupMode>("empty");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("My team");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [eraseOpen, setEraseOpen] = useState(false);
+  const [erasePassword, setErasePassword] = useState("");
+  const [eraseConfirm, setEraseConfirm] = useState("");
 
   function selectMode(mode: SetupMode) {
     setSetupMode(mode);
@@ -53,6 +58,32 @@ export function UnlockPage({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function eraseWorkspace(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (eraseConfirm !== "DELETE") {
+        setError('Type DELETE to confirm erasing this workspace.');
+        setBusy(false);
+        return;
+      }
+      await api("/api/workspace/destroy", {
+        method: "POST",
+        body: JSON.stringify({ password: erasePassword, confirm: "DELETE" }),
+      });
+      setEraseOpen(false);
+      setErasePassword("");
+      setEraseConfirm("");
+      setPassword("");
+      await onDestroyed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erase failed");
     } finally {
       setBusy(false);
     }
@@ -104,7 +135,7 @@ export function UnlockPage({
         ) : !status.initialized ? (
           <p className="muted">
             {setupMode === "demo"
-              ? "Demo data is for exploring the product. You can lock and re-create later by deleting the local data folder."
+              ? "Demo data is for exploring the product. You can erase the workspace later from Unlock or Settings and create a new one."
               : "No sample people or reviews. You will add the roster from Team."}
           </p>
         ) : null}
@@ -136,11 +167,78 @@ export function UnlockPage({
             placeholder={setupMode === "demo" && !status.initialized ? "workbench" : "Choose a password"}
           />
         </div>
-        {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+        {error && !eraseOpen && <p style={{ color: "var(--danger)" }}>{error}</p>}
         <button className="btn" disabled={busy}>
           {busy ? "…" : primaryLabel}
         </button>
       </form>
+
+      {status.initialized && (
+        <div className="panel unlock-card unlock-erase">
+          {!eraseOpen ? (
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={busy}
+              onClick={() => {
+                setEraseOpen(true);
+                setError(null);
+              }}
+            >
+              Erase workspace &amp; start over…
+            </button>
+          ) : (
+            <form className="stack" onSubmit={eraseWorkspace}>
+              <h2>Erase workspace</h2>
+              <p className="muted" style={{ margin: 0 }}>
+                Permanently deletes the local vault, database, uploads, and backups on this machine.
+                You can create a new empty or demo workspace afterward. This cannot be undone.
+              </p>
+              <div className="field">
+                <label htmlFor="erase-password">Workspace password</label>
+                <input
+                  id="erase-password"
+                  type="password"
+                  value={erasePassword}
+                  onChange={(e) => setErasePassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="erase-confirm">Type DELETE to confirm</label>
+                <input
+                  id="erase-confirm"
+                  value={eraseConfirm}
+                  onChange={(e) => setEraseConfirm(e.target.value)}
+                  autoComplete="off"
+                  placeholder="DELETE"
+                  required
+                />
+              </div>
+              {error && eraseOpen && <p style={{ color: "var(--danger)" }}>{error}</p>}
+              <div className="cta-primary-row">
+                <button className="btn danger" disabled={busy} type="submit">
+                  {busy ? "…" : "Erase workspace"}
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setEraseOpen(false);
+                    setErasePassword("");
+                    setEraseConfirm("");
+                    setError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }
