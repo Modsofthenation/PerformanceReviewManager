@@ -48,7 +48,7 @@ Settings → **Check for updates** compares the packaged version (`get_app_versi
 
 Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 
-CI builds the same matrix (Ubuntu / macOS / Windows) on pushes to `main`. Each green desktop job uploads an Actions artifact (retained 30 days):
+CI builds the desktop matrix (Ubuntu / macOS / Windows) only when you **manually run** the **CI** workflow from the Actions tab (`workflow_dispatch`). Merges and PRs still run unit tests only. Each green desktop job uploads an Actions artifact (retained 30 days):
 
 | Artifact name | Typical contents |
 |---------------|------------------|
