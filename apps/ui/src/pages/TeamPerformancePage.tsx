@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { CycleCompareDTO, CycleDTO, RatingTrendsDTO, TeamPerformanceDTO } from "@prm/shared";
 import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
+import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 const PROMO_LABELS: Record<string, string> = {
@@ -270,6 +271,13 @@ export function TeamPerformancePage() {
         primary={
           data ? (
             <>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void openHtmlExport(`/api/exports/director-briefing/${data.cycleId}?format=html`)}
+              >
+                Director briefing
+              </button>
               <Link className="btn secondary" to="/sprint-pulse">
                 Sprint pulse
               </Link>

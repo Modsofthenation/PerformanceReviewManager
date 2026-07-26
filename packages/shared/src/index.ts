@@ -334,6 +334,60 @@ export interface StagnationHint {
   cycleCount: number;
 }
 
+/** Flags-only queue for directors (no private note bodies). */
+export interface DirectorAttentionItem {
+  personId: string;
+  personName: string;
+  reasons: string[];
+  overall: number | null;
+  priorOverall: number | null;
+  promoReadiness: string | null;
+  openConcernCount: number;
+  thinDeliveryEvidence: string | null;
+  thinDossier: boolean;
+  stagnant: boolean;
+  promoReady: boolean;
+}
+
+export interface DirectorAttentionDTO {
+  cycleId: string;
+  cycleName: string;
+  items: DirectorAttentionItem[];
+}
+
+export interface DirectorBriefingPersonDTO {
+  personId: string;
+  personName: string;
+  title: string | null;
+  roleTitle: string | null;
+  overall: number | null;
+  priorOverall: number | null;
+  delta: number | null;
+  competencies: Record<string, number>;
+  promoReadiness: string | null;
+  citedBullets: Array<{ text: string; citeId: string | null }>;
+  delivery: {
+    issuesDone: number;
+    prsMerged: number;
+    storyPointsDone: number | null;
+    reviewsGiven: number;
+  };
+  flags: string[];
+  openConcernCount: number;
+  managerStatus: string;
+}
+
+export interface DirectorBriefingDTO {
+  cycleId: string;
+  cycleName: string;
+  windowStart: string;
+  windowEnd: string;
+  exportedAt: string;
+  notice: string;
+  people: DirectorBriefingPersonDTO[];
+  distribution: Record<string, number>;
+}
+
 export type IntegrationProvider = "jira" | "bitbucket" | "github";
 
 export interface IntegrationSettingsDTO {

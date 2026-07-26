@@ -27,10 +27,44 @@ async function unlockToken() {
   return json.token;
 }
 
-async function apiJson(token, pathName) {
-  const res = await fetch(`${API}${pathName}`, { headers: { "x-prm-token": token } });
-  if (!res.ok) throw new Error(`${pathName} → ${res.status}`);
-  return res.json();
+async function apiJson(token, pathName, init) {
+  const res = await fetch(`${API}${pathName}`, {
+    ...init,
+    headers: {
+      "x-prm-token": token,
+      ...(init?.body ? { "content-type": "application/json" } : {}),
+      ...(init?.headers || {}),
+    },
+  });
+  if (!res.ok) throw new Error(`${pathName} → ${res.status} ${await res.text()}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function ensureSubmittedPromo(token, promos) {
+  const draft = promos.find((p) => p.status === "draft") || promos[0];
+  if (!draft?.id) return draft;
+  if (draft.status === "submitted") return draft;
+  const detail = await apiJson(token, `/api/promotions/${draft.id}`);
+  const payload = detail?.review?.payload ?? {};
+  await apiJson(token, `/api/promotions/${draft.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      status: "submitted",
+      decisionReason: "Screenshot gallery: show promo committee export",
+      payload: {
+        case_summary: payload.case_summary || "Ready for committee review with evidence-backed case.",
+        scope_examples: payload.scope_examples || "Led cross-team delivery on critical path work.",
+        remaining_gaps: payload.remaining_gaps || "Continue building skip-level visibility.",
+        recommendation: payload.recommendation || "ready",
+      },
+      assessments: (detail.assessments || []).map((a) => ({
+        roleExpectationId: a.roleExpectationId,
+        mark: a.mark,
+      })),
+    }),
+  });
+  return { ...draft, status: "submitted" };
 }
 
 async function shot(page, name) {
@@ -39,15 +73,30 @@ async function shot(page, name) {
   console.log("wrote", file);
 }
 
+async function gotoApp(page, route) {
+  await page.goto(`${UI}${route}`, { waitUntil: "networkidle0" });
+  await page.waitForSelector(".main, .app-shell", { timeout: 15000 });
+  await new Promise((r) => setTimeout(r, 450));
+}
+
+async function scrollHeadingIntoView(page, text) {
+  await page.evaluate((heading) => {
+    const nodes = Array.from(document.querySelectorAll("h1, h2, h3, .page-header, .panel"));
+    const el = nodes.find((n) => (n.textContent || "").includes(heading));
+    el?.scrollIntoView({ block: "start" });
+  }, text);
+  await new Promise((r) => setTimeout(r, 350));
+}
+
 async function main() {
   const token = await unlockToken();
   const people = await apiJson(token, "/api/people");
   const cycles = await apiJson(token, "/api/cycles");
   const promos = await apiJson(token, "/api/promotions");
+  const promo = await ensureSubmittedPromo(token, promos);
   const directs = people.filter((p) => p.managerId);
   const person = directs[0] || people[0];
   const cycle = cycles[0];
-  const promo = promos[0];
 
   const browser = await puppeteer.launch({
     executablePath: process.env.CHROME_PATH || "/usr/bin/google-chrome-stable",
@@ -77,8 +126,10 @@ async function main() {
   await page.evaluate((t) => localStorage.setItem("prm_token", t), token2);
   await page.goto(UI, { waitUntil: "networkidle0" });
   await page.waitForSelector(".app-shell", { timeout: 15000 });
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 700));
   await shot(page, "02-home");
+  await scrollHeadingIntoView(page, "Needs director attention");
+  await shot(page, "15-director-attention");
 
   const routes = [
     ["03-team", "/team"],
@@ -96,8 +147,7 @@ async function main() {
   if (promo?.id) routes.splice(6, 0, ["09-promotion-detail", `/promotions/${promo.id}`]);
 
   for (const [name, route] of routes) {
-    await page.goto(`${UI}${route}`, { waitUntil: "networkidle0" });
-    await page.waitForSelector(".main, .app-shell", { timeout: 15000 });
+    await gotoApp(page, route);
     if (route === "/chat") {
       await page.waitForSelector(".chat-composer button", { timeout: 15000 });
       await page.evaluate(() => {
@@ -107,8 +157,43 @@ async function main() {
     if (route === "/team-performance") {
       await page.waitForSelector(".tp-metrics, .tp-grid, h2", { timeout: 15000 });
     }
+    if (name === "07-writing-desk") {
+      await page.waitForFunction(
+        () => (document.body?.innerText || "").includes("Evidence digest"),
+        { timeout: 15000 },
+      );
+      await scrollHeadingIntoView(page, "Evidence digest");
+    }
+    if (name === "10-consistency") {
+      await page.waitForFunction(
+        () => Array.from(document.querySelectorAll("h2")).some((h) => h.textContent?.includes("Calibration bundles")),
+        { timeout: 15000 },
+      );
+      await scrollHeadingIntoView(page, "Calibration bundles");
+    }
+    if (name === "09-promotion-detail") {
+      await page.waitForFunction(
+        () => (document.body?.innerText || "").includes("Promo committee export"),
+        { timeout: 15000 },
+      );
+    }
     await new Promise((r) => setTimeout(r, 450));
     await shot(page, name);
+
+    if (name === "07-writing-desk") {
+      await scrollHeadingIntoView(page, "Evidence digest");
+      await shot(page, "16-writing-desk-director");
+    }
+    if (name === "10-consistency") {
+      await scrollHeadingIntoView(page, "Calibration bundles");
+      await shot(page, "17-consistency-director-packs");
+    }
+    if (name === "11-team-performance") {
+      await shot(page, "18-team-director-briefing");
+    }
+    if (name === "09-promotion-detail") {
+      await shot(page, "19-promo-committee");
+    }
   }
 
   await browser.close();

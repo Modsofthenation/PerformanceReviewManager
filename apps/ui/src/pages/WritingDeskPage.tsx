@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import type { BiasFinding, DecisionLogEntry, DeliveryCiteSuggestion, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
+import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
@@ -35,6 +36,7 @@ export function WritingDeskPage() {
   const [gaps, setGaps] = useState<Record<string, GapMark>>({});
   const [digest, setDigest] = useState<string | null>(null);
   const [citeSuggestions, setCiteSuggestions] = useState<DeliveryCiteSuggestion[]>([]);
+  const [skipLevel, setSkipLevel] = useState<string | null>(null);
   const [peerSynth, setPeerSynth] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -518,8 +520,42 @@ export function WritingDeskPage() {
               >
                 Generate digest
               </button>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={async () => {
+                  const res = await api<{ outputText: string }>("/api/ai/skip-level-talking-points", {
+                    method: "POST",
+                    body: JSON.stringify({ cycleId, personId }),
+                  });
+                  setSkipLevel(res.outputText);
+                }}
+              >
+                Skip-level talking points
+              </button>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={() =>
+                  void openHtmlExport(
+                    `/api/exports/director-briefing/${cycleId}?personId=${encodeURIComponent(personId ?? "")}&format=html`,
+                  )
+                }
+              >
+                Director card
+              </button>
             </div>
             <div className="digest">{digest ?? "Generate a grounded digest from dossier + imports before drafting."}</div>
+            {skipLevel && (
+              <div>
+                <p className="muted" style={{ marginBottom: 4 }}>
+                  Skip-level talking points (copy for a 15‑min with your director)
+                </p>
+                <pre className="digest" style={{ whiteSpace: "pre-wrap" }}>
+                  {skipLevel}
+                </pre>
+              </div>
+            )}
             {citeSuggestions.length > 0 && (
               <div>
                 <p className="muted" style={{ marginBottom: 4 }}>

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import type { CalibBundleDTO, ConsistencyDTO, CycleDTO } from "@prm/shared";
 import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
+import { downloadBinaryExport, openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 export function ConsistencyPage() {
@@ -16,6 +17,7 @@ export function ConsistencyPage() {
   const [directorDecisions, setDirectorDecisions] = useState<
     Record<string, { overall: string; note: string }>
   >({});
+  const [bundlePass, setBundlePass] = useState("");
   const cycleId = params.get("cycleId") ?? "";
 
   async function load(cid?: string) {
@@ -128,6 +130,71 @@ export function ConsistencyPage() {
               }}
             >
               Export calib JSON
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={async () => {
+                try {
+                  await openHtmlExport(`/api/exports/calib-room/${data.cycleId}?format=html`);
+                  setCalibMsg("Opened calibration room pack — Print → Save as PDF");
+                } catch (e) {
+                  setCalibMsg(e instanceof Error ? e.message : "Calib pack failed");
+                }
+              }}
+            >
+              Print calib room pack
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={async () => {
+                try {
+                  await openHtmlExport(`/api/exports/director-briefing/${data.cycleId}?format=html`);
+                  setCalibMsg("Opened director briefing — Print → Save as PDF");
+                } catch (e) {
+                  setCalibMsg(e instanceof Error ? e.message : "Briefing failed");
+                }
+              }}
+            >
+              Director briefing
+            </button>
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+            <div className="field" style={{ margin: 0, minWidth: 180 }}>
+              <label>Encrypted handoff passphrase</label>
+              <input
+                type="password"
+                value={bundlePass}
+                onChange={(e) => setBundlePass(e.target.value)}
+                placeholder="min 8 characters"
+              />
+            </div>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={bundlePass.trim().length < 8}
+              onClick={async () => {
+                try {
+                  await downloadBinaryExport(
+                    "/api/exports/readonly-bundle",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        cycleId: data.cycleId,
+                        passphrase: bundlePass,
+                        include: ["director_briefing", "calib_room"],
+                      }),
+                    },
+                    `prm-readonly-${data.cycleName.replace(/\s+/g, "-").toLowerCase()}.prm.enc`,
+                  );
+                  setCalibMsg("Downloaded encrypted read-only bundle");
+                } catch (e) {
+                  setCalibMsg(e instanceof Error ? e.message : "Bundle failed");
+                }
+              }}
+            >
+              Encrypted read-only bundle
             </button>
           </div>
 

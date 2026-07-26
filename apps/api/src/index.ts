@@ -97,6 +97,15 @@ import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
 import { registerP1Routes } from "./p1Routes.js";
 import { indexReviewFts } from "./reviewSearch.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
+import {
+  enhancePromotionCommitteeHtml,
+  renderCalibRoomHtml,
+  renderDirectorBriefingHtml,
+  bumpDistribution,
+  emptyDistribution,
+} from "./directorPacks.js";
+import { buildDirectorAttention, buildDirectorBriefing } from "./directorGather.js";
+import { readonlyBundleFilename, sealReadonlyBundle } from "./readonlyBundle.js";
 import { localPeerSynthesize } from "./peerSynth.js";
 import { bitbucketSearchMembers, bitbucketTestConnection } from "./bitbucket.js";
 import { githubSearchUsers, githubTestConnection } from "./github.js";
@@ -2896,6 +2905,79 @@ app.post("/api/ai/digest", async (c) => {
   });
 });
 
+app.post("/api/ai/skip-level-talking-points", async (c) => {
+  const body = await c.req.json<{ cycleId: string; personId: string; useCloud?: boolean }>();
+  const ctx = buildEvidenceContext(body.personId, body.cycleId);
+  const cfg = getAiConfig();
+  const pack = buildDirectorBriefing(getDb(), {
+    cycleId: body.cycleId,
+    personId: body.personId,
+    loadRole,
+    assignmentFor,
+  });
+  const person = pack?.people[0];
+  const citeIds = person?.citedBullets.map((b) => b.citeId).filter(Boolean) as string[] ?? ctx.citations.slice(0, 8);
+  const forcedCites = citeIds.slice(0, 6).map((id) => `[${id}]`).join(" ");
+
+  const localLines = [
+    `Skip-level talking points — ${ctx.person?.name ?? "subject"} (${pack?.cycleName ?? body.cycleId}).`,
+    person
+      ? `Overall ${person.overall ?? "—"}/5${person.delta != null ? ` (Δ ${person.delta > 0 ? "+" : ""}${person.delta})` : ""}${person.promoReadiness ? ` · promo ${person.promoReadiness}` : ""}.`
+      : null,
+    person
+      ? `Delivery: ${person.delivery.issuesDone} issues done, ${person.delivery.prsMerged} PRs merged${person.delivery.storyPointsDone != null ? `, ${person.delivery.storyPointsDone} pts` : ""}.`
+      : null,
+    ...(person?.citedBullets.slice(0, 6).map((b) => `• ${b.text}${b.citeId ? ` [${b.citeId}]` : ""}`) ?? []),
+    forcedCites ? `Prefer cites: ${forcedCites}` : null,
+    person?.flags.length ? `Flags (share-safe): ${person.flags.join(", ")}` : null,
+  ].filter(Boolean) as string[];
+
+  let outputText: string;
+  let model = "local-grounded";
+  if (body.useCloud !== false && cfg.enabled && (cfg.hasApiKey || cfg.localOnly || cfg.provider === "ollama")) {
+    try {
+      const result = await runChat("skip_level_talking_points", [
+        { role: "system", content: buildSystemPrompt() },
+        {
+          role: "user",
+          content: `Write 6–8 skip-level talking points for a 15-minute 1:1 with the EM's director about this person.
+Rules: every substantive bullet MUST include an evidence cite like [ach_…]. Prefer Done-in-window delivery items. Omit private notes and concern bodies. Be candid but share-safe.
+
+Prefer these cites: ${forcedCites || "(use allowlisted ids from evidence)"}
+
+CONTEXT:
+${ctx.lines.join("\n")}`,
+        },
+      ]);
+      outputText = result.text;
+      model = result.model;
+    } catch (e) {
+      outputText = `${localLines.join("\n")}\n\n(Cloud draft failed: ${e instanceof Error ? e.message : "error"})`;
+    }
+  } else {
+    outputText = localLines.join("\n");
+  }
+
+  const filtered = filterCitationsAgainstAllowlist(outputText, ctx.citations);
+  outputText = filtered.text;
+  const generationId = storeGeneration({
+    feature: "skip_level_talking_points",
+    subjectPersonId: body.personId,
+    cycleId: body.cycleId,
+    model,
+    outputText,
+    citations: filtered.citationsUsed,
+    dataClassesSent: ctx.dataClassesSent,
+  });
+  return c.json({
+    generationId,
+    outputText,
+    citations: filtered.citationsUsed,
+    citationsDropped: filtered.citationsDropped,
+    model,
+  });
+});
+
 app.post("/api/ai/draft-section", async (c) => {
   const body = await c.req.json<{
     cycleId: string;
@@ -3981,7 +4063,42 @@ app.get("/api/exports/promotion/:id", (c) => {
     : [];
   const exportedAt = nowIso();
   const format = (c.req.query("format") ?? "html").toLowerCase();
-  const html = renderPromotionPacketHtml({
+
+  const citeSnaps = review
+    ? db
+        .select()
+        .from(citationSnapshots)
+        .where(eq(citationSnapshots.reviewId, review.id))
+        .all()
+        .map((s) => ({ title: s.title, citeId: s.sourceId }))
+    : [];
+  // Fall back to recent achievements as allowlisted cites for committee pack.
+  const achCites =
+    citeSnaps.length > 0
+      ? citeSnaps
+      : db
+          .select()
+          .from(achievements)
+          .where(eq(achievements.personId, row.personId))
+          .all()
+          .slice(0, 10)
+          .map((a) => ({ title: a.title, citeId: a.id }));
+
+  const cycle =
+    db.select().from(cycles).all().sort((a, b) => b.windowEnd.localeCompare(a.windowEnd))[0] ?? null;
+  const achRows = db.select().from(achievements).where(eq(achievements.personId, row.personId)).all();
+  const rollup = cycle
+    ? buildDeliveryRollup({
+        personId: row.personId,
+        cycleId: cycle.id,
+        windowStart: cycle.windowStart.slice(0, 10),
+        windowEnd: cycle.windowEnd.slice(0, 10),
+        achievements: achRows,
+        dossierNonIntegrationCount: achRows.filter((a) => !a.sourceProvider).length,
+      })
+    : null;
+
+  let html = renderPromotionPacketHtml({
     personName: person?.name ?? row.personId,
     currentRole: current?.title,
     targetRole: target?.title,
@@ -3992,6 +4109,12 @@ app.get("/api/exports/promotion/:id", (c) => {
     assessments,
     exportedAt,
   });
+  html = enhancePromotionCommitteeHtml({
+    baseHtml: html,
+    citedEvidence: achCites,
+    deliveryThemes: rollup?.themes ?? [],
+  });
+
   if (format === "json") {
     return c.json({
       personName: person?.name,
@@ -3999,13 +4122,225 @@ app.get("/api/exports/promotion/:id", (c) => {
       targetRole: target?.title,
       payload,
       assessments,
+      citedEvidence: achCites,
+      deliveryThemes: rollup?.themes ?? [],
       exportedAt,
     });
   }
   return new Response(html, {
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "content-disposition": `inline; filename="promo-${(person?.name ?? "case").replace(/\s+/g, "-").toLowerCase()}.html"`,
+      "content-disposition": `inline; filename="promo-committee-${(person?.name ?? "case").replace(/\s+/g, "-").toLowerCase()}.html"`,
+    },
+  });
+});
+
+app.get("/api/exports/director-briefing/:cycleId", (c) => {
+  const cycleId = c.req.param("cycleId");
+  const personId = c.req.query("personId");
+  const format = (c.req.query("format") ?? "html").toLowerCase();
+  const pack = buildDirectorBriefing(getDb(), {
+    cycleId,
+    personId,
+    loadRole,
+    assignmentFor,
+  });
+  if (!pack) return c.json({ error: "Cycle not found" }, 404);
+  logActivity("exports.director_briefing", "cycle", cycleId, {
+    personId: personId ?? null,
+    people: pack.people.length,
+  });
+  if (format === "json") return c.json(pack);
+  const html = renderDirectorBriefingHtml(pack);
+  const name = personId
+    ? `director-briefing-${(pack.people[0]?.personName ?? "person").replace(/\s+/g, "-").toLowerCase()}.html`
+    : `director-briefing-${pack.cycleName.replace(/\s+/g, "-").toLowerCase()}.html`;
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "content-disposition": `inline; filename="${name}"`,
+    },
+  });
+});
+
+app.get("/api/exports/calib-room/:cycleId", (c) => {
+  const cycleId = c.req.param("cycleId");
+  const format = (c.req.query("format") ?? "html").toLowerCase();
+  const db = getDb();
+  const cycle = db.select().from(cycles).where(eq(cycles.id, cycleId)).all()[0];
+  if (!cycle) return c.json({ error: "Cycle not found" }, 404);
+
+  const distribution = emptyDistribution();
+  const cards: Array<{
+    personName: string;
+    roleTitle: string | null;
+    overall: number | null;
+    competencies: Record<string, number>;
+    flags: string[];
+    summaryExcerpt: string;
+    evidenceLinkCount: number;
+    evidenceGaps: number;
+    managerStatus: string;
+  }> = [];
+
+  for (const cp of db.select().from(cycleParticipants).where(eq(cycleParticipants.cycleId, cycle.id)).all()) {
+    const person = db.select().from(people).where(eq(people.id, cp.personId)).all()[0];
+    if (!person) continue;
+    const a = assignmentFor(cp.personId);
+    const role = loadRole(cp.roleDefinitionId ?? a?.roleDefinitionId);
+    const manager = db
+      .select()
+      .from(reviews)
+      .where(and(eq(reviews.cycleId, cycle.id), eq(reviews.subjectPersonId, cp.personId), eq(reviews.type, "manager")))
+      .all()
+      .find((r) => r.status !== "superseded");
+    let overall: number | null = null;
+    let comps: Record<string, number> = {};
+    let summaryExcerpt = "";
+    let flags: string[] = [];
+    let evidenceGaps = 0;
+    let evidenceLinkCount = 0;
+    let managerStatus = "missing";
+    if (manager) {
+      managerStatus = manager.status;
+      const payload = JSON.parse(manager.payloadJson) as Record<string, unknown>;
+      overall = typeof payload.overall === "number" ? payload.overall : null;
+      comps = (payload.competencies ?? {}) as Record<string, number>;
+      summaryExcerpt = String(payload.summary ?? "").slice(0, 280);
+      const links = db.select().from(evidenceLinks).where(eq(evidenceLinks.reviewId, manager.id)).all();
+      evidenceLinkCount = links.length;
+      const scored: Array<{ key: string; score: number }> = [
+        ...Object.entries(comps).map(([key, score]) => ({ key, score })),
+        ...(overall != null ? [{ key: "overall", score: overall }] : []),
+      ];
+      for (const s of scored) {
+        if (s.score === MIDDLE_BAND) continue;
+        const has = links.some(
+          (l) =>
+            (s.key === "overall" && l.targetType === "overall") ||
+            (l.targetType === "competency" && l.targetKey === s.key),
+        );
+        if (!has) {
+          evidenceGaps += 1;
+          flags.push(s.key === "overall" ? "missing_evidence" : `thin:${s.key}`);
+        }
+      }
+      if (overall != null && (overall <= 2 || overall >= 4) && evidenceGaps > 0) flags.push("extreme_overall_thin");
+    }
+    bumpDistribution(distribution, overall);
+    cards.push({
+      personName: person.name,
+      roleTitle: role?.title ?? null,
+      overall,
+      competencies: comps,
+      flags,
+      summaryExcerpt,
+      evidenceLinkCount,
+      evidenceGaps,
+      managerStatus,
+    });
+  }
+
+  const exportedAt = nowIso();
+  logActivity("exports.calib_room", "cycle", cycleId, { cards: cards.length });
+  if (format === "json") {
+    return c.json({ cycleId, cycleName: cycle.name, exportedAt, distribution, cards });
+  }
+  const html = renderCalibRoomHtml({ cycleName: cycle.name, exportedAt, distribution, cards });
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "content-disposition": `inline; filename="calib-room-${cycle.name.replace(/\s+/g, "-").toLowerCase()}.html"`,
+    },
+  });
+});
+
+app.get("/api/director-attention", (c) => {
+  const cycleId = c.req.query("cycleId");
+  const db = getDb();
+  const cycle = cycleId
+    ? db.select().from(cycles).where(eq(cycles.id, cycleId)).all()[0]
+    : db.select().from(cycles).all().sort((a, b) => b.windowStart.localeCompare(a.windowStart))[0];
+  if (!cycle) return c.json({ error: "No cycle found" }, 404);
+  const result = buildDirectorAttention(db, { cycleId: cycle.id });
+  if (!result) return c.json({ error: "No cycle found" }, 404);
+  return c.json(result);
+});
+
+app.post("/api/exports/readonly-bundle", async (c) => {
+  const body = await c.req.json<{
+    cycleId: string;
+    personId?: string;
+    passphrase: string;
+    include?: Array<"director_briefing" | "calib_room" | "promo">;
+  }>();
+  if (!body.cycleId?.trim()) return c.json({ error: "cycleId required" }, 400);
+  if (!body.passphrase || body.passphrase.length < 8) {
+    return c.json({ error: "Passphrase must be at least 8 characters" }, 400);
+  }
+  const include = new Set(body.include?.length ? body.include : ["director_briefing", "calib_room"]);
+  const db = getDb();
+  const cycle = db.select().from(cycles).where(eq(cycles.id, body.cycleId)).all()[0];
+  if (!cycle) return c.json({ error: "Cycle not found" }, 404);
+
+  const parts: Record<string, unknown> = {
+    kind: "prm_readonly_bundle",
+    version: 1,
+    cycleId: cycle.id,
+    cycleName: cycle.name,
+    exportedAt: nowIso(),
+    notice: "Encrypted read-only handoff. Private notes and em_only items are omitted from included packs.",
+  };
+
+  if (include.has("director_briefing")) {
+    parts.directorBriefing = buildDirectorBriefing(db, {
+      cycleId: cycle.id,
+      personId: body.personId,
+      loadRole,
+      assignmentFor,
+    });
+    parts.directorBriefingHtml = parts.directorBriefing
+      ? renderDirectorBriefingHtml(parts.directorBriefing as NonNullable<typeof parts.directorBriefing>)
+      : null;
+  }
+  if (include.has("calib_room")) {
+    // Reuse JSON shape from calib-room endpoint logic via briefing distribution + consistency-like cards
+    const briefing = buildDirectorBriefing(db, { cycleId: cycle.id, loadRole, assignmentFor });
+    if (briefing) {
+      parts.calibRoom = {
+        cycleName: briefing.cycleName,
+        distribution: briefing.distribution,
+        cards: briefing.people.map((p) => ({
+          personName: p.personName,
+          roleTitle: p.roleTitle,
+          overall: p.overall,
+          competencies: p.competencies,
+          flags: p.flags,
+          summaryExcerpt: p.citedBullets[0]?.text?.slice(0, 280) ?? "",
+          evidenceLinkCount: p.citedBullets.length,
+          evidenceGaps: p.flags.filter((f) => f.startsWith("thin:") || f === "missing_evidence").length,
+          managerStatus: p.managerStatus,
+        })),
+      };
+      parts.calibRoomHtml = renderCalibRoomHtml({
+        cycleName: briefing.cycleName,
+        exportedAt: briefing.exportedAt,
+        distribution: briefing.distribution,
+        cards: (parts.calibRoom as { cards: Parameters<typeof renderCalibRoomHtml>[0]["cards"] }).cards,
+      });
+    }
+  }
+
+  const plain = Buffer.from(JSON.stringify(parts), "utf8");
+  const sealed = sealReadonlyBundle(plain, body.passphrase);
+  logActivity("exports.readonly_bundle", "cycle", cycle.id, {
+    bytes: sealed.byteLength,
+    include: [...include],
+  });
+  return new Response(new Uint8Array(sealed), {
+    headers: {
+      "content-type": "application/octet-stream",
+      "content-disposition": `attachment; filename="${readonlyBundleFilename(cycle.name)}"`,
     },
   });
 });

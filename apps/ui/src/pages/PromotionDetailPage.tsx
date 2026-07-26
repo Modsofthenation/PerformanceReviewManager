@@ -110,7 +110,7 @@ export function PromotionDetailPage() {
         primary={
           submitted ? (
             <button className="btn" type="button" onClick={() => void openHtmlPacket()}>
-              Open HTML packet
+              Promo committee export
             </button>
           ) : (
             <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
@@ -128,11 +128,11 @@ export function PromotionDetailPage() {
         <NextStep
           tone="ok"
           label="Packet submitted"
-          detail="Case is marked submitted. Open the HTML packet for skip-level discussion (Print → Save as PDF)."
+          detail="Committee export includes next-role marks, case narrative, allowlisted cites, and delivery themes. Print → Save as PDF."
           action={
             <>
               <button className="btn" type="button" onClick={() => void openHtmlPacket()}>
-                Open HTML packet
+                Promo committee export
               </button>
               <Link className="btn secondary" to="/promotions">
                 Back to promotions

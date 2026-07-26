@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
+import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DirectorAttentionDTO, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -41,6 +41,7 @@ export function HomePage() {
   const [nudgeDays, setNudgeDays] = useState<number | null>(null);
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
   const [cycleStats, setCycleStats] = useState<CycleStatsDTO | null>(null);
+  const [attention, setAttention] = useState<DirectorAttentionDTO | null>(null);
 
   useEffect(() => {
     api<CycleDTO[]>("/api/cycles").then((c) => {
@@ -105,6 +106,9 @@ export function HomePage() {
     api<CycleStatsDTO>(`/api/cycles/${cycleId}/stats`)
       .then(setCycleStats)
       .catch(() => setCycleStats(null));
+    api<DirectorAttentionDTO>(`/api/director-attention?cycleId=${encodeURIComponent(cycleId)}`)
+      .then(setAttention)
+      .catch(() => setAttention(null));
   }, [cycleId]);
 
   const active = cycles.find((c) => c.id === cycleId);
@@ -237,6 +241,34 @@ export function HomePage() {
         </select>
         {active && <span className="muted">{active.windowStart} → {active.windowEnd} · {active.status}</span>}
       </div>
+
+      {attention && attention.items.length > 0 && (
+        <div className="panel stack">
+          <h2 style={{ margin: 0 }}>Needs director attention</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Flags only — stagnant ratings, thin evidence, promo-ready, open concern counts. No private note bodies.
+          </p>
+          <ul>
+            {attention.items.slice(0, 10).map((item) => (
+              <li key={item.personId}>
+                <Link to={`/team/${item.personId}`}>
+                  <strong>{item.personName}</strong>
+                </Link>{" "}
+                <span className="muted">
+                  {item.reasons.join(" · ")}
+                  {item.overall != null ? ` · overall ${item.overall}` : ""}
+                </span>{" "}
+                <Link className="btn ghost" to={`/cycles/${attention.cycleId}/write/${item.personId}`}>
+                  Desk
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link className="btn secondary" to={`/consistency?cycleId=${attention.cycleId}`}>
+            Open consistency / director packs
+          </Link>
+        </div>
+      )}
 
       {dueWeek.length > 0 && (
         <div className="panel stack" style={{ borderColor: "var(--warn, #c4a35a)" }}>
