@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { SprintPulseDTO } from "@prm/shared";
 import { api } from "../lib/api";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 const PRESETS = [
@@ -48,7 +48,7 @@ export function SprintPulsePage() {
       <PageHeader
         title="Sprint pulse"
         job="Mid-cycle coaching view: what landed in a date window, not final ratings."
-        primary={<Link className="btn secondary" to="/team-performance">Team performance</Link>}
+        primary={<Link className="btn secondary" to="/team-performance">Open team performance</Link>}
       />
 
       {error && (
@@ -72,7 +72,12 @@ export function SprintPulsePage() {
           { id: "pulse-people", label: "People" },
         ]}
       >
-      <div className="panel stack page-section" id="pulse-window">
+      <Section
+        id="pulse-window"
+        title="Date window"
+        when="Use mid-cycle when you want a coaching snapshot for a sprint or recent weeks."
+        how="Pick a preset or custom from/to dates — counts and people rows update to that range."
+      >
         <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: "end" }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="pulse-preset">Preset</label>
@@ -119,11 +124,7 @@ export function SprintPulsePage() {
             />
           </div>
         </div>
-        <p className="muted" style={{ margin: 0 }}>
-          Counts achievements (including Jira / Bitbucket sync), feedback themes, documents, and open
-          concerns dated in the window. Flags people whose manager-draft cites are all older than the window.
-        </p>
-      </div>
+      </Section>
 
       {!data ? (
         <p>Loading…</p>
@@ -137,7 +138,7 @@ export function SprintPulsePage() {
                 ? `${data.summary.staleCitePeople} draft(s) only cite older evidence. Prefer fresher cites before finalize.`
                 : "Evidence freshness looks healthy for drafts that have cites."
             }
-            action={<Link className="btn secondary" to="/team">Open team</Link>}
+            action={<Link className="btn secondary" to="/team">Open team roster</Link>}
           />
 
           <div className="tp-metrics">
@@ -165,8 +166,12 @@ export function SprintPulsePage() {
           </div>
 
           <div className="tp-grid">
-            <div className="panel stack page-section" id="pulse-themes">
-              <h2 style={{ margin: 0 }}>1:1 themes in window</h2>
+            <Section
+              id="pulse-themes"
+              title="1:1 themes in window"
+              when="Use after 1:1s to see which coaching themes recurred in this date range."
+              how="Scan the bars — high counts flag topics to revisit in the next 1:1."
+            >
               {data.themes.length === 0 ? (
                 <p className="muted">No themes tagged on feedback in this range.</p>
               ) : (
@@ -187,12 +192,14 @@ export function SprintPulsePage() {
                   ))}
                 </div>
               )}
-            </div>
-            <div className="panel stack page-section" id="pulse-freshness">
-              <h2 style={{ margin: 0 }}>Evidence freshness</h2>
-              <p className="muted" style={{ margin: 0 }}>
-                In-window dossier items vs older items, plus whether current draft cites are stale.
-              </p>
+            </Section>
+            <Section
+              id="pulse-freshness"
+              title="Evidence freshness"
+              when="Use before finalize when drafts may only cite older evidence."
+              how="Check stale-only cite count, then open people rows below to refresh links in dossiers."
+              action={<Link className="btn secondary" to="/team">Open team roster</Link>}
+            >
               <ul className="muted" style={{ margin: 0 }}>
                 <li>
                   <strong>{data.summary.staleCitePeople}</strong> people with stale-only cites
@@ -205,11 +212,16 @@ export function SprintPulsePage() {
                   synced tickets / PRs in window
                 </li>
               </ul>
-            </div>
+            </Section>
           </div>
 
-          <div className="panel stack page-section" id="pulse-people">
-            <h2 style={{ margin: 0 }}>People</h2>
+          <Section
+            id="pulse-people"
+            title="People"
+            when="Use when coaching individuals mid-cycle or hunting stale cites."
+            how="Scan each row, then open a dossier to capture fresh evidence or review open concerns."
+            action={<Link className="btn secondary" to="/team">Open team roster</Link>}
+          >
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -250,7 +262,7 @@ export function SprintPulsePage() {
                       </td>
                       <td>
                         <Link className="btn secondary" to={`/team/${p.personId}`}>
-                          Dossier
+                          Open dossier
                         </Link>
                       </td>
                     </tr>
@@ -258,7 +270,7 @@ export function SprintPulsePage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
         </>
       )}
       </PageSectionsLayout>

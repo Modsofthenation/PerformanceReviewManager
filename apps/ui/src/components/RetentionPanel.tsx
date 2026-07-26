@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { WorkspaceSettingsDTO } from "@prm/shared";
 import { api } from "../lib/api";
+import { Section } from "./PageChrome";
 
 export function RetentionPanel() {
   const [settings, setSettings] = useState<WorkspaceSettingsDTO | null>(null);
@@ -18,14 +19,43 @@ export function RetentionPanel() {
   if (!settings) return <p className="muted">Loading retention…</p>;
 
   return (
-    <div className="panel stack">
-      <div className="panel-title">
-        <h2>Retention & legal hold</h2>
-      </div>
+    <Section
+      id="settings-retention"
+      title="Retention & legal hold"
+      when="Set policy when you start keeping multiple cycles, before a purge, or when legal hold is required."
+      how="Choose how many cycles to keep, toggle legal hold if needed, save, then purge older closed cycles only when hold is off."
+      action={
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const next = await api<WorkspaceSettingsDTO>("/api/workspace/settings", {
+                method: "PUT",
+                body: JSON.stringify({
+                  retention: settings.retention,
+                  legalHold: settings.legalHold,
+                }),
+              });
+              setSettings({ ...settings, ...next });
+              setMsg("Retention settings saved");
+              await load();
+            } catch (e) {
+              setMsg(e instanceof Error ? e.message : "Save failed");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Save retention settings
+        </button>
+      }
+    >
       <p className="muted" style={{ marginTop: 0 }}>
-        Default policy keeps the <strong>current + previous</strong> cycle. Older closed cycles can be
-        purged when legal hold is off. Purge marks cycles as purged (audit trail kept) — it does not
-        shred the vault.
+        Default policy keeps the <strong>current + previous</strong> cycle. Purge marks cycles as purged
+        (audit trail kept) — it does not shred the vault.
       </p>
       <div className="field">
         <label htmlFor="retention-select">Retention policy</label>
@@ -55,32 +85,6 @@ export function RetentionPanel() {
         </label>
       </div>
       <div className="cta-primary-row">
-        <button
-          type="button"
-          className="btn"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              const next = await api<WorkspaceSettingsDTO>("/api/workspace/settings", {
-                method: "PUT",
-                body: JSON.stringify({
-                  retention: settings.retention,
-                  legalHold: settings.legalHold,
-                }),
-              });
-              setSettings({ ...settings, ...next });
-              setMsg("Retention settings saved");
-              await load();
-            } catch (e) {
-              setMsg(e instanceof Error ? e.message : "Save failed");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Save retention
-        </button>
         <button
           type="button"
           className="btn secondary"
@@ -126,6 +130,6 @@ export function RetentionPanel() {
         <p className="muted">No cycles eligible for purge under the current policy.</p>
       )}
       {msg && <p className="muted">{msg}</p>}
-    </div>
+    </Section>
   );
 }

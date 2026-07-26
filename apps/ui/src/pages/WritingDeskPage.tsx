@@ -5,7 +5,7 @@ import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
 import { estimateThenConfirm } from "../lib/aiEstimate";
 import { openHtmlExport } from "../lib/exports";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
@@ -487,9 +487,12 @@ export function WritingDeskPage() {
 
       <PageSectionsLayout sections={sections}>
       {hasOutOfWindow && outOfWindowTray && (
-        <div className="panel page-section" id="desk-oow">
-          <h2>Out of window</h2>
-          <p className="muted">Evidence dated outside the cycle window — still citable.</p>
+        <Section
+          id="desk-oow"
+          title="Out of window"
+          when="Use when evidence falls outside the cycle window but you still want to cite it."
+          how="Scan dated-out achievements, feedback, and documents below — they remain citable."
+        >
           <ul>
             {outOfWindowTray.achievements.map((a) => (
               <li key={a.id}>
@@ -508,69 +511,75 @@ export function WritingDeskPage() {
               </li>
             ))}
           </ul>
-        </div>
+        </Section>
       )}
 
       <div className="writing">
         <div className="stack">
           {personId ? <DeliveryRollupPanel personId={personId} cycleId={cycleId} /> : null}
-          <div className="panel stack page-section" id="desk-digest">
-            <div className="row">
-              <h2 style={{ flex: 1, margin: 0 }}>Evidence digest</h2>
-              <button
-                className="btn secondary"
-                type="button"
-                onClick={async () => {
-                  const ok = await estimateThenConfirm(
-                    "evidence_digest",
-                    { cycleId, personId },
-                    "Generate evidence digest",
-                  );
-                  if (!ok) return;
-                  const res = await api<{ outputText: string; citeSuggestions?: DeliveryCiteSuggestion[] }>(
-                    "/api/ai/digest",
-                    {
+          <Section
+            id="desk-digest"
+            title="Evidence digest"
+            when="Use before drafting to ground the story in dossier and import evidence."
+            how="Generate a digest, optional skip-level talking points, or open a director briefing card."
+            action={
+              <>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={async () => {
+                    const ok = await estimateThenConfirm(
+                      "evidence_digest",
+                      { cycleId, personId },
+                      "Generate evidence digest",
+                    );
+                    if (!ok) return;
+                    const res = await api<{ outputText: string; citeSuggestions?: DeliveryCiteSuggestion[] }>(
+                      "/api/ai/digest",
+                      {
+                        method: "POST",
+                        body: JSON.stringify({ cycleId, personId }),
+                      },
+                    );
+                    setDigest(res.outputText);
+                    setCiteSuggestions(res.citeSuggestions ?? []);
+                  }}
+                >
+                  Generate evidence digest
+                </button>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={async () => {
+                    const ok = await estimateThenConfirm(
+                      "skip_level_talking_points",
+                      { cycleId, personId },
+                      "Generate skip-level talking points",
+                    );
+                    if (!ok) return;
+                    const res = await api<{ outputText: string }>("/api/ai/skip-level-talking-points", {
                       method: "POST",
                       body: JSON.stringify({ cycleId, personId }),
-                    },
-                  );
-                  setDigest(res.outputText);
-                  setCiteSuggestions(res.citeSuggestions ?? []);
-                }}
-              >
-                Generate digest
-              </button>
-              <button
-                className="btn secondary"
-                type="button"
-                onClick={async () => {
-                  const ok = await estimateThenConfirm(
-                    "skip_level_talking_points",
-                    { cycleId, personId },
-                    "Generate skip-level talking points",
-                  );
-                  if (!ok) return;
-                  const res = await api<{ outputText: string }>("/api/ai/skip-level-talking-points", {
-                    method: "POST",
-                    body: JSON.stringify({ cycleId, personId }),
-                  });
-                  setSkipLevel(res.outputText);
-                }}
-              >
-                Skip-level talking points
-              </button>
-              <button
-                className="btn ghost"
-                type="button"
-                onClick={() =>
-                  void openHtmlExport(
-                    `/api/exports/director-briefing/${cycleId}?personId=${encodeURIComponent(personId ?? "")}&format=html`,
-                  )
-                }
-              >
-                Director card
-              </button>
-            </div>
+                    });
+                    setSkipLevel(res.outputText);
+                  }}
+                >
+                  Generate skip-level talking points
+                </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={() =>
+                    void openHtmlExport(
+                      `/api/exports/director-briefing/${cycleId}?personId=${encodeURIComponent(personId ?? "")}&format=html`,
+                    )
+                  }
+                >
+                  Open director briefing card
+                </button>
+              </>
+            }
+          >
             <div className="digest">{digest ?? "Generate a grounded digest from dossier + imports before drafting."}</div>
             {skipLevel && (
               <div>
@@ -606,9 +615,13 @@ export function WritingDeskPage() {
                 </ul>
               </div>
             )}
-          </div>
-          <div className="panel page-section" id="desk-expectations">
-            <h2>Current role expectations</h2>
+          </Section>
+          <Section
+            id="desk-expectations"
+            title="Current role expectations"
+            when="Use while scoring role fit so ratings stay tied to the assigned role definition."
+            how="Read each expectation kind and text below as you draft competencies and narrative."
+          >
             <ol>
               {(packet.currentRole?.expectations ?? []).map((e) => (
                 <li key={e.id}>
@@ -616,10 +629,13 @@ export function WritingDeskPage() {
                 </li>
               ))}
             </ol>
-          </div>
-          <div className="panel page-section" id="desk-peer">
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ margin: 0 }}>Peer synthesize</h2>
+          </Section>
+          <Section
+            id="desk-peer"
+            title="Peer synthesize"
+            when="Use when peer imports exist and you want themes instead of raw JSON."
+            how="Run the roll-up to get strength/growth themes (authors stay EM-visible here)."
+            action={
               <button
                 className="btn secondary"
                 type="button"
@@ -638,25 +654,30 @@ export function WritingDeskPage() {
                   setPeerSynth(res.outputText);
                 }}
               >
-                Roll up themes
+                Synthesize peer themes
               </button>
-            </div>
+            }
+          >
             <p className="muted">
               {packet.peerReviews.length
-                ? `${packet.peerReviews.length} peer import(s) — synthesize themes instead of reading raw JSON.`
-                : "No peer imports yet."}
+                ? `${packet.peerReviews.length} peer import(s) available.`
+                : "No peer imports yet — import peer bundles from Cycles first."}
             </p>
             <div className="digest">
               {peerSynth ??
                 (packet.peerReviews.length
-                  ? "Run roll-up to get strength/growth themes (authors stay EM-visible here; hidden in subject packet)."
+                  ? "Run synthesize to get strength/growth themes (authors stay EM-visible here; hidden in subject packet)."
                   : "Import peer bundles from Cycles first.")}
             </div>
-          </div>
+          </Section>
 
           {packet.priorCycle && (
-            <div className="panel page-section" id="desk-prior">
-              <h2>Prior cycle — {packet.priorCycle.cycleName}</h2>
+            <Section
+              id="desk-prior"
+              title={`Prior cycle — ${packet.priorCycle.cycleName}`}
+              when="Use to compare continuity with the previous review window before changing scores."
+              how="Read prior overall, summary, strengths, and growth — then mirror or deliberately diverge with a reason."
+            >
               <p className="muted">
                 Ended {packet.priorCycle.windowEnd}
                 {packet.priorCycle.overall != null ? ` · Overall ${packet.priorCycle.overall}/5` : ""}
@@ -676,11 +697,22 @@ export function WritingDeskPage() {
                   <strong>Growth:</strong> {packet.priorCycle.growthAreas}
                 </p>
               )}
-            </div>
+            </Section>
           )}
 
-          <div className="panel page-section" id="desk-timeline">
-            <h2>Person timeline</h2>
+          <Section
+            id="desk-timeline"
+            title="Person timeline"
+            when="Use for quick dossier context while writing without leaving the desk."
+            how="Scan recent milestones below; open the person page for the full chronology."
+            action={
+              personId ? (
+                <Link className="btn secondary" to={`/team/${personId}`}>
+                  Open person dossier
+                </Link>
+              ) : undefined
+            }
+          >
             {(packet.timeline ?? []).length === 0 ? (
               <p className="muted">No dossier milestones yet.</p>
             ) : (
@@ -696,10 +728,14 @@ export function WritingDeskPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </Section>
 
-          <div className="panel page-section" id="desk-imports">
-            <h2>Imports & dossier</h2>
+          <Section
+            id="desk-imports"
+            title="Imports & dossier"
+            when="Use to verify self-review, achievements, feedback, and frozen citations before finalize."
+            how="Check self-review status, then cite achievement/feedback IDs from the lists below."
+          >
             <p>
               <strong>Self:</strong> {packet.selfReview ? "imported" : "missing"}
             </p>
@@ -740,11 +776,35 @@ export function WritingDeskPage() {
                 </ul>
               </>
             )}
-          </div>
+          </Section>
         </div>
 
-        <div className="panel stack page-section" id="desk-draft">
-          <h2>Manager draft</h2>
+        <Section
+          id="desk-draft"
+          title="Manager draft"
+          when="Use throughout the cycle to score, write narrative, and finalize the manager review."
+          how="Set overall and competencies with evidence links, draft the narrative fields, then save or finalize."
+          action={
+            !finalized ? (
+              <>
+                <button className="btn secondary" type="button" onClick={() => void save("draft")}>
+                  Save manager draft
+                </button>
+                <button className="btn" type="button" onClick={() => void save("finalized")}>
+                  Finalize review
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => void openSubjectHtml()}
+              >
+                Open HTML packet
+              </button>
+            )
+          }
+        >
           <div className="field">
             <label>Overall (1–5)</label>
             <input
@@ -891,7 +951,7 @@ export function WritingDeskPage() {
                   markDirty();
                 }}
               >
-                AI draft
+                AI draft this section
               </button>
             </label>
             <textarea
@@ -925,7 +985,7 @@ export function WritingDeskPage() {
                   markDirty();
                 }}
               >
-                AI draft
+                AI draft this section
               </button>
             </label>
             <textarea
@@ -959,7 +1019,7 @@ export function WritingDeskPage() {
                   markDirty();
                 }}
               >
-                AI draft
+                AI draft this section
               </button>
             </label>
             <textarea
@@ -1155,7 +1215,7 @@ export function WritingDeskPage() {
             {!finalized && (
               <>
                 <button className="btn secondary" type="button" onClick={() => void save("draft")}>
-                  Save draft
+                  Save manager draft
                 </button>
                 <button className="btn" type="button" onClick={() => void save("finalized")}>
                   Finalize review
@@ -1179,11 +1239,11 @@ export function WritingDeskPage() {
                 setSubjectExport(exp);
               }}
             >
-              Preview JSON
+              Preview JSON export
             </button>
           </div>
           {subjectExport != null ? <pre className="digest">{JSON.stringify(subjectExport, null, 2)}</pre> : null}
-        </div>
+        </Section>
       </div>
       </PageSectionsLayout>
     </div>

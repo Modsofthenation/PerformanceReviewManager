@@ -12,7 +12,7 @@ import type {
   PersonTimelineDTO,
 } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
@@ -170,34 +170,12 @@ export function PersonPage() {
 
       <PageSectionsLayout sections={sections}>
       {activeCycle && (
-        <div className="panel stack page-section" id="person-reassign">
-          <h2 style={{ margin: 0 }}>Mid-cycle manager change</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            Reassign for <strong>{activeCycle.name}</strong>: supersedes prior manager drafts/finals as contribution
-            history and opens a fresh draft for the new manager.
-          </p>
-          <div className="row" style={{ alignItems: "end" }}>
-            <div className="field" style={{ margin: 0, minWidth: 220 }}>
-              <label>New manager</label>
-              <select value={reassignManagerId} onChange={(e) => setReassignManagerId(e.target.value)}>
-                <option value="">Select…</option>
-                {roster
-                  .filter((p) => p.id !== person.id)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="field" style={{ margin: 0, flex: 1 }}>
-              <label>Reason</label>
-              <input
-                value={reassignReason}
-                onChange={(e) => setReassignReason(e.target.value)}
-                placeholder="Org change / coverage"
-              />
-            </div>
+        <Section
+          id="person-reassign"
+          title="Mid-cycle manager change"
+          when={`Use when coverage or org changes mid-${activeCycle.name} and a new manager owns the draft.`}
+          how="Pick the new manager and reason, then reassign — prior drafts become contribution history."
+          action={
             <button
               type="button"
               className="btn secondary"
@@ -225,17 +203,41 @@ export function PersonPage() {
             >
               Reassign in cycle
             </button>
+          }
+        >
+          <div className="row" style={{ alignItems: "end" }}>
+            <div className="field" style={{ margin: 0, minWidth: 220 }}>
+              <label>New manager</label>
+              <select value={reassignManagerId} onChange={(e) => setReassignManagerId(e.target.value)}>
+                <option value="">Select…</option>
+                {roster
+                  .filter((p) => p.id !== person.id)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="field" style={{ margin: 0, flex: 1 }}>
+              <label>Reason</label>
+              <input
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="Org change / coverage"
+              />
+            </div>
           </div>
           {reassignMsg && <p className="muted">{reassignMsg}</p>}
-        </div>
+        </Section>
       )}
 
-      <div className="panel stack page-section" id="timeline">
-        <h2 style={{ margin: 0 }}>Timeline</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          Chronological dossier, reviews, concerns, and rating decisions. Use this to prep a 1:1 or reconstruct
-          why the story changed.
-        </p>
+      <Section
+        id="timeline"
+        title="Timeline"
+        when="Use before a 1:1 or when reconstructing why the performance story changed."
+        how="Scan chronological dossier events, reviews, concerns, and rating decisions below."
+      >
         {!timeline || timeline.entries.length === 0 ? (
           <p className="muted">No timeline events yet.</p>
         ) : (
@@ -249,14 +251,19 @@ export function PersonPage() {
             ))}
           </ul>
         )}
-      </div>
+      </Section>
 
-      <div className="panel stack page-section" id="integrations">
-        <h2>Integrations</h2>
-        <p className="muted">
-          Link remote accounts, then pull tickets / merged PRs for the active review window into achievements.
-          Configure credentials in <Link to="/settings">Settings → Integrations</Link>.
-        </p>
+      <Section
+        id="integrations"
+        title="Integrations"
+        when="Use when you need tickets or merged PRs from the review window on this dossier."
+        how="Search and link remote accounts, then sync into achievements. Credentials live in Settings."
+        action={
+          <Link className="btn secondary" to="/settings">
+            Open integration settings
+          </Link>
+        }
+      >
         {extLinks.length === 0 ? (
           <p className="muted">No external accounts linked yet.</p>
         ) : (
@@ -318,7 +325,7 @@ export function PersonPage() {
               }
             }}
           >
-            Search
+            Search remote users
           </button>
           <button
             type="button"
@@ -400,20 +407,24 @@ export function PersonPage() {
                     await load();
                   }}
                 >
-                  Link
+                  Link account
                 </button>
               </li>
             ))}
           </ul>
         )}
         {linkMsg && <p className="muted">{linkMsg}</p>}
-      </div>
+      </Section>
 
       {id ? <DeliveryRollupPanel personId={id} cycleId={cycles[0]?.id} /> : null}
 
       <div className="grid-2">
-        <div className="panel page-section" id="capture-achievements">
-          <h2>Achievements</h2>
+        <Section
+          id="capture-achievements"
+          title="Achievements"
+          when="Use after a ship, unblock, or win you want on the review dossier."
+          how="Scan linked or manual items below, then add a short titled achievement."
+        >
           <ul>
             {dossier.achievements.map((a) => (
               <li key={a.id}>
@@ -443,9 +454,13 @@ export function PersonPage() {
             <input value={achTitle} onChange={(e) => setAchTitle(e.target.value)} placeholder="Shipped X / unblocked Y…" required />
             <button className="btn">Add achievement</button>
           </form>
-        </div>
-        <div className="panel page-section" id="person-goals">
-          <h2>Goals</h2>
+        </Section>
+        <Section
+          id="person-goals"
+          title="Goals"
+          when="Use when setting or refreshing outcome-oriented goals for this person."
+          how="Review status on existing goals, then add a new outcome-oriented title."
+        >
           <ul>
             {dossier.goals.map((g) => (
               <li key={g.id}><strong>{g.title}</strong> <span className="flag">{g.status}</span></li>
@@ -464,12 +479,15 @@ export function PersonPage() {
             <input value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} placeholder="Outcome-oriented goal" required />
             <button className="btn">Add goal</button>
           </form>
-        </div>
+        </Section>
       </div>
 
-      <div className="panel stack page-section" id="person-feedback">
-        <h2>Feedback</h2>
-        <p className="muted">EM-entered notes from 1:1s, partners, or incidents. Author names stay on your workspace.</p>
+      <Section
+        id="person-feedback"
+        title="Feedback"
+        when="Use after a 1:1, partner sync, or incident while the detail is fresh."
+        how="Read existing notes, then add from/kind/themes and a specific behavioral note."
+      >
         {dossier.feedback.length === 0 && <p className="muted">No feedback yet — capture a coaching or praise note.</p>}
         {dossier.feedback.map((f) => (
           <p key={f.id}>
@@ -532,11 +550,14 @@ export function PersonPage() {
           </div>
           <button className="btn">Add feedback</button>
         </form>
-      </div>
+      </Section>
 
-      <div className="panel stack page-section" id="person-documents">
-        <h2>Documents</h2>
-        <p className="muted">PDF/DOCX/PPTX/CSV/images — allowlisted. Sealed into the encrypted vault when you lock the workspace.</p>
+      <Section
+        id="person-documents"
+        title="Documents"
+        when="Use when attaching review artifacts, exports, or evidence files to the dossier."
+        how="Download existing files or upload an allowlisted PDF/DOCX/PPTX/CSV/image (sealed on lock)."
+      >
         <ul>
           {(dossier.documents ?? []).map((d) => (
             <li key={d.id}>
@@ -592,16 +613,16 @@ export function PersonPage() {
           <button className="btn" disabled={!docFile}>Upload document</button>
           {docMsg && <p className="muted">{docMsg}</p>}
         </form>
-      </div>
+      </Section>
 
       {captureMsg && <p className="muted">{captureMsg}</p>}
 
-      <div className="panel stack page-section" id="person-meetings">
-        <h2>Meeting summaries</h2>
-        <p className="muted">
-          Structured notes from 1:1s / meetings. Default visibility is <strong>EM only</strong>. Raw transcripts stay
-          private on the dossier. Confirm consent before storing — local vault notes are not a legal privilege.
-        </p>
+      <Section
+        id="person-meetings"
+        title="Meeting summaries"
+        when="Use after a 1:1 or meeting when you want structured notes on the dossier."
+        how="Paste or load a transcript, confirm consent, optionally summarize with AI, then save (EM-only)."
+      >
         {meetings.length === 0 ? (
           <p className="muted">No meeting summaries yet.</p>
         ) : (
@@ -721,13 +742,14 @@ export function PersonPage() {
             Save meeting summary
           </button>
         </form>
-      </div>
+      </Section>
 
-      <div className="panel stack page-section" id="person-concerns">
-        <h2>Concern log</h2>
-        <p className="muted">
-          Private performance concerns and follow-up plans. AI is off by default — these stay out of digests and drafts unless you later opt a concern in.
-        </p>
+      <Section
+        id="person-concerns"
+        title="Concern log"
+        when="Use when a performance concern needs a private record and follow-up plan."
+        how="Log title, body, expectation, and plan. Toggle open/closed or AI opt-in per concern — AI stays off by default."
+      >
         {concerns.length === 0 ? (
           <p className="muted">No concerns logged.</p>
         ) : (
@@ -828,7 +850,7 @@ export function PersonPage() {
           </div>
           <button className="btn">Add concern</button>
         </form>
-      </div>
+      </Section>
 
       {person.targetNextRoleTitle && (
         <NextStep

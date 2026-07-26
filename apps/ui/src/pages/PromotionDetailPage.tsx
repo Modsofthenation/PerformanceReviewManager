@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { GapMark, RoleDefinitionDTO } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
 type PromoDetail = {
@@ -199,9 +199,12 @@ export function PromotionDetailPage() {
         ]}
       >
       <div className="writing">
-        <div className="panel stack page-section" id="promo-expectations">
-          <div className="row">
-            <h2 style={{ flex: 1, margin: 0 }}>Next-role expectations</h2>
+        <Section
+          id="promo-expectations"
+          title="Next-role expectations"
+          when="Use when assessing readiness against the target role definition."
+          how="Mark each expectation as demonstrating, emerging, or not yet — optionally AI-draft the case first."
+          action={
             <button
               className="btn secondary"
               onClick={async () => {
@@ -226,9 +229,10 @@ export function PromotionDetailPage() {
                 }
               }}
             >
-              AI draft case
+              AI draft promotion case
             </button>
-          </div>
+          }
+        >
           {(detail.targetRole?.expectations ?? []).map((e) => (
             <div key={e.id} className="field">
               <label><span className="flag">{e.kind}</span> {e.text}</label>
@@ -243,10 +247,26 @@ export function PromotionDetailPage() {
             </div>
           ))}
           {aiOut && <pre className="digest">{aiOut}</pre>}
-        </div>
+        </Section>
 
-        <div className="panel stack page-section" id="promo-narrative">
-          <h2>Case narrative</h2>
+        <Section
+          id="promo-narrative"
+          title="Case narrative"
+          when="Use when writing or updating the promotion packet before submit."
+          how="Fill summary, demonstrated scope, gaps, and recommendation — then save draft or submit."
+          action={
+            !submitted ? (
+              <>
+                <button className="btn secondary" onClick={() => save("draft")}>
+                  Save packet draft
+                </button>
+                <button className="btn" onClick={() => save("submitted")}>
+                  Submit promotion packet
+                </button>
+              </>
+            ) : undefined
+          }
+        >
           <div className="field">
             <label>Case summary</label>
             <textarea value={summary} onChange={(e) => setSummary(e.target.value)} />
@@ -277,11 +297,11 @@ export function PromotionDetailPage() {
           </div>
           {!submitted && (
             <div className="cta-primary-row">
-              <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>
-              <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
+              <button className="btn secondary" onClick={() => save("draft")}>Save packet draft</button>
+              <button className="btn" onClick={() => save("submitted")}>Submit promotion packet</button>
             </div>
           )}
-        </div>
+        </Section>
       </div>
       </PageSectionsLayout>
     </div>

@@ -4,7 +4,7 @@ import type { CycleCompareDTO, CycleDTO, RatingTrendsDTO, TeamPerformanceDTO } f
 import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
 import { openHtmlExport } from "../lib/exports";
-import { NextStep, PageHeader } from "../components/PageChrome";
+import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 
 const PROMO_LABELS: Record<string, string> = {
@@ -344,30 +344,43 @@ export function TeamPerformancePage() {
               { id: "tp-compare", label: "Compare" },
             ] satisfies SectionNavItem[]}
           >
-          <div className="tp-metrics page-section" id="tp-overview">
-            <div className="tp-metric">
-              <div className="muted">Avg overall</div>
-              <strong>{data.avgOverall ?? "—"}</strong>
+          <Section
+            id="tp-overview"
+            title="Overview"
+            when="Use first to see whether this cycle’s ratings, evidence, and concerns look healthy."
+            how="Read the four metrics below, then drill into charts or people when something looks off."
+          >
+            <div className="tp-metrics">
+              <div className="tp-metric">
+                <div className="muted">Avg overall</div>
+                <strong>{data.avgOverall ?? "—"}</strong>
+              </div>
+              <div className="tp-metric">
+                <div className="muted">Evidence coverage</div>
+                <strong>{data.evidence.coveragePct}%</strong>
+                <span className="muted"> · avg {data.evidence.avgLinkedSources} sources</span>
+              </div>
+              <div className="tp-metric">
+                <div className="muted">Thin dossiers</div>
+                <strong>{data.evidence.thinDossierCount}</strong>
+                <span className="muted"> / {data.participantCount}</span>
+              </div>
+              <div className="tp-metric">
+                <div className="muted">Open concerns</div>
+                <strong>{data.openConcerns}</strong>
+              </div>
             </div>
-            <div className="tp-metric">
-              <div className="muted">Evidence coverage</div>
-              <strong>{data.evidence.coveragePct}%</strong>
-              <span className="muted"> · avg {data.evidence.avgLinkedSources} sources</span>
-            </div>
-            <div className="tp-metric">
-              <div className="muted">Thin dossiers</div>
-              <strong>{data.evidence.thinDossierCount}</strong>
-              <span className="muted"> / {data.participantCount}</span>
-            </div>
-            <div className="tp-metric">
-              <div className="muted">Open concerns</div>
-              <strong>{data.openConcerns}</strong>
-            </div>
-          </div>
+          </Section>
 
-          <div className="tp-grid page-section" id="tp-charts">
+          <Section
+            id="tp-charts"
+            title="Charts"
+            when="Use mid-cycle or before finalize to spot clustering, thin evidence, or promo skew."
+            how="Scan each chart panel — distribution, evidence scatter, competencies, promo, writing time, levels, and themes."
+          >
+            <div className="tp-grid">
             <div className="panel stack">
-              <h2 style={{ margin: 0 }}>Overall distribution</h2>
+              <h3 style={{ margin: 0 }}>Overall distribution</h3>
               <p className="muted" style={{ margin: 0 }}>
                 Watch for clustering (everyone a 3 or 4) before you finalize.
               </p>
@@ -375,7 +388,7 @@ export function TeamPerformancePage() {
             </div>
 
             <div className="panel stack">
-              <h2 style={{ margin: 0 }}>Evidence vs overall</h2>
+              <h3 style={{ margin: 0 }}>Evidence vs overall</h3>
               <p className="muted" style={{ margin: 0 }}>
                 Thin dossiers sit lower; extreme scores should sit higher.
               </p>
@@ -383,7 +396,7 @@ export function TeamPerformancePage() {
             </div>
 
             <div className="panel stack">
-              <h2 style={{ margin: 0 }}>Competency averages</h2>
+              <h3 style={{ margin: 0 }}>Competency averages</h3>
               <p className="muted" style={{ margin: 0 }}>
                 Team mean on the 1–5 scale (people with that competency scored).
               </p>
@@ -410,7 +423,7 @@ export function TeamPerformancePage() {
             </div>
 
             <div className="panel stack">
-              <h2 style={{ margin: 0 }}>Promo readiness</h2>
+              <h3 style={{ margin: 0 }}>Promo readiness</h3>
               <BarChart
                 rows={Object.entries(data.promoReadiness).map(([key, count]) => ({
                   key,
@@ -422,7 +435,7 @@ export function TeamPerformancePage() {
             </div>
 
             <div className="panel stack">
-              <h2 style={{ margin: 0 }}>Writing time</h2>
+              <h3 style={{ margin: 0 }}>Writing time</h3>
               <BarChart
                 rows={data.writingBuckets.map((b) => ({
                   key: b.id,
@@ -434,7 +447,7 @@ export function TeamPerformancePage() {
             </div>
 
             <div className="panel stack">
-              <h2 style={{ margin: 0 }}>Levels</h2>
+              <h3 style={{ margin: 0 }}>Levels</h3>
               {data.levels.length === 0 ? (
                 <p className="muted">No people in this cycle.</p>
               ) : (
@@ -450,7 +463,7 @@ export function TeamPerformancePage() {
             </div>
 
             <div className="panel stack tp-span-2">
-              <h2 style={{ margin: 0 }}>1:1 themes</h2>
+              <h3 style={{ margin: 0 }}>1:1 themes</h3>
               <p className="muted" style={{ margin: 0 }}>
                 Tags from feedback notes across the team (year-round coaching signal).
               </p>
@@ -467,10 +480,15 @@ export function TeamPerformancePage() {
                 />
               )}
             </div>
-          </div>
+            </div>
+          </Section>
 
-          <div className="panel stack page-section" id="tp-people">
-            <h2 style={{ margin: 0 }}>People</h2>
+          <Section
+            id="tp-people"
+            title="People"
+            when="Use to find individuals with thin evidence, rating deltas, or open writing work."
+            how="Sort the table visually, then open a writing desk for anyone who needs a draft update."
+          >
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -546,7 +564,7 @@ export function TeamPerformancePage() {
                         </td>
                         <td>
                           <Link className="btn secondary" to={`/cycles/${data.cycleId}/write/${p.personId}`}>
-                            Desk
+                            Open writing desk
                           </Link>
                         </td>
                       </tr>
@@ -555,15 +573,15 @@ export function TeamPerformancePage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
 
           {trends && trends.cycles.length > 0 && (
-            <div className="tp-grid page-section" id="tp-trends">
-              <div className="panel stack tp-span-2">
-                <h2 style={{ margin: 0 }}>Rating trends across cycles</h2>
-                <p className="muted" style={{ margin: 0 }}>
-                  Team averages (manager ratings). Spot stagnation or sudden jumps before the next packet.
-                </p>
+            <Section
+              id="tp-trends"
+              title="Rating trends across cycles"
+              when="Use when you have multiple cycles and want to spot stagnation or sudden jumps."
+              how="Read team average sparklines and per-cycle cells before the next packet."
+            >
                 <div className="table-wrap">
                   <table className="table">
                     <thead>
@@ -596,13 +614,16 @@ export function TeamPerformancePage() {
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
+            </Section>
           )}
 
           {compare && (
-            <div className="panel stack page-section" id="tp-compare">
-              <h2 style={{ margin: 0 }}>Cycle compare</h2>
+            <Section
+              id="tp-compare"
+              title="Cycle compare"
+              when="Use after a new cycle has ratings to see what moved versus the prior window."
+              how="Compare distribution shift, movers (±1+), repeat thin dossiers, and theme drift below."
+            >
               <p className="muted" style={{ margin: 0 }}>
                 {compare.prior
                   ? `${compare.prior.cycleName} → ${compare.current.cycleName}`
@@ -675,7 +696,7 @@ export function TeamPerformancePage() {
               ) : (
                 <p className="muted">Add another cycle with ratings to unlock compare.</p>
               )}
-            </div>
+            </Section>
           )}
           </PageSectionsLayout>
         </>
