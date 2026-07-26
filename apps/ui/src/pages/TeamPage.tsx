@@ -71,6 +71,19 @@ export function TeamPage() {
         secondary={<a className="btn secondary" href="#add-person">Add person</a>}
       />
 
+      {people.length === 0 && (
+        <div className="panel empty-state">
+          <h2>No one on the roster yet</h2>
+          <p>
+            Add yourself first (leave manager blank — you become the EM), then add directs. Or paste a CSV
+            below. Empty workspaces start here before roles and cycles.
+          </p>
+          <div className="cta-primary-row">
+            <a className="btn" href="#add-person">Add first person</a>
+          </div>
+        </div>
+      )}
+
       {unassigned.length > 0 && (
         <NextStep
           tone="warn"
@@ -90,7 +103,15 @@ export function TeamPage() {
       )}
 
       <div className="panel">
-        <p className="muted" style={{ marginTop: 0 }}>EM: {em?.name ?? "—"} · {directs.length} directs</p>
+        <p className="muted" style={{ marginTop: 0 }}>
+          EM: {em?.name ?? "—"} · {directs.length} direct{directs.length === 1 ? "" : "s"}
+          {people.length === 0 ? " · empty workspace" : ""}
+        </p>
+        {people.length === 0 ? (
+          <p className="muted" style={{ marginBottom: 0 }}>
+            Roster is empty. Use Add person below — the first person without a manager is treated as the EM.
+          </p>
+        ) : (
         <table className="table">
           <thead>
             <tr><th>Name</th><th>Title</th><th>Level</th><th>Role</th><th>Next</th><th>Your move</th></tr>
@@ -112,8 +133,18 @@ export function TeamPage() {
                 </td>
               </tr>
             ))}
+            {em && directs.length === 0 && (
+              <tr>
+                <td>{em.name}</td>
+                <td className="muted">{em.title}</td>
+                <td>{em.levelKey}</td>
+                <td colSpan={2} className="muted">EM account</td>
+                <td><Link className="btn" to={`/team/${em.id}`}>Open dossier</Link></td>
+              </tr>
+            )}
           </tbody>
         </table>
+        )}
         {thin.length === 0 && directs.length > 0 && (
           <p className="muted" style={{ marginBottom: 0, marginTop: "0.75rem" }}>All directs have roles. Keep dossiers fresh from each person’s page.</p>
         )}
@@ -121,7 +152,11 @@ export function TeamPage() {
 
       <form className="panel" id="add-person" onSubmit={addPerson}>
         <h2>Add person</h2>
-        <p className="muted">Creates a dossier subject under you. Assign a role next.</p>
+        <p className="muted">
+          {em
+            ? "Creates a dossier subject under you. Assign a role next."
+            : "First person without a manager becomes the EM account. Add directs after that."}
+        </p>
         <div className="grid-2">
           <div className="field"><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} required /></div>
           <div className="field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>

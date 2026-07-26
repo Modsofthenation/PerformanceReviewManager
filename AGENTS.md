@@ -15,7 +15,7 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 
 ### Data / running
 - Local data lives in `/workspace/data` (gitignored): SQLite DB, encrypted vault, uploaded files. Delete it to reset to a clean state (stop the API first, since it holds the DB handle).
-- First app load shows "Create & seed demo team" (seeds an 8-person org). After init it shows "Unlock". Default seed password: `workbench`.
+- First app load offers **Empty workspace** or **Demo team** (seeds an 8-person org). After init it shows "Unlock". Default demo password: `workbench`.
 - Locking the workspace ("Lock & encrypt") seals the SQLite DB + files to `.enc` at rest; unlocking decrypts them.
 - `.session` stores the auth token only (not the AES key). After an API process restart you must unlock again even if the UI still has a token.
 

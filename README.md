@@ -50,7 +50,7 @@ pnpm dev
 | API | http://127.0.0.1:8787 |
 | Seed password | `workbench` |
 
-First load: **Create & seed demo team** (8-person org), then unlock. Between sessions use **Lock & encrypt**.
+First load: choose **Empty workspace** or **Demo team** (8-person org, password default `workbench`), then unlock later sessions with your password. Between sessions use **Lock & encrypt**.
 
 Requires **pnpm 10.33.3** (see [`AGENTS.md`](./AGENTS.md) if Corepack hands you pnpm 11).
 
@@ -85,7 +85,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Keep the workspace sealed when you walk away. The unlock gate is the trust boundary for local data.
 
-**How it works:** On first run you create a workspace password and can seed a demo org. Later sessions decrypt the vault with that password. **Lock & encrypt** re-seals SQLite and files so a stolen laptop disk is not a readable review archive.
+**How it works:** On first run you create a workspace password and choose an empty vault or a seeded demo org. Later sessions decrypt the vault with that password. **Lock & encrypt** re-seals SQLite and files so a stolen laptop disk is not a readable review archive.
 
 ![Unlock workbench](./docs/screenshots/01-unlock.png)
 
@@ -199,7 +199,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Configure providers, privacy gates, appearance, and vault maintenance in one place.
 
-**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira and Bitbucket credentials, run encrypted backup / restore, verify the activity log, and switch dark / light theme.
+**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira and Bitbucket credentials, run encrypted backup / restore, verify the activity log, and choose appearance (system / dark / light plus Teal, Ocean, Forest, or Slate accent).
 
 ![Settings](./docs/screenshots/14-settings.png)
 
