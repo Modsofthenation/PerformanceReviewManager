@@ -27,6 +27,18 @@ export type BitbucketPullRequest = {
   url: string;
   commentCount: number;
   taskCount: number;
+  /** Lines added (when diffstat available). */
+  linesAdded: number | null;
+  linesRemoved: number | null;
+  filesChanged: number | null;
+  /** Coarse size band — not a performance score. */
+  sizeBand: "XS" | "S" | "M" | "L" | "XL" | null;
+  daysToMerge: number | null;
+  looksLikeRevert: boolean;
+  reviewParticipation: {
+    approvals: number;
+    reviewers: number;
+  } | null;
 };
 
 function authHeader(cfg: BitbucketConfig) {
@@ -122,10 +134,90 @@ async function listWorkspaceRepos(cfg: BitbucketConfig, maxRepos = 30): Promise<
   return repos;
 }
 
+function sizeBand(files: number | null, churn: number | null): BitbucketPullRequest["sizeBand"] {
+  const f = files ?? 0;
+  const c = churn ?? 0;
+  if (f <= 2 && c <= 40) return "XS";
+  if (f <= 8 && c <= 200) return "S";
+  if (f <= 20 && c <= 600) return "M";
+  if (f <= 40 && c <= 1500) return "L";
+  if (f > 0 || c > 0) return "XL";
+  return null;
+}
+
+async function enrichPrQuality(
+  cfg: BitbucketConfig,
+  repo: { fullName: string; slug: string },
+  pr: BitbucketPullRequest,
+): Promise<BitbucketPullRequest> {
+  let linesAdded: number | null = null;
+  let linesRemoved: number | null = null;
+  let filesChanged: number | null = null;
+  let reviewParticipation: BitbucketPullRequest["reviewParticipation"] = null;
+  try {
+    const diff = await bbFetch<{
+      values?: Array<{ lines_added?: number; lines_removed?: number }>;
+      size?: number;
+    }>(
+      cfg,
+      `/repositories/${encodeURIComponent(cfg.workspace)}/${encodeURIComponent(repo.slug)}/pullrequests/${pr.id}/diffstat?pagelen=100`,
+    );
+    let add = 0;
+    let rem = 0;
+    let files = 0;
+    for (const row of diff.values ?? []) {
+      files += 1;
+      add += row.lines_added ?? 0;
+      rem += row.lines_removed ?? 0;
+    }
+    linesAdded = add;
+    linesRemoved = rem;
+    filesChanged = files || diff.size || null;
+  } catch {
+    /* optional */
+  }
+  try {
+    const detail = await bbFetch<{
+      participants?: Array<{ role?: string; approved?: boolean }>;
+    }>(
+      cfg,
+      `/repositories/${encodeURIComponent(cfg.workspace)}/${encodeURIComponent(repo.slug)}/pullrequests/${pr.id}`,
+    );
+    const reviewers = (detail.participants ?? []).filter((p) => p.role === "REVIEWER");
+    reviewParticipation = {
+      reviewers: reviewers.length,
+      approvals: reviewers.filter((p) => p.approved).length,
+    };
+  } catch {
+    /* optional */
+  }
+
+  let daysToMerge: number | null = null;
+  if (pr.createdOn && pr.mergedOn) {
+    const a = Date.parse(pr.createdOn);
+    const b = Date.parse(pr.mergedOn);
+    if (!Number.isNaN(a) && !Number.isNaN(b) && b >= a) {
+      daysToMerge = Math.round((b - a) / (1000 * 60 * 60 * 24));
+    }
+  }
+  const looksLikeRevert = /\brevert\b/i.test(pr.title);
+
+  return {
+    ...pr,
+    linesAdded,
+    linesRemoved,
+    filesChanged,
+    sizeBand: sizeBand(filesChanged, (linesAdded ?? 0) + (linesRemoved ?? 0)),
+    daysToMerge,
+    looksLikeRevert,
+    reviewParticipation,
+  };
+}
+
 export async function bitbucketMergedPrsForAuthor(
   cfg: BitbucketConfig,
   authorUuid: string,
-  opts: { maxRepos?: number; maxPrs?: number } = {},
+  opts: { maxRepos?: number; maxPrs?: number; windowStart?: string; windowEnd?: string } = {},
 ): Promise<BitbucketPullRequest[]> {
   const maxRepos = opts.maxRepos ?? 25;
   const maxPrs = opts.maxPrs ?? 50;
@@ -155,7 +247,12 @@ export async function bitbucketMergedPrsForAuthor(
         `/repositories/${encodeURIComponent(cfg.workspace)}/${encodeURIComponent(repo.slug)}/pullrequests?q=${encodeURIComponent(q)}&pagelen=50`,
       );
       for (const pr of data.values ?? []) {
-        results.push({
+        const mergedOn = pr.merged_on
+          ? pr.merged_on.slice(0, 10)
+          : (pr.updated_on ?? "").slice(0, 10) || null;
+        if (opts.windowStart && mergedOn && mergedOn < opts.windowStart) continue;
+        if (opts.windowEnd && mergedOn && mergedOn > opts.windowEnd) continue;
+        let row: BitbucketPullRequest = {
           id: pr.id,
           title: pr.title ?? `PR #${pr.id}`,
           state: pr.state ?? "MERGED",
@@ -164,11 +261,20 @@ export async function bitbucketMergedPrsForAuthor(
           authorDisplay: pr.author?.display_name ?? null,
           createdOn: (pr.created_on ?? "").slice(0, 10),
           updatedOn: (pr.updated_on ?? "").slice(0, 10),
-          mergedOn: pr.merged_on ? pr.merged_on.slice(0, 10) : (pr.updated_on ?? "").slice(0, 10) || null,
+          mergedOn,
           url: pr.links?.html?.href ?? `https://bitbucket.org/${repo.fullName}/pull-requests/${pr.id}`,
           commentCount: pr.comment_count ?? 0,
           taskCount: pr.task_count ?? 0,
-        });
+          linesAdded: null,
+          linesRemoved: null,
+          filesChanged: null,
+          sizeBand: null,
+          daysToMerge: null,
+          looksLikeRevert: /\brevert\b/i.test(pr.title ?? ""),
+          reviewParticipation: null,
+        };
+        row = await enrichPrQuality(cfg, repo, row);
+        results.push(row);
         if (results.length >= maxPrs) break;
       }
     } catch {
@@ -178,4 +284,50 @@ export async function bitbucketMergedPrsForAuthor(
 
   results.sort((a, b) => (b.mergedOn ?? "").localeCompare(a.mergedOn ?? ""));
   return results;
+}
+
+/** PRs where this user participated as a reviewer (gave reviews). */
+export async function bitbucketReviewsGiven(
+  cfg: BitbucketConfig,
+  reviewerUuid: string,
+  opts: { maxRepos?: number; maxPrs?: number; windowStart?: string; windowEnd?: string } = {},
+): Promise<Array<{ id: number; title: string; repoFullName: string; url: string; updatedOn: string }>> {
+  const maxRepos = opts.maxRepos ?? 15;
+  const maxPrs = opts.maxPrs ?? 30;
+  const repos = await listWorkspaceRepos(cfg, maxRepos);
+  const uuid = reviewerUuid.includes("{") ? reviewerUuid : `{${reviewerUuid}}`;
+  const out: Array<{ id: number; title: string; repoFullName: string; url: string; updatedOn: string }> = [];
+  for (const repo of repos) {
+    if (out.length >= maxPrs) break;
+    const q = `reviewers.uuid="${uuid}" AND state="MERGED"`;
+    try {
+      const data = await bbFetch<{
+        values?: Array<{
+          id: number;
+          title?: string;
+          updated_on?: string;
+          links?: { html?: { href?: string } };
+        }>;
+      }>(
+        cfg,
+        `/repositories/${encodeURIComponent(cfg.workspace)}/${encodeURIComponent(repo.slug)}/pullrequests?q=${encodeURIComponent(q)}&pagelen=30`,
+      );
+      for (const pr of data.values ?? []) {
+        const updatedOn = (pr.updated_on ?? "").slice(0, 10);
+        if (opts.windowStart && updatedOn && updatedOn < opts.windowStart) continue;
+        if (opts.windowEnd && updatedOn && updatedOn > opts.windowEnd) continue;
+        out.push({
+          id: pr.id,
+          title: pr.title ?? `PR #${pr.id}`,
+          repoFullName: repo.fullName,
+          url: pr.links?.html?.href ?? `https://bitbucket.org/${repo.fullName}/pull-requests/${pr.id}`,
+          updatedOn,
+        });
+        if (out.length >= maxPrs) break;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return out;
 }

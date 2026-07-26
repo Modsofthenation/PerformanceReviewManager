@@ -12,6 +12,10 @@ export function ConsistencyPage() {
   const [error, setError] = useState<string | null>(null);
   const [calibMsg, setCalibMsg] = useState<string | null>(null);
   const [importJson, setImportJson] = useState("");
+  const [exportedBundle, setExportedBundle] = useState<CalibBundleDTO | null>(null);
+  const [directorDecisions, setDirectorDecisions] = useState<
+    Record<string, { overall: string; note: string }>
+  >({});
   const cycleId = params.get("cycleId") ?? "";
 
   async function load(cid?: string) {
@@ -92,7 +96,8 @@ export function ConsistencyPage() {
         <div className="panel stack">
           <h2>Calibration bundles</h2>
           <p className="muted" style={{ margin: 0 }}>
-            Export candidate cards for a director, then import decisions back into draft manager reviews (same cycle id).
+            Director round-trip: export cards, capture decisions in the form (or paste JSON), then import
+            back into draft manager reviews for the same cycle.
           </p>
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
             <button
@@ -110,14 +115,105 @@ export function ConsistencyPage() {
                 a.download = `calib-${data.cycleName.replace(/\s+/g, "-").toLowerCase()}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
-                setCalibMsg(`Exported ${bundle.cards.length} card(s)`);
+                setExportedBundle(bundle);
+                const seed: Record<string, { overall: string; note: string }> = {};
+                for (const card of bundle.cards) {
+                  seed[card.personId] = {
+                    overall: card.overall != null ? String(card.overall) : "",
+                    note: "",
+                  };
+                }
+                setDirectorDecisions(seed);
+                setCalibMsg(`Exported ${bundle.cards.length} card(s) — fill director decisions below`);
               }}
             >
               Export calib JSON
             </button>
           </div>
+
+          {exportedBundle && (
+            <div className="stack" style={{ marginTop: 8 }}>
+              <h3 style={{ margin: 0 }}>Director decisions</h3>
+              <p className="muted" style={{ margin: 0 }}>
+                Capture the room’s calls here, then apply — no hand-editing JSON required.
+              </p>
+              {exportedBundle.cards.map((card) => {
+                const row = directorDecisions[card.personId] ?? { overall: "", note: "" };
+                return (
+                  <div key={card.personId} className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+                    <div style={{ minWidth: 140 }}>
+                      <strong>{card.personName}</strong>
+                      <div className="muted">was {card.overall ?? "—"}</div>
+                    </div>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label>Overall</label>
+                      <select
+                        value={row.overall}
+                        onChange={(e) =>
+                          setDirectorDecisions({
+                            ...directorDecisions,
+                            [card.personId]: { ...row, overall: e.target.value },
+                          })
+                        }
+                      >
+                        <option value="">Keep</option>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <option key={n} value={String(n)}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
+                      <label>Note</label>
+                      <input
+                        value={row.note}
+                        onChange={(e) =>
+                          setDirectorDecisions({
+                            ...directorDecisions,
+                            [card.personId]: { ...row, note: e.target.value },
+                          })
+                        }
+                        placeholder="Director rationale"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  const decisions = exportedBundle.cards
+                    .map((card) => {
+                      const row = directorDecisions[card.personId];
+                      if (!row) return null;
+                      const overall = row.overall ? Number(row.overall) : undefined;
+                      if (overall == null && !row.note.trim()) return null;
+                      return {
+                        personId: card.personId,
+                        overall,
+                        note: row.note.trim() || undefined,
+                      };
+                    })
+                    .filter(Boolean);
+                  const payload = { bundle: exportedBundle, decisions };
+                  const res = await api<{ applied: number }>("/api/calib/import", {
+                    method: "POST",
+                    body: JSON.stringify(payload),
+                  });
+                  setCalibMsg(`Applied ${res.applied} decision(s) from director form`);
+                  setImportJson(JSON.stringify(payload, null, 2));
+                  await load(data.cycleId);
+                }}
+              >
+                Apply director decisions
+              </button>
+            </div>
+          )}
+
           <div className="field">
-            <label>Import decisions JSON</label>
+            <label>Import decisions JSON (advanced)</label>
             <textarea
               value={importJson}
               onChange={(e) => setImportJson(e.target.value)}

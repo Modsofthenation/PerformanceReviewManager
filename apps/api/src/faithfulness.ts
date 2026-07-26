@@ -147,6 +147,57 @@ export function runFaithfulnessLint(text: string, allowlist: string[] = []): Bia
     });
   }
 
+  // Prefer integration achievement cites for delivery claims (Done-in-window / merged PRs).
+  const deliveryCite = allowlist.find((id) => id.startsWith("ach_")) ?? pickCiteId(allowlist);
+
+  // Shipping / delivery claims without cites
+  for (const m of body.matchAll(
+    /\b(shipped|merged|resolved|closed|delivered|completed)\b[^.!?\n]{0,80}/gi,
+  )) {
+    const idx = m.index ?? 0;
+    const window = body.slice(Math.max(0, idx - 40), idx + (m[0]?.length ?? 0) + 40);
+    if (/\[[a-z]+_[A-Za-z0-9_-]+\]/.test(window)) continue;
+    const excerpt = m[0].trim().slice(0, 100);
+    findings.push({
+      id: `delivery_claim_${idx}`,
+      severity: "info",
+      category: "invention",
+      message: `Delivery claim (“${excerpt.slice(0, 40)}…”) lacks a nearby evidence cite — prefer [ach_…] from Done-in-window items.`,
+      excerpt,
+      suggestedFix: deliveryCite
+        ? {
+            action: "cite",
+            label: `Cite [${deliveryCite}]`,
+            citeId: deliveryCite,
+            newText: `${excerpt.replace(/\.*$/, "")} [${deliveryCite}].`,
+          }
+        : undefined,
+    });
+  }
+
+  // Bare Jira keys without achievement ids (keys aren't in the allowlist)
+  for (const m of body.matchAll(/\b([A-Z][A-Z0-9]+-\d+)\b/g)) {
+    const key = m[1]!;
+    const idx = m.index ?? 0;
+    const nearby = body.slice(Math.max(0, idx - 30), idx + key.length + 30);
+    if (/\[[a-z]+_[A-Za-z0-9_-]+\]/.test(nearby)) continue;
+    findings.push({
+      id: `jira_key_${key}_${idx}`,
+      severity: "info",
+      category: "invention",
+      message: `Jira key ${key} is not a citable evidence id — sync the ticket and cite [ach_…] instead.`,
+      excerpt: key,
+      suggestedFix: deliveryCite
+        ? {
+            action: "cite",
+            label: `Replace with [${deliveryCite}]`,
+            citeId: deliveryCite,
+            newText: `[${deliveryCite}]`,
+          }
+        : undefined,
+    });
+  }
+
   return findings;
 }
 

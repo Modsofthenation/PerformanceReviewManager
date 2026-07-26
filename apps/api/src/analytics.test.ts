@@ -67,6 +67,7 @@ describe("buildSprintPulse", () => {
     assert.equal(result.summary.achievements, 2);
     assert.equal(result.summary.jira, 1);
     assert.equal(result.summary.bitbucket, 1);
+    assert.equal(result.summary.github, 0);
     assert.equal(result.summary.feedback, 1);
     assert.equal(result.summary.openConcerns, 1);
     assert.equal(result.summary.staleCitePeople, 1);

@@ -334,7 +334,7 @@ export interface StagnationHint {
   cycleCount: number;
 }
 
-export type IntegrationProvider = "jira" | "bitbucket";
+export type IntegrationProvider = "jira" | "bitbucket" | "github";
 
 export interface IntegrationSettingsDTO {
   id: IntegrationProvider;
@@ -370,8 +370,42 @@ export interface IntegrationRemoteUser {
 
 export interface IntegrationSyncResult {
   personId: string;
+  cycleId: string | null;
+  windowStart: string | null;
+  windowEnd: string | null;
   jira: { imported: number; updated: number; skipped: boolean; error: string | null };
   bitbucket: { imported: number; updated: number; skipped: boolean; error: string | null };
+  github: { imported: number; updated: number; skipped: boolean; error: string | null };
+}
+
+export interface DeliveryCiteSuggestion {
+  achievementId: string;
+  label: string;
+  reason: string;
+  citeToken: string;
+}
+
+/** Cycle-window delivery rollup from synced integration achievements. */
+export interface DeliveryRollupDTO {
+  personId: string;
+  cycleId: string | null;
+  windowStart: string;
+  windowEnd: string;
+  issuesDone: number;
+  issuesInProgress: number;
+  openBugs: number;
+  storyPointsDone: number | null;
+  prsMerged: number;
+  reviewsGiven: number;
+  reverts: number;
+  blockedHours: number | null;
+  sizeBands: Record<string, number>;
+  themes: Array<{ theme: string; count: number }>;
+  citeSuggestions: DeliveryCiteSuggestion[];
+  flags: {
+    thinDeliveryEvidence: "jira_rich_dossier_thin" | "dossier_rich_integrations_empty_window" | null;
+    integrationCounts: { jira: number; bitbucket: number; github: number };
+  };
 }
 
 export interface DecisionLogEntry {
@@ -493,6 +527,12 @@ export interface TeamPerformancePersonDTO {
   linkedSources: number;
   thin: boolean;
   managerStatus: string;
+  /** Issues done / PRs merged in this cycle window (delivery volume, not a score). */
+  deliveryDone: number;
+  storyPointsDone: number | null;
+  /** Prior cycles' deliveryDone for a small sparkline (oldest → newest, excl. current). */
+  deliveryTrend: number[];
+  thinDeliveryEvidence: string | null;
 }
 
 export interface TeamPerformanceDTO {
@@ -538,6 +578,7 @@ export interface SprintPulsePersonDTO {
   achievements: number;
   jira: number;
   bitbucket: number;
+  github: number;
   feedback: number;
   documents: number;
   openConcerns: number;
@@ -560,6 +601,7 @@ export interface SprintPulseDTO {
     achievements: number;
     jira: number;
     bitbucket: number;
+    github: number;
     feedback: number;
     documents: number;
     openConcerns: number;

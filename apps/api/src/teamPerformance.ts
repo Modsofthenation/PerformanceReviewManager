@@ -18,6 +18,10 @@ export type TeamPerformancePersonInput = {
   coverageNeed: number;
   themes: string[];
   openConcerns: number;
+  deliveryDone: number;
+  storyPointsDone: number | null;
+  deliveryTrend: number[];
+  thinDeliveryEvidence: string | null;
 };
 
 const PROMO_KEYS = ["ready", "not_yet", "too_early", "not_applicable", "unset"] as const;
@@ -114,6 +118,10 @@ export function buildTeamPerformance(args: {
       linkedSources: p.linkedSources,
       thin: p.thin,
       managerStatus: p.managerStatus,
+      deliveryDone: p.deliveryDone,
+      storyPointsDone: p.storyPointsDone,
+      deliveryTrend: p.deliveryTrend,
+      thinDeliveryEvidence: p.thinDeliveryEvidence,
     });
   }
 

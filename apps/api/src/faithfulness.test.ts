@@ -112,6 +112,14 @@ describe("faithfulness lint", () => {
     assert.ok(!next!.includes("[ach_fake]"));
     assert.ok(next!.includes("[ach_real]"));
   });
+  it("flags bare delivery claims and Jira keys without ach cites", () => {
+    const findings = runFaithfulnessLint(
+      "They shipped ENG-42 and merged three PRs this half without linking evidence.",
+      ["ach_1"],
+    );
+    assert.ok(findings.some((f) => f.id.startsWith("delivery_claim_")));
+    assert.ok(findings.some((f) => f.id.startsWith("jira_key_ENG-42")));
+  });
 });
 
 describe("faithfulness golden eval set", () => {

@@ -26,6 +26,10 @@ describe("buildTeamPerformance", () => {
           coverageNeed: 2,
           themes: ["career", "Career", "delivery"],
           openConcerns: 0,
+          deliveryDone: 4,
+          storyPointsDone: 13,
+          deliveryTrend: [2, 3],
+          thinDeliveryEvidence: null,
         },
         {
           personId: "p2",
@@ -44,6 +48,10 @@ describe("buildTeamPerformance", () => {
           coverageNeed: 0,
           themes: ["delivery"],
           openConcerns: 1,
+          deliveryDone: 0,
+          storyPointsDone: null,
+          deliveryTrend: [],
+          thinDeliveryEvidence: "jira_rich_dossier_thin",
         },
         {
           personId: "p3",
@@ -62,6 +70,10 @@ describe("buildTeamPerformance", () => {
           coverageNeed: 1,
           themes: [],
           openConcerns: 0,
+          deliveryDone: 1,
+          storyPointsDone: null,
+          deliveryTrend: [1],
+          thinDeliveryEvidence: null,
         },
       ],
     });
@@ -92,6 +104,8 @@ describe("buildTeamPerformance", () => {
     assert.equal(exec?.avg, 3.5);
     assert.equal(result.people[0].personName, "Ada");
     assert.equal(result.people[0].priorOverall, 3);
+    assert.equal(result.people[0].deliveryDone, 4);
+    assert.equal(result.people[1].thinDeliveryEvidence, "jira_rich_dossier_thin");
     assert.equal(result.priorCycle?.cycleId, "c0");
   });
 

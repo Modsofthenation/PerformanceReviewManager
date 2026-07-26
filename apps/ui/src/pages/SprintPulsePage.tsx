@@ -137,7 +137,8 @@ export function SprintPulsePage() {
               <strong>{data.summary.achievements}</strong>
               <span className="muted">
                 {" "}
-                · {data.summary.jira} Jira · {data.summary.bitbucket} Bitbucket
+                · {data.summary.jira} Jira · {data.summary.bitbucket} Bitbucket ·{" "}
+                {data.summary.github} GitHub
               </span>
             </div>
             <div className="tp-metric">
@@ -188,8 +189,11 @@ export function SprintPulsePage() {
                   <strong>{data.summary.staleCitePeople}</strong> people with stale-only cites
                 </li>
                 <li>
-                  Throughput: <strong>{data.summary.jira + data.summary.bitbucket}</strong> synced
-                  tickets / PRs in window
+                  Throughput:{" "}
+                  <strong>
+                    {data.summary.jira + data.summary.bitbucket + data.summary.github}
+                  </strong>{" "}
+                  synced tickets / PRs in window
                 </li>
               </ul>
             </div>
@@ -203,7 +207,7 @@ export function SprintPulsePage() {
                   <tr>
                     <th>Person</th>
                     <th>Achievements</th>
-                    <th>Jira / BB</th>
+                    <th>Jira / BB / GH</th>
                     <th>Feedback</th>
                     <th>Concerns</th>
                     <th>In window / older</th>
@@ -220,7 +224,7 @@ export function SprintPulsePage() {
                       </td>
                       <td>{p.achievements}</td>
                       <td>
-                        {p.jira} / {p.bitbucket}
+                        {p.jira} / {p.bitbucket} / {p.github}
                       </td>
                       <td>
                         {p.feedback}

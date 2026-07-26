@@ -5,12 +5,14 @@ import { api } from "../lib/api";
 type IntegrationsState = {
   jira: IntegrationSettingsDTO;
   bitbucket: IntegrationSettingsDTO;
+  github: IntegrationSettingsDTO;
 };
 
 export function IntegrationsPanel() {
   const [state, setState] = useState<IntegrationsState | null>(null);
   const [jiraToken, setJiraToken] = useState("");
   const [bbToken, setBbToken] = useState("");
+  const [ghToken, setGhToken] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -24,13 +26,15 @@ export function IntegrationsPanel() {
 
   if (!state) return <p className="muted">Loading integrations…</p>;
 
+  const jiraExtra = state.jira.extra ?? {};
+
   return (
     <div className="panel stack">
       <h2>Integrations</h2>
       <p className="muted">
-        Pull Jira issues and merged Bitbucket PRs into each person’s dossier as achievements (citable
-        on the writing desk). Tokens are encrypted with the workspace secret — same pattern as AI keys.
-        Sync is explicit egress to Atlassian cloud.
+        Pull cycle-scoped Jira issues and merged Bitbucket / GitHub PRs into each person’s dossier as
+        achievements (citable on the writing desk). Tokens are encrypted with the workspace secret.
+        Sync is explicit egress — no leaderboards, LOC scores, or Slack mining.
       </p>
 
       <form
@@ -46,6 +50,10 @@ export function IntegrationsPanel() {
                 baseUrl: state.jira.baseUrl,
                 authEmail: state.jira.authEmail,
                 token: jiraToken || undefined,
+                extra: {
+                  ...jiraExtra,
+                  includeComments: Boolean(jiraExtra.includeComments),
+                },
               }),
             });
             setState((s) => (s ? { ...s, jira: next } : s));
@@ -95,6 +103,24 @@ export function IntegrationsPanel() {
             onChange={(e) => setJiraToken(e.target.value)}
             placeholder={state.jira.hasToken ? "••••••••" : "Atlassian API token"}
           />
+        </div>
+        <div className="field">
+          <label>
+            <input
+              type="checkbox"
+              checked={Boolean(jiraExtra.includeComments)}
+              onChange={(e) =>
+                setState({
+                  ...state,
+                  jira: {
+                    ...state.jira,
+                    extra: { ...jiraExtra, includeComments: e.target.checked },
+                  },
+                })
+              }
+            />{" "}
+            Include comment highlights on sync (opt-in; extra egress)
+          </label>
         </div>
         <div className="cta-primary-row">
           <button className="btn" disabled={busy}>
@@ -232,6 +258,109 @@ export function IntegrationsPanel() {
           >
             Test Bitbucket
           </button>
+        </div>
+        {state.bitbucket.lastSyncAt && (
+          <p className="muted">Last sync: {state.bitbucket.lastSyncAt}</p>
+        )}
+      </form>
+
+      <form
+        className="stack"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            const next = await api<IntegrationSettingsDTO>("/api/integrations/github", {
+              method: "PUT",
+              body: JSON.stringify({
+                enabled: state.github.enabled,
+                baseUrl: state.github.baseUrl || "https://api.github.com",
+                workspaceSlug: state.github.workspaceSlug,
+                token: ghToken || undefined,
+                extra: {
+                  ...(state.github.extra ?? {}),
+                  org: state.github.workspaceSlug || state.github.extra?.org || null,
+                },
+              }),
+            });
+            setState((s) => (s ? { ...s, github: next } : s));
+            setGhToken("");
+            setMsg("GitHub settings saved");
+          } catch (err) {
+            setMsg(err instanceof Error ? err.message : "Save failed");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <h3>GitHub</h3>
+        <p className="muted" style={{ margin: 0 }}>
+          Same pattern as Bitbucket for orgs that aren’t on BB — merged PRs + reviews in the active cycle window.
+        </p>
+        <div className="field">
+          <label>
+            <input
+              type="checkbox"
+              checked={state.github.enabled}
+              onChange={(e) =>
+                setState({ ...state, github: { ...state.github, enabled: e.target.checked } })
+              }
+            />{" "}
+            Enabled
+          </label>
+        </div>
+        <div className="field">
+          <label>Organization (optional)</label>
+          <input
+            value={state.github.workspaceSlug ?? ""}
+            onChange={(e) =>
+              setState({ ...state, github: { ...state.github, workspaceSlug: e.target.value } })
+            }
+            placeholder="my-org"
+          />
+        </div>
+        <div className="field">
+          <label>API base</label>
+          <input
+            value={state.github.baseUrl ?? "https://api.github.com"}
+            onChange={(e) => setState({ ...state, github: { ...state.github, baseUrl: e.target.value } })}
+            placeholder="https://api.github.com"
+          />
+        </div>
+        <div className="field">
+          <label>Personal access token {state.github.hasToken ? "(on file — enter to replace)" : ""}</label>
+          <input
+            type="password"
+            value={ghToken}
+            onChange={(e) => setGhToken(e.target.value)}
+            placeholder={state.github.hasToken ? "••••••••" : "ghp_…"}
+          />
+        </div>
+        <div className="cta-primary-row">
+          <button className="btn" disabled={busy}>
+            Save GitHub
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const res = await api<{ login?: string; name?: string }>("/api/integrations/github/test", {
+                  method: "POST",
+                  body: "{}",
+                });
+                setMsg(`GitHub OK${res.login ? ` — @${res.login}` : ""}${res.name ? ` (${res.name})` : ""}`);
+              } catch (err) {
+                setMsg(err instanceof Error ? err.message : "GitHub test failed");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Test GitHub
+          </button>
           <button
             type="button"
             className="btn secondary"
@@ -244,7 +373,7 @@ export function IntegrationsPanel() {
                   { method: "POST", body: "{}" },
                 );
                 const imported = res.results.reduce(
-                  (n, r) => n + r.jira.imported + r.bitbucket.imported,
+                  (n, r) => n + r.jira.imported + r.bitbucket.imported + r.github.imported,
                   0,
                 );
                 setMsg(`Synced ${res.count} linked people (${imported} new achievements)`);
@@ -259,14 +388,14 @@ export function IntegrationsPanel() {
             Sync all linked people
           </button>
         </div>
-        {state.bitbucket.lastSyncAt && (
-          <p className="muted">Last sync: {state.bitbucket.lastSyncAt}</p>
+        {state.github.lastSyncAt && (
+          <p className="muted">Last sync: {state.github.lastSyncAt}</p>
         )}
       </form>
 
       <p className="muted">
-        Link each direct’s Jira / Bitbucket account on their person page, then sync there or use Sync
-        all above.
+        Link each direct’s Jira / Bitbucket / GitHub account on their person page, then sync there or use Sync
+        all above. Sync uses the active review cycle window.
       </p>
       {msg && <p className="muted">{msg}</p>}
     </div>

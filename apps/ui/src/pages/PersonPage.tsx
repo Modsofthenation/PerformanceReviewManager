@@ -13,6 +13,7 @@ import type {
 } from "@prm/shared";
 import { api, getToken, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 
 export function PersonPage() {
   const { id } = useParams();
@@ -167,10 +168,10 @@ export function PersonPage() {
       </div>
 
       <div className="panel stack" id="integrations">
-        <h2>Jira & Bitbucket</h2>
+        <h2>Jira, Bitbucket & GitHub</h2>
         <p className="muted">
-          Link remote accounts, then pull tickets / merged PRs into achievements. Configure credentials in{" "}
-          <Link to="/settings">Settings → Integrations</Link>.
+          Link remote accounts, then pull tickets / merged PRs for the active review window into achievements.
+          Configure credentials in <Link to="/settings">Settings → Integrations</Link>.
         </p>
         {extLinks.length === 0 ? (
           <p className="muted">No external accounts linked yet.</p>
@@ -204,6 +205,7 @@ export function PersonPage() {
             >
               <option value="jira">Jira</option>
               <option value="bitbucket">Bitbucket</option>
+              <option value="github">GitHub</option>
             </select>
           </div>
           <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
@@ -242,7 +244,7 @@ export function PersonPage() {
               try {
                 const res = await api<IntegrationSyncResult>(`/api/people/${id}/integrations/sync`, {
                   method: "POST",
-                  body: "{}",
+                  body: JSON.stringify({ cycleId: cycles[0]?.id }),
                 });
                 const parts = [
                   !res.jira.skipped
@@ -253,8 +255,22 @@ export function PersonPage() {
                         res.bitbucket.error ? ` (${res.bitbucket.error})` : ""
                       }`
                     : null,
+                  !res.github.skipped
+                    ? `GH +${res.github.imported}/~${res.github.updated}${
+                        res.github.error ? ` (${res.github.error})` : ""
+                      }`
+                    : null,
                 ].filter(Boolean);
-                setLinkMsg(parts.join(" · ") || "Nothing synced");
+                setLinkMsg(
+                  [
+                    res.windowStart && res.windowEnd
+                      ? `Window ${res.windowStart}→${res.windowEnd}`
+                      : null,
+                    parts.join(" · ") || "Nothing synced",
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                );
                 setCaptureMsg("Integration sync finished");
                 await load();
               } catch (e) {
@@ -302,6 +318,8 @@ export function PersonPage() {
         )}
         {linkMsg && <p className="muted">{linkMsg}</p>}
       </div>
+
+      {id ? <DeliveryRollupPanel personId={id} cycleId={cycles[0]?.id} /> : null}
 
       <div className="grid-2">
         <div className="panel" id="capture-achievements">
@@ -544,6 +562,22 @@ export function PersonPage() {
               required
               rows={6}
               placeholder="Paste notes or transcript…"
+            />
+          </div>
+          <div className="field">
+            <label>Or pick a Drive / Meet export (.txt, .md, .vtt)</label>
+            <input
+              type="file"
+              accept=".txt,.md,.vtt,text/plain,text/markdown,text/vtt"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const text = await file.text();
+                setMeetTranscript(text);
+                if (!meetTitle.trim()) {
+                  setMeetTitle(file.name.replace(/\.(txt|md|vtt)$/i, ""));
+                }
+              }}
             />
           </div>
           <label className="row" style={{ gap: 8, alignItems: "flex-start" }}>

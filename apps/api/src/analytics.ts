@@ -68,6 +68,7 @@ export function buildSprintPulse(args: {
   let achievements = 0;
   let jira = 0;
   let bitbucket = 0;
+  let github = 0;
   let feedback = 0;
   let documents = 0;
   let openConcerns = 0;
@@ -79,6 +80,7 @@ export function buildSprintPulse(args: {
     const docIn = p.documents.filter((d) => inRange(d.occurredAt, args.from, args.to));
     const jiraN = achIn.filter((a) => a.sourceProvider === "jira").length;
     const bbN = achIn.filter((a) => a.sourceProvider === "bitbucket").length;
+    const ghN = achIn.filter((a) => a.sourceProvider === "github").length;
     const themes: string[] = [];
     for (const f of fbIn) {
       for (const t of f.themes) {
@@ -109,6 +111,7 @@ export function buildSprintPulse(args: {
     achievements += achIn.length;
     jira += jiraN;
     bitbucket += bbN;
+    github += ghN;
     feedback += fbIn.length;
     documents += docIn.length;
     openConcerns += p.openConcernsInWindow;
@@ -121,6 +124,7 @@ export function buildSprintPulse(args: {
       achievements: achIn.length,
       jira: jiraN,
       bitbucket: bbN,
+      github: ghN,
       feedback: fbIn.length,
       documents: docIn.length,
       openConcerns: p.openConcernsInWindow,
@@ -148,6 +152,7 @@ export function buildSprintPulse(args: {
       achievements,
       jira,
       bitbucket,
+      github,
       feedback,
       documents,
       openConcerns,
