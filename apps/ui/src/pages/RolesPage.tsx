@@ -50,6 +50,11 @@ export function RolesPage() {
   const [drafts, setDrafts] = useState<RoleDraftDTO[]>([]);
   const [extractMeta, setExtractMeta] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fwOwner, setFwOwner] = useState("");
+  const [fwFrom, setFwFrom] = useState("");
+  const [fwTo, setFwTo] = useState("");
+  const [migrateLabel, setMigrateLabel] = useState("");
+  const [keyMapText, setKeyMapText] = useState("{}");
 
   async function load() {
     const [r, p, fw] = await Promise.all([
@@ -60,8 +65,13 @@ export function RolesPage() {
     setRoles(r.filter(Boolean) as RoleDefinitionDTO[]);
     const directs = p.filter((x) => x.managerId);
     setPeople(directs);
-    if (fw && "versionId" in fw && fw.versionId) setFramework(fw as RoleFrameworkInfo);
-    else setFramework(null);
+    if (fw && "versionId" in fw && fw.versionId) {
+      const info = fw as RoleFrameworkInfo;
+      setFramework(info);
+      setFwOwner(info.ownerName ?? "");
+      setFwFrom(info.effectiveFrom ?? "");
+      setFwTo(info.effectiveTo ?? "");
+    } else setFramework(null);
     const unassigned = directs.find((x) => !x.roleDefinitionId);
     if (!personId) setPersonId(unassigned?.id ?? directs[0]?.id ?? "");
     if (!roleId && r[0]) setRoleId(r[0]!.id);
@@ -245,10 +255,97 @@ export function RolesPage() {
       />
 
       {framework && (
-        <p className="muted" style={{ marginTop: 0 }}>
-          {framework.frameworkName} · {framework.versionLabel} · {framework.roleCount} roles
-          {framework.sourceFilename ? ` · source ${framework.sourceFilename}` : ""}
-        </p>
+        <div className="panel stack">
+          <p className="muted" style={{ margin: 0 }}>
+            {framework.frameworkName} · {framework.versionLabel} · {framework.roleCount} roles
+            {framework.sourceFilename ? ` · source ${framework.sourceFilename}` : ""}
+          </p>
+          {framework.insufficient?.length ? (
+            <NextStep
+              tone="warn"
+              label="Framework insufficient"
+              detail={framework.insufficient.slice(0, 4).join(" ")}
+            />
+          ) : (
+            <NextStep tone="ok" label="Framework looks complete" detail="Owner, dates, and migration live below." />
+          )}
+          <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+            <div className="field">
+              <label>Owner</label>
+              <input value={fwOwner} onChange={(e) => setFwOwner(e.target.value)} placeholder="People team / EM" />
+            </div>
+            <div className="field">
+              <label>Effective from</label>
+              <input type="date" value={fwFrom} onChange={(e) => setFwFrom(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Effective to</label>
+              <input type="date" value={fwTo} onChange={(e) => setFwTo(e.target.value)} />
+            </div>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={busy}
+              onClick={async () => {
+                await api("/api/roles/framework", {
+                  method: "PATCH",
+                  body: JSON.stringify({
+                    ownerName: fwOwner || null,
+                    effectiveFrom: fwFrom || null,
+                    effectiveTo: fwTo || null,
+                  }),
+                });
+                setMsg("Framework metadata saved");
+                await load();
+              }}
+            >
+              Save metadata
+            </button>
+          </div>
+          <h3 style={{ marginBottom: 0 }}>Publish new year (migrate)</h3>
+          <p className="muted" style={{ margin: 0 }}>
+            Clones the published ladder into a new version, remaps assignment keys, and marks the old version superseded.
+          </p>
+          <div className="field">
+            <label>New version label</label>
+            <input value={migrateLabel} onChange={(e) => setMigrateLabel(e.target.value)} placeholder="2027.1" />
+          </div>
+          <div className="field">
+            <label>Key map JSON (optional)</label>
+            <textarea
+              value={keyMapText}
+              onChange={(e) => setKeyMapText(e.target.value)}
+              rows={3}
+              placeholder='{"ic4_swe":"ic4_software"}'
+            />
+          </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || !migrateLabel.trim()}
+            onClick={async () => {
+              const keyMap = JSON.parse(keyMapText || "{}") as Record<string, string>;
+              const res = await api<{ remappedAssignments: number; insufficient: string[] }>(
+                "/api/roles/framework/migrate",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    versionLabel: migrateLabel.trim(),
+                    keyMap,
+                    ownerName: fwOwner || undefined,
+                    effectiveFrom: fwFrom || undefined,
+                    effectiveTo: fwTo || undefined,
+                  }),
+                },
+              );
+              setMsg(`Migrated — remapped ${res.remappedAssignments} assignment(s)`);
+              setMigrateLabel("");
+              await load();
+            }}
+          >
+            Migrate & publish
+          </button>
+        </div>
       )}
 
       {msg && <p className="muted">{msg}</p>}

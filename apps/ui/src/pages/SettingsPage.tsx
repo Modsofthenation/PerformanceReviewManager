@@ -463,6 +463,54 @@ export function SettingsPage() {
         </div>
         {msg && <p className="muted">{msg}</p>}
       </form>
+
+      <div className="panel stack">
+        <h2>Desktop updates</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Packaged builds serve the UI from the local API (same-origin) to avoid WebView “Failed to fetch”. Check GitHub
+          Releases for a newer installer; signed auto-update needs Tauri updater keys in CI.
+        </p>
+        <button
+          type="button"
+          className="btn secondary"
+            onClick={async () => {
+            try {
+              let localVersion = "0.1.0";
+              const invoke = (window as unknown as {
+                __TAURI__?: { core?: { invoke?: (cmd: string) => Promise<string> } };
+              }).__TAURI__?.core?.invoke;
+              if (invoke) {
+                try {
+                  localVersion = await invoke("get_app_version");
+                } catch {
+                  /* browser / unsigned */
+                }
+              }
+              const res = await fetch(
+                "https://api.github.com/repos/Modsofthenation/PerformanceReviewManager/releases/latest",
+                { headers: { Accept: "application/vnd.github+json" } },
+              );
+              if (!res.ok) {
+                setMsg(`Could not reach GitHub releases (${res.status}). Download artifacts from Actions on main.`);
+                return;
+              }
+              const json = (await res.json()) as { tag_name?: string; html_url?: string; name?: string };
+              const tag = json.tag_name ?? json.name ?? "unknown";
+              setMsg(
+                `Installed app version ${localVersion}. Latest GitHub release: ${tag}. ${json.html_url ?? ""}`,
+              );
+            } catch (e) {
+              setMsg(
+                e instanceof Error
+                  ? `${e.message} — use CI artifact desktop-windows-x86_64 / desktop-linux / desktop-macos`
+                  : "Update check failed",
+              );
+            }
+          }}
+        >
+          Check for updates
+        </button>
+      </div>
     </div>
   );
 }

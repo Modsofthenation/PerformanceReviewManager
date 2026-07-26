@@ -5,7 +5,7 @@
  * when cwd is apps/desktop (CI / tauri-action).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { cpSync, existsSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,7 @@ const srcTauri = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = join(srcTauri, "..");
 const repoRoot = join(desktopRoot, "../..");
 const uiDist = join(repoRoot, "apps/ui/dist");
+const bundledUi = join(srcTauri, "ui-dist");
 const hook = process.argv[2] ?? "build";
 
 function run(command, args, opts = {}) {
@@ -46,5 +47,8 @@ if (hook === "dev") {
     console.error("UI build missing — expected", join(uiDist, "index.html"));
     process.exit(1);
   }
+  rmSync(bundledUi, { recursive: true, force: true });
+  cpSync(uiDist, bundledUi, { recursive: true });
   console.log("UI dist ready:", uiDist);
+  console.log("Bundled UI for API same-origin serve:", bundledUi);
 }

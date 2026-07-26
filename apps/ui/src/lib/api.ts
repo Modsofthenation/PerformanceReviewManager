@@ -5,6 +5,10 @@ declare global {
     __PRM_LAUNCH_TOKEN__?: string;
     /** Absolute API origin injected by the Tauri shell (e.g. http://127.0.0.1:8787). */
     __PRM_API_BASE_URL__?: string;
+    /** Packaged desktop marker. */
+    __PRM_DESKTOP__?: boolean;
+    /** Path to desktop-api.log on packaged builds. */
+    __PRM_DESKTOP_LOG__?: string;
   }
 }
 

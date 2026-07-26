@@ -11,6 +11,9 @@ use std::{
   time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
@@ -18,6 +21,8 @@ const DEFAULT_API_HOST: &str = "127.0.0.1";
 const DEFAULT_API_PORT: u16 = 8787;
 const DEFAULT_API_BASE: &str = "http://127.0.0.1:8787";
 const DEV_UI_URL: &str = "http://localhost:5173";
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +41,11 @@ fn get_launch_config(state: State<'_, LaunchState>) -> Result<LaunchConfig, Stri
     .lock()
     .map(|g| g.clone())
     .map_err(|_| "launch config lock poisoned".into())
+}
+
+#[tauri::command]
+fn get_app_version() -> String {
+  env!("CARGO_PKG_VERSION").into()
 }
 
 fn api_port() -> u16 {
@@ -113,6 +123,12 @@ fn resolve_launch_config(data: &Path) -> LaunchConfig {
   }
 }
 
+fn exe_dir() -> Option<PathBuf> {
+  std::env::current_exe()
+    .ok()
+    .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+}
+
 fn candidate_sidecar_dirs(resource_dir: Option<&Path>) -> Vec<PathBuf> {
   let mut dirs = Vec::new();
   if let Ok(custom) = std::env::var("PRM_API_SIDECAR_DIR") {
@@ -122,8 +138,36 @@ fn candidate_sidecar_dirs(resource_dir: Option<&Path>) -> Vec<PathBuf> {
     dirs.push(res.join("sidecars"));
     dirs.push(res.to_path_buf());
   }
+  if let Some(exe) = exe_dir() {
+    dirs.push(exe.join("sidecars"));
+    dirs.push(exe.join("resources").join("sidecars"));
+    dirs.push(exe.clone());
+    dirs.push(exe.join("resources"));
+  }
   dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("sidecars"));
   dirs
+}
+
+fn resolve_ui_dir(resource_dir: Option<&Path>) -> Option<PathBuf> {
+  if let Ok(dir) = std::env::var("PRM_UI_DIR") {
+    let p = PathBuf::from(dir);
+    if p.join("index.html").exists() {
+      return Some(p);
+    }
+  }
+  let mut dirs = Vec::new();
+  if let Some(res) = resource_dir {
+    dirs.push(res.join("ui-dist"));
+    dirs.push(res.to_path_buf());
+  }
+  if let Some(exe) = exe_dir() {
+    dirs.push(exe.join("ui-dist"));
+    dirs.push(exe.join("resources").join("ui-dist"));
+  }
+  dirs.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("ui-dist"));
+  dirs
+    .into_iter()
+    .find(|d| d.join("index.html").exists())
 }
 
 fn append_log(path: &Path, line: &str) {
@@ -137,18 +181,32 @@ fn maybe_spawn_api(
   token: &str,
   data: &Path,
   resource_dir: Option<&Path>,
+  ui_dir: Option<&Path>,
   log_path: &Path,
 ) -> Option<Child> {
   let force = std::env::var("PRM_SPAWN_API").ok().as_deref() == Some("1");
   let api_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../api/src/index.ts");
   let port = api_port();
 
-  let mut program: Option<String> = None;
-  let mut args: Vec<String> = Vec::new();
+  let mut program: Option<PathBuf> = None;
+  let mut args: Vec<PathBuf> = Vec::new();
   let mut cwd: Option<PathBuf> = None;
 
   for dir in candidate_sidecar_dirs(resource_dir) {
     let script = dir.join("prm-api.mjs");
+    append_log(
+      log_path,
+      &format!(
+        "PRM: probe sidecar dir {} script_exists={} node_exists={}",
+        dir.display(),
+        script.exists(),
+        if cfg!(windows) {
+          dir.join("node.exe").exists()
+        } else {
+          dir.join("node").exists()
+        }
+      ),
+    );
     if !script.exists() {
       continue;
     }
@@ -158,18 +216,22 @@ fn maybe_spawn_api(
       dir.join("node")
     };
     if bundled_node.exists() {
-      program = Some(bundled_node.to_string_lossy().to_string());
+      program = Some(bundled_node);
     } else {
-      program = Some("node".into());
+      program = Some(PathBuf::from("node"));
     }
-    args = vec![script.to_string_lossy().to_string()];
+    args = vec![script];
     cwd = Some(dir);
     break;
   }
 
   if program.is_none() && force && api_entry.exists() {
-    program = Some("pnpm".into());
-    args = vec!["exec".into(), "tsx".into(), "src/index.ts".into()];
+    program = Some(PathBuf::from("pnpm"));
+    args = vec![
+      PathBuf::from("exec"),
+      PathBuf::from("tsx"),
+      PathBuf::from("src/index.ts"),
+    ];
     cwd = api_entry.parent()?.parent().map(|p| p.to_path_buf());
   }
 
@@ -185,45 +247,70 @@ fn maybe_spawn_api(
   append_log(
     log_path,
     &format!(
-      "PRM: spawning API sidecar program={program} cwd={} data={} port={port}",
+      "PRM: spawning API sidecar program={} cwd={} data={} port={port} ui={}",
+      program.display(),
       cwd.display(),
-      data.display()
+      data.display(),
+      ui_dir.map(|p| p.display().to_string()).unwrap_or_else(|| "(none)".into())
     ),
   );
 
-  match Command::new(&program)
+  // Append child stdio to the same log (avoids pipe-buffer deadlocks on Windows).
+  let child_log = match fs::OpenOptions::new().create(true).append(true).open(log_path) {
+    Ok(f) => f,
+    Err(err) => {
+      append_log(log_path, &format!("PRM: could not open log for child stdio: {err}"));
+      return None;
+    }
+  };
+  let child_err = match child_log.try_clone() {
+    Ok(f) => f,
+    Err(err) => {
+      append_log(log_path, &format!("PRM: could not clone log for stderr: {err}"));
+      return None;
+    }
+  };
+
+  let mut command = Command::new(&program);
+  command
     .args(&args)
     .current_dir(&cwd)
     .env("PRM_LAUNCH_TOKEN", token)
     .env("PRM_DATA_DIR", data)
     .env("PRM_PORT", port.to_string())
     .stdin(Stdio::null())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .spawn()
+    .stdout(Stdio::from(child_log))
+    .stderr(Stdio::from(child_err));
+  if let Some(ui) = ui_dir {
+    command.env("PRM_UI_DIR", ui);
+  }
+  // GUI subsystem apps on Windows must not attach a console to Node or spawn can hang/fail.
+  #[cfg(windows)]
   {
+    command.creation_flags(CREATE_NO_WINDOW);
+  }
+
+  match command.spawn() {
     Ok(mut child) => {
-      let log = log_path.to_path_buf();
-      if let Some(mut out) = child.stdout.take() {
-        thread::spawn(move || {
-          let mut buf = String::new();
-          let _ = out.read_to_string(&mut buf);
-          if !buf.trim().is_empty() {
-            append_log(&log, &format!("PRM API stdout:\n{buf}"));
-          }
-        });
+      // Detect immediate crash (missing native module, bad path, etc.)
+      thread::sleep(Duration::from_millis(200));
+      match child.try_wait() {
+        Ok(Some(status)) => {
+          append_log(
+            log_path,
+            &format!("PRM: API sidecar exited immediately with {status}"),
+          );
+          return None;
+        }
+        Ok(None) => {}
+        Err(err) => {
+          append_log(log_path, &format!("PRM: try_wait failed: {err}"));
+        }
       }
-      let log = log_path.to_path_buf();
-      if let Some(mut err) = child.stderr.take() {
-        thread::spawn(move || {
-          let mut buf = String::new();
-          let _ = err.read_to_string(&mut buf);
-          if !buf.trim().is_empty() {
-            append_log(&log, &format!("PRM API stderr:\n{buf}"));
-          }
-        });
-      }
-      append_log(log_path, &format!("PRM: spawned API sidecar ({program})"));
+      append_log(
+        log_path,
+        &format!("PRM: spawned API sidecar ({})", program.display()),
+      );
       Some(child)
     }
     Err(err) => {
@@ -281,7 +368,7 @@ fn main() {
       launch_token: String::new(),
     })))
     .manage(ApiChild(Mutex::new(None)))
-    .invoke_handler(tauri::generate_handler![get_launch_config])
+    .invoke_handler(tauri::generate_handler![get_launch_config, get_app_version])
     .setup(move |app| {
       let data = resolve_data_dir(app.handle());
       let _ = fs::create_dir_all(&data);
@@ -295,10 +382,18 @@ fn main() {
       }
 
       let resource_dir = app.path().resource_dir().ok();
+      let ui_dir = resolve_ui_dir(resource_dir.as_deref());
+      if let Some(ref ui) = ui_dir {
+        append_log(&log_path, &format!("PRM: UI dir {}", ui.display()));
+      } else {
+        append_log(&log_path, "PRM: UI dir not found (will use bundled webview assets)");
+      }
+
       let child = maybe_spawn_api(
         &launch.launch_token,
         &data,
         resource_dir.as_deref(),
+        ui_dir.as_deref(),
         &log_path,
       );
       if let Ok(mut guard) = app.state::<ApiChild>().0.lock() {
@@ -315,24 +410,38 @@ fn main() {
       }
 
       let inject = format!(
-        "window.__PRM_LAUNCH_TOKEN__={};window.__PRM_API_BASE_URL__={};",
+        "window.__PRM_LAUNCH_TOKEN__={};window.__PRM_API_BASE_URL__={};window.__PRM_DESKTOP_LOG__={};window.__PRM_DESKTOP__=true;",
         serde_json::to_string(&launch.launch_token).unwrap_or_else(|_| "\"\"".into()),
-        serde_json::to_string(&launch.api_base_url).unwrap_or_else(|_| {
-          serde_json::to_string(DEFAULT_API_BASE).unwrap_or_else(|_| "\"\"".into())
-        }),
+        // Same-origin when loading the API-served UI: leave base empty so /api is relative.
+        // Offline bundled webview still needs an absolute base to reach the sidecar.
+        serde_json::to_string(if ready && ui_dir.is_some() {
+          ""
+        } else {
+          launch.api_base_url.as_str()
+        })
+        .unwrap_or_else(|_| serde_json::to_string(DEFAULT_API_BASE).unwrap_or_else(|_| "\"\"".into())),
+        serde_json::to_string(&log_path.to_string_lossy()).unwrap_or_else(|_| "\"\"".into()),
       );
 
       let url = if cfg!(debug_assertions) {
         WebviewUrl::External(DEV_UI_URL.parse().expect("dev ui url"))
+      } else if ready && ui_dir.is_some() {
+        // Same-origin with the API — avoids WebView2 CORS / mixed-content / Failed to fetch.
+        let page = format!("{}/", launch.api_base_url.trim_end_matches('/'));
+        append_log(&log_path, &format!("PRM: opening same-origin UI at {page}"));
+        WebviewUrl::External(page.parse().expect("api ui url"))
       } else {
+        append_log(&log_path, "PRM: opening bundled offline UI assets");
         WebviewUrl::App("index.html".into())
       };
       if app.get_webview_window("main").is_none() {
+        // Keep http://tauri.localhost on Windows so fetch to http://127.0.0.1:8787 is not mixed-content blocked.
         WebviewWindowBuilder::new(app, "main", url)
           .title("Performance Review Manager")
           .inner_size(1280.0, 840.0)
           .resizable(true)
           .initialization_script(&inject)
+          .use_https_scheme(false)
           .build()?;
       } else if let Some(window) = app.get_webview_window("main") {
         let _ = window.eval(&inject);

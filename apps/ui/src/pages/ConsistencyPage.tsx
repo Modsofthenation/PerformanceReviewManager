@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import type { ConsistencyDTO, CycleDTO } from "@prm/shared";
+import type { CalibBundleDTO, ConsistencyDTO, CycleDTO } from "@prm/shared";
 import { competencyLabel } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
@@ -10,6 +10,8 @@ export function ConsistencyPage() {
   const [cycles, setCycles] = useState<CycleDTO[]>([]);
   const [data, setData] = useState<ConsistencyDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [calibMsg, setCalibMsg] = useState<string | null>(null);
+  const [importJson, setImportJson] = useState("");
   const cycleId = params.get("cycleId") ?? "";
 
   async function load(cid?: string) {
@@ -85,6 +87,66 @@ export function ConsistencyPage() {
           </select>
         </div>
       </div>
+
+      {data && (
+        <div className="panel stack">
+          <h2>Calibration bundles</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Export candidate cards for a director, then import decisions back into draft manager reviews (same cycle id).
+          </p>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={async () => {
+                const bundle = await api<CalibBundleDTO>("/api/calib/export", {
+                  method: "POST",
+                  body: JSON.stringify({ cycleId: data.cycleId }),
+                });
+                const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `calib-${data.cycleName.replace(/\s+/g, "-").toLowerCase()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setCalibMsg(`Exported ${bundle.cards.length} card(s)`);
+              }}
+            >
+              Export calib JSON
+            </button>
+          </div>
+          <div className="field">
+            <label>Import decisions JSON</label>
+            <textarea
+              value={importJson}
+              onChange={(e) => setImportJson(e.target.value)}
+              rows={5}
+              placeholder='{ "bundle": {…}, "decisions": [{ "personId": "…", "overall": 4, "note": "…" }] }'
+            />
+          </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={!importJson.trim()}
+            onClick={async () => {
+              const parsed = JSON.parse(importJson) as {
+                bundle: CalibBundleDTO;
+                decisions: Array<{ personId: string; overall?: number; note?: string }>;
+              };
+              const res = await api<{ applied: number }>("/api/calib/import", {
+                method: "POST",
+                body: JSON.stringify(parsed),
+              });
+              setCalibMsg(`Applied ${res.applied} decision(s)`);
+              await load(data.cycleId);
+            }}
+          >
+            Import decisions
+          </button>
+          {calibMsg && <p className="muted">{calibMsg}</p>}
+        </div>
+      )}
 
       {!data ? (
         <p>Loading…</p>

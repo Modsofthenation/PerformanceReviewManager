@@ -1,7 +1,8 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { basename } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { basename, extname, join, normalize, resolve, sep } from "node:path";
 import { and, eq, isNull } from "drizzle-orm";
 import {
   achievements,
@@ -26,6 +27,7 @@ import {
   roleFrameworks,
   workspace,
   concernLogs,
+  meetingSummaries,
   integrationSettings,
   personExternalLinks,
 } from "@prm/db";
@@ -59,6 +61,7 @@ import {
   encryptSecret,
   encryptionStatus,
   getDb,
+  getSqlite,
   getSessionToken,
   getWorkspaceSecret,
   id,
@@ -91,6 +94,8 @@ import {
 import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations.js";
 import { runBiasToneLint } from "./bias.js";
 import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
+import { registerP1Routes } from "./p1Routes.js";
+import { indexReviewFts } from "./reviewSearch.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import { localPeerSynthesize } from "./peerSynth.js";
 import { bitbucketSearchMembers, bitbucketTestConnection } from "./bitbucket.js";
@@ -137,12 +142,22 @@ const CORS_ORIGINS = [
   "tauri://localhost",
   "https://tauri.localhost",
   "http://tauri.localhost",
+  "https://asset.localhost",
+  "http://asset.localhost",
 ];
+
+function corsOrigin(origin: string): string | null {
+  if (CORS_ORIGINS.includes(origin)) return origin;
+  // Windows/Android custom-protocol workaround hosts: http(s)://*.localhost
+  if (/^https?:\/\/(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/i.test(origin)) return origin;
+  if (origin.startsWith("tauri://")) return origin;
+  return null;
+}
 
 app.use(
   "*",
   cors({
-    origin: CORS_ORIGINS,
+    origin: (origin) => (origin ? corsOrigin(origin) : CORS_ORIGINS[0]),
     credentials: true,
     allowHeaders: ["Content-Type", "x-prm-token", "x-prm-launch-token"],
   }),
@@ -506,7 +521,7 @@ app.get("/api/roles", (c) => {
 
 app.get("/api/roles/framework", (c) => {
   const info = frameworkInfo();
-  return c.json(info ?? { frameworkId: null, frameworkName: null, versionId: null, versionLabel: null, sourceFilename: null, roleCount: 0 });
+  return c.json(info ?? { frameworkId: null, frameworkName: null, versionId: null, versionLabel: null, sourceFilename: null, roleCount: 0, ownerName: null, effectiveFrom: null, effectiveTo: null, insufficient: [] });
 });
 
 function getPublishedVersion() {
@@ -536,6 +551,25 @@ function ensurePublishedVersion() {
   return db.select().from(roleFrameworkVersions).where(eq(roleFrameworkVersions.id, fwvId)).all()[0]!;
 }
 
+function frameworkInsufficient(versionId: string): string[] {
+  const db = getDb();
+  const warnings: string[] = [];
+  const roles = db.select().from(roleDefinitions).where(eq(roleDefinitions.frameworkVersionId, versionId)).all();
+  if (roles.length === 0) warnings.push("No role definitions in the published version.");
+  const keys = new Set(roles.map((r) => r.key));
+  for (const role of roles) {
+    const exps = db.select().from(roleExpectations).where(eq(roleExpectations.roleDefinitionId, role.id)).all();
+    if (exps.length === 0) warnings.push(`Role “${role.title}” has no expectations.`);
+    for (const next of JSON.parse(role.nextRoleKeysJson) as string[]) {
+      if (!keys.has(next)) warnings.push(`Role “${role.title}” points to missing next key “${next}”.`);
+    }
+  }
+  const directs = db.select().from(people).all().filter((p) => p.managerId && p.status === "active");
+  const unassigned = directs.filter((p) => !assignmentFor(p.id));
+  if (unassigned.length) warnings.push(`${unassigned.length} active direct(s) have no role assignment.`);
+  return warnings;
+}
+
 function frameworkInfo(): RoleFrameworkInfo | null {
   const db = getDb();
   const version = getPublishedVersion();
@@ -553,6 +587,10 @@ function frameworkInfo(): RoleFrameworkInfo | null {
     versionLabel: version.versionLabel,
     sourceFilename: version.sourceFilename,
     roleCount,
+    ownerName: version.ownerName ?? null,
+    effectiveFrom: version.effectiveFrom ?? null,
+    effectiveTo: version.effectiveTo ?? null,
+    insufficient: frameworkInsufficient(version.id),
   };
 }
 
@@ -1740,6 +1778,19 @@ app.put("/api/reviews/manager", async (c) => {
       evidenceLinks: links.length,
       timelineEntries: frozenTimeline.length,
     });
+
+    try {
+      const person = db.select().from(people).where(eq(people.id, body.subjectPersonId)).all()[0];
+      const cycle = db.select().from(cycles).where(eq(cycles.id, body.cycleId)).all()[0];
+      indexReviewFts(getSqlite(), {
+        reviewId,
+        personName: person?.name ?? "",
+        cycleName: cycle?.name ?? "",
+        body: narrative,
+      });
+    } catch {
+      /* FTS optional */
+    }
   }
 
   if (ratingChanges.length && reviewId) {
@@ -3249,8 +3300,8 @@ app.post("/api/ai/bias-lint", async (c) => {
   }>();
   let text = body.text?.trim() ?? "";
   let allowlist: string[] = [];
-  if (!text && body.cycleId && body.personId) {
-    const db = getDb();
+  const db = getDb();
+  if (body.cycleId && body.personId) {
     const manager = db
       .select()
       .from(reviews)
@@ -3263,28 +3314,32 @@ app.post("/api/ai/bias-lint", async (c) => {
       )
       .all()
       .find((r) => r.status !== "superseded");
-    if (manager) {
+    if (!text && manager) {
       const p = JSON.parse(manager.payloadJson) as Record<string, unknown>;
       text = [p.summary, p.strengths, p.growth_areas, p.dev_plan, p.role_fit].map((x) => String(x ?? "")).join("\n\n");
+    }
+    if (manager) {
       allowlist = db
         .select()
         .from(evidenceLinks)
         .where(eq(evidenceLinks.reviewId, manager.id))
         .all()
         .map((l) => l.sourceId);
-      allowlist.push(
-        ...db.select().from(achievements).where(eq(achievements.personId, body.personId)).all().map((a) => a.id),
-        ...db.select().from(goals).where(eq(goals.personId, body.personId)).all().map((g) => g.id),
-        ...db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, body.personId)).all().map((f) => f.id),
-        ...db.select().from(documents).where(eq(documents.personId, body.personId)).all().map((d) => d.id),
-      );
     }
+    allowlist.push(
+      ...db.select().from(achievements).where(eq(achievements.personId, body.personId)).all().map((a) => a.id),
+      ...db.select().from(goals).where(eq(goals.personId, body.personId)).all().map((g) => g.id),
+      ...db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, body.personId)).all().map((f) => f.id),
+      ...db.select().from(documents).where(eq(documents.personId, body.personId)).all().map((d) => d.id),
+      ...db.select().from(meetingSummaries).where(eq(meetingSummaries.personId, body.personId)).all().map((m) => m.id),
+    );
+    allowlist = [...new Set(allowlist)];
   }
   const findings = mergeLintFindings(
     runBiasToneLint(text),
     runFaithfulnessLint(text, allowlist),
   );
-  return c.json({ findings, ephemeral: true });
+  return c.json({ findings, ephemeral: true, allowlistSize: allowlist.length });
 });
 
 app.get("/api/sprint-pulse", (c) => {
@@ -3822,6 +3877,75 @@ app.get("/api/exports/promotion/:id", (c) => {
     },
   });
 });
+
+registerP1Routes(app, {
+  loadRole,
+  assignmentFor,
+  getPublishedVersion: () => {
+    const v = getPublishedVersion();
+    if (!v) return null;
+    return {
+      id: v.id,
+      frameworkId: v.frameworkId,
+      versionLabel: v.versionLabel,
+      sourceFilename: v.sourceFilename,
+      ownerName: v.ownerName ?? null,
+      effectiveFrom: v.effectiveFrom ?? null,
+      effectiveTo: v.effectiveTo ?? null,
+    };
+  },
+  frameworkInsufficient,
+});
+
+/** Packaged desktop: serve the Vite UI from PRM_UI_DIR so the webview is same-origin with /api. */
+const uiDir = process.env.PRM_UI_DIR?.trim();
+if (uiDir) {
+  const root = resolve(uiDir);
+  const mime: Record<string, string> = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".json": "application/json",
+    ".map": "application/json",
+  };
+  const inside = (file: string) => {
+    const f = resolve(file);
+    return f === root || f.startsWith(root + sep);
+  };
+  app.get("*", async (c) => {
+    const urlPath = decodeURIComponent(new URL(c.req.url).pathname);
+    if (urlPath.startsWith("/api")) return c.json({ error: "Not found" }, 404);
+    const rel =
+      !urlPath || urlPath === "/"
+        ? "index.html"
+        : normalize(urlPath.replace(/^[/\\]+/, "")).replace(/^(\.\.([/\\]|$))+/g, "");
+    const candidates = [join(root, rel)];
+    if (!extname(rel)) candidates.push(join(root, rel, "index.html"));
+    candidates.push(join(root, "index.html"));
+    for (const file of candidates) {
+      if (!inside(file)) continue;
+      try {
+        await access(file);
+        const body = await readFile(file);
+        const type = mime[extname(file).toLowerCase()] ?? "application/octet-stream";
+        return new Response(body, { headers: { "content-type": type } });
+      } catch {
+        /* try next */
+      }
+    }
+    return c.text("Not found", 404);
+  });
+  console.log(`PRM UI static root: ${root}`);
+}
 
 const port = Number(process.env.PRM_PORT ?? 8787);
 console.log(`PRM API listening on http://127.0.0.1:${port}`);

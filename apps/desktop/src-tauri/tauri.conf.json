@@ -26,7 +26,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "sidecars/**/*"
+      "sidecars/**/*",
+      "ui-dist/**/*"
     ],
     "longDescription": "Solo engineering manager performance review workbench with encrypted local vault.",
     "shortDescription": "EM performance review workbench",

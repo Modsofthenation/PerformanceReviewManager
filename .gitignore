@@ -9,4 +9,5 @@ apps/ui/dist
 apps/api/dist
 apps/desktop/src-tauri/target
 apps/desktop/src-tauri/sidecars/
+apps/desktop/src-tauri/ui-dist/
 *.tsbuildinfo

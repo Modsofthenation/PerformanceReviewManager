@@ -37,6 +37,21 @@ const GOLDEN = {
     allowlist: ["ach_1"],
     expectInvention: false,
   },
+  thinEvidenceHonesty: {
+    text: "Evidence is thin this cycle, so this assessment is provisional pending more dossier capture.",
+    allowlist: [] as string[],
+    expectInvention: false,
+  },
+  multiInventedCite: {
+    text: "Claim A [ach_x] and claim B [ach_y] without allowlist support.",
+    allowlist: ["ach_real"],
+    expectIds: ["unknown_cite_ach_x", "unknown_cite_ach_y"],
+  },
+  absolutePlusMetric: {
+    text: "They always delivered 100% of roadmap commits with zero misses across the org.",
+    allowlist: ["ach_1"],
+    expectMetricOrAbsolute: true,
+  },
 };
 
 describe("faithfulness lint", () => {
@@ -105,6 +120,8 @@ describe("faithfulness golden eval set", () => {
       GOLDEN.inventedCite,
       GOLDEN.ungroundedAbsolutes,
       GOLDEN.bareMetric,
+      GOLDEN.multiInventedCite,
+      GOLDEN.absolutePlusMetric,
     ];
     for (const c of cases) {
       const findings = runFaithfulnessLint(c.text, c.allowlist);
@@ -113,5 +130,25 @@ describe("faithfulness golden eval set", () => {
         `expected invention in: ${c.text.slice(0, 60)}`,
       );
     }
+  });
+
+  it("does not punish thin-evidence honesty", () => {
+    const findings = runFaithfulnessLint(
+      GOLDEN.thinEvidenceHonesty.text,
+      GOLDEN.thinEvidenceHonesty.allowlist,
+    );
+    assert.equal(
+      findings.filter((f) => f.severity === "warn" && f.category === "invention").length,
+      0,
+    );
+  });
+
+  it("flags multiple invented cites", () => {
+    const findings = runFaithfulnessLint(
+      GOLDEN.multiInventedCite.text,
+      GOLDEN.multiInventedCite.allowlist,
+    );
+    assert.ok(findings.some((f) => f.id === "unknown_cite_ach_x"));
+    assert.ok(findings.some((f) => f.id === "unknown_cite_ach_y"));
   });
 });

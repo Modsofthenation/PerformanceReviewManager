@@ -153,6 +153,9 @@ export async function seedWorkspace(opts: {
     status: "published",
     publishedAt: createdAt,
     sourceFilename: "seeded",
+    ownerName: "Seed EM",
+    effectiveFrom: createdAt.slice(0, 10),
+    effectiveTo: null,
   }).run();
 
   const roleIds: Record<string, string> = {};

@@ -82,6 +82,43 @@ jobs:
           projectPath: apps/desktop
           args: ${{ matrix.args }}
           includeUpdaterJson: false
+      - name: Smoke API sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIDE="apps/desktop/src-tauri/sidecars"
+          UI="apps/desktop/src-tauri/ui-dist"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            NODE="$SIDE/node.exe"
+          else
+            NODE="$SIDE/node"
+            chmod +x "$NODE" || true
+          fi
+          test -f "$NODE"
+          test -f "$SIDE/prm-api.mjs"
+          test -f "$UI/index.html"
+          DATA="${RUNNER_TEMP:-/tmp}/prm-sidecar-smoke"
+          rm -rf "$DATA"
+          mkdir -p "$DATA"
+          PRM_DATA_DIR="$DATA" PRM_PORT=8799 PRM_LAUNCH_TOKEN=ci-smoke PRM_UI_DIR="$UI" \
+            "$NODE" "$SIDE/prm-api.mjs" >"$DATA/out.log" 2>&1 &
+          PID=$!
+          cleanup() { kill "$PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 50); do
+            if curl -sf "http://127.0.0.1:8799/api/health" >/dev/null; then
+              echo "sidecar healthy"
+              curl -sf "http://127.0.0.1:8799/api/workspace/status" -H "x-prm-launch-token: ci-smoke"
+              echo
+              curl -sf "http://127.0.0.1:8799/" | head -c 200
+              echo
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "sidecar failed to become healthy" >&2
+          cat "$DATA/out.log" >&2 || true
+          exit 1
       - name: Upload desktop installers
         uses: actions/upload-artifact@v4
         with:

@@ -42,6 +42,9 @@ export const roleFrameworkVersions = sqliteTable("role_framework_versions", {
   status: text("status").notNull().default("published"),
   publishedAt: text("published_at").notNull(),
   sourceFilename: text("source_filename"),
+  ownerName: text("owner_name"),
+  effectiveFrom: text("effective_from"),
+  effectiveTo: text("effective_to"),
 });
 
 export const roleDefinitions = sqliteTable("role_definitions", {
@@ -82,6 +85,8 @@ export const cycles = sqliteTable("cycles", {
   windowEnd: text("window_end").notNull(),
   status: text("status").notNull().default("draft"),
   createdAt: text("created_at").notNull(),
+  /** Pins the role ladder used for this cycle (nullable for older rows). */
+  frameworkVersionId: text("framework_version_id"),
 });
 
 export const cycleParticipants = sqliteTable("cycle_participants", {
@@ -228,6 +233,21 @@ export const concernLogs = sqliteTable("concern_logs", {
   updatedAt: text("updated_at").notNull(),
 });
 
+/** Structured 1:1 / meeting notes — default em_only; raw transcripts stay on documents. */
+export const meetingSummaries = sqliteTable("meeting_summaries", {
+  id: text("id").primaryKey(),
+  personId: text("person_id").notNull(),
+  sourceDocumentId: text("source_document_id"),
+  occurredAt: text("occurred_at").notNull(),
+  title: text("title").notNull(),
+  summaryText: text("summary_text").notNull(),
+  themesJson: text("themes_json").notNull().default("[]"),
+  visibility: text("visibility").notNull().default("em_only"),
+  consentNoted: integer("consent_noted").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const aiSettings = sqliteTable("ai_settings", {
   id: text("id").primaryKey(),
   enabled: integer("enabled").notNull().default(0),
@@ -315,6 +335,7 @@ export const schema = {
   nextLevelAssessments,
   promotionCases,
   concernLogs,
+  meetingSummaries,
   aiSettings,
   integrationSettings,
   personExternalLinks,

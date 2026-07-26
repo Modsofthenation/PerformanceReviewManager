@@ -17,6 +17,7 @@ import { ChatPage } from "./pages/ChatPage";
 import { ConsistencyPage } from "./pages/ConsistencyPage";
 import { TeamPerformancePage } from "./pages/TeamPerformancePage";
 import { SprintPulsePage } from "./pages/SprintPulsePage";
+import { SearchPage } from "./pages/SearchPage";
 import { BackfillPage } from "./pages/BackfillPage";
 
 export function App() {
@@ -52,13 +53,43 @@ export function App() {
   );
 
   if (error) {
+    const desktop = typeof window !== "undefined" && Boolean(window.__PRM_DESKTOP__ || window.__PRM_API_BASE_URL__);
+    const logPath = typeof window !== "undefined" ? window.__PRM_DESKTOP_LOG__ : undefined;
+    const apiBase = typeof window !== "undefined" ? window.__PRM_API_BASE_URL__ : undefined;
+    async function retryDesktop() {
+      // Prefer same-origin UI served by the sidecar once it is healthy.
+      const base = (apiBase || "http://127.0.0.1:8787").replace(/\/$/, "");
+      try {
+        const res = await fetch(`${base}/api/health`);
+        if (res.ok) {
+          window.location.href = `${base}/`;
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      await refresh();
+    }
     return (
       <div className="unlock-screen">
         <div className="panel unlock-card">
           <h1>API offline</h1>
-          <p>Start the API on port 8787 (`pnpm dev:api`), then refresh.</p>
+          {desktop ? (
+            <>
+              <p>
+                The desktop API sidecar did not become ready. Retry in a moment. If this persists, check the
+                sidecar log and reinstall from the latest CI artifact.
+              </p>
+              {apiBase ? <p className="mono">Expected API: {apiBase}</p> : null}
+              {logPath ? <p className="mono">Log: {logPath}</p> : (
+                <p className="mono">Log: %APPDATA%\com.prm.workbench\desktop-api.log (Windows)</p>
+              )}
+            </>
+          ) : (
+            <p>Start the API on port 8787 (`pnpm dev:api`), then refresh.</p>
+          )}
           <p className="mono">{error}</p>
-          <button className="btn" onClick={refresh}>Retry</button>
+          <button className="btn" onClick={desktop ? retryDesktop : refresh}>Retry</button>
           <div style={{ marginTop: "0.75rem" }}>{themeToggle}</div>
         </div>
       </div>
@@ -93,6 +124,7 @@ export function App() {
           <NavLink to="/cycles">Cycles</NavLink>
           <NavLink to="/promotions">Promotions</NavLink>
           <NavLink to="/consistency">Consistency</NavLink>
+          <NavLink to="/search">Search</NavLink>
           <NavLink to="/team-performance">Team performance</NavLink>
           <NavLink to="/sprint-pulse">Sprint pulse</NavLink>
           <NavLink to="/backfill">Backfill</NavLink>
@@ -124,6 +156,7 @@ export function App() {
           <Route path="/promotions" element={<PromotionsPage />} />
           <Route path="/promotions/:id" element={<PromotionDetailPage />} />
           <Route path="/consistency" element={<ConsistencyPage />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/team-performance" element={<TeamPerformancePage />} />
           <Route path="/sprint-pulse" element={<SprintPulsePage />} />
           <Route path="/backfill" element={<BackfillPage />} />
