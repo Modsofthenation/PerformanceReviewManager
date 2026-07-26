@@ -93,9 +93,11 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Answer "who is blocked, and what should I do next?" without hunting through every page.
 
-**How it works:** Pick a cycle to see pipeline status (self / peer / manager), deadline nudges for missing self reviews, and a compact cycle dashboard (writing time, evidence coverage, thin dossiers). Links out to writing desks, backfill, and team performance when the numbers look thin.
+**How it works:** Pick a cycle to see pipeline status (self / peer / manager), deadline nudges for missing self reviews, and a compact cycle dashboard (writing time, evidence coverage, thin dossiers). Links out to writing desks, backfill, and team performance when the numbers look thin. **Needs director attention** surfaces flags only (stagnant ratings, thin evidence, promo-ready, open concern counts) with a jump into consistency / director packs — no private note bodies.
 
 ![Command center](./docs/screenshots/02-home.png)
+
+![Needs director attention](./docs/screenshots/15-director-attention.png)
 
 ### Team
 
@@ -133,35 +135,43 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Produce an evidence-backed manager review in a bounded amount of time (target ≤45 minutes per person).
 
-**How it works:** Score competencies and overall against the assigned role, link dossier evidence to non-middle scores, draft narrative sections (optionally with AI from an allowlisted citation set), run bias / faithfulness lint, log decision reasons when ratings move, then finalize. Finalize freezes citation snapshots. Share exports HTML (print to PDF) with private notes and EM-only sources stripped.
+**How it works:** Score competencies and overall against the assigned role, link dossier evidence to non-middle scores, draft narrative sections (optionally with AI from an allowlisted citation set), run bias / faithfulness lint, log decision reasons when ratings move, then finalize. Finalize freezes citation snapshots. Share exports HTML (print to PDF) with private notes and EM-only sources stripped. For upward share: **Skip-level talking points** (AI, forced achievement cites) and a per-person **Director card** HTML briefing.
 
 ![Writing desk](./docs/screenshots/07-writing-desk.png)
+
+![Skip-level talking points and Director card](./docs/screenshots/16-writing-desk-director.png)
 
 ### Promotions
 
 **Intent:** Reuse the same role bar for next-level and promotion cases instead of a parallel doc pile.
 
-**How it works:** Open a promotion packet against a target RoleDefinition. Mark gaps / demonstrating signals, draft the case (optionally with AI), and keep it alongside the cycle review history so skip-level conversations stay evidence-backed.
+**How it works:** Open a promotion packet against a target RoleDefinition. Mark gaps / demonstrating signals, draft the case (optionally with AI), and keep it alongside the cycle review history so skip-level conversations stay evidence-backed. After submit, **Promo committee export** prints an HTML packet with allowlisted cites and delivery themes (private / EM-only stripped).
 
 ![Promotions](./docs/screenshots/08-promotions.png)
 
 ![Promotion packet](./docs/screenshots/09-promotion-detail.png)
 
+![Promo committee export](./docs/screenshots/19-promo-committee.png)
+
 ### Consistency
 
 **Intent:** Catch unfair shape in your own drafts before anyone else sees them (everyone a 4, extreme scores with no cites, missing roles).
 
-**How it works:** For a selected cycle, show overall rating distribution and a card per person with competencies, evidence link counts, and flags (thin evidence, extreme overall, unassigned role). Jump into each writing desk to fix gaps. This is single-EM calibration, not a multi-manager room.
+**How it works:** For a selected cycle, show overall rating distribution and a card per person with competencies, evidence link counts, and flags (thin evidence, extreme overall, unassigned role). Jump into each writing desk to fix gaps. This is single-EM calibration, not a multi-manager room. **Calibration bundles** add director handoff: print calib room pack, cycle director briefing, encrypted read-only `.prm.enc` bundle, plus JSON export/import for decision round-trip.
 
 ![Consistency](./docs/screenshots/10-consistency.png)
+
+![Calibration bundles / director packs](./docs/screenshots/17-consistency-director-packs.png)
 
 ### Team performance
 
 **Intent:** See the team's rating and coaching shape as graphs, not only as a queue of drafts.
 
-**How it works:** Cycle-scoped charts for overall distribution, evidence vs overall, competency averages, promo readiness, writing-time buckets, level mix, and top 1:1 themes. Cross-cycle **rating trends** and **cycle compare** call out movers, repeat thin dossiers, and theme drift. The people table adds competency sparklines and prior-cycle overall deltas when history exists.
+**How it works:** Cycle-scoped charts for overall distribution, evidence vs overall, competency averages, promo readiness, writing-time buckets, level mix, and top 1:1 themes. Cross-cycle **rating trends** and **cycle compare** call out movers, repeat thin dossiers, and theme drift. The people table adds competency sparklines and prior-cycle overall deltas when history exists. **Director briefing** opens a printable cycle pack for the skip-level conversation.
 
 ![Team performance](./docs/screenshots/11-team-performance.png)
+
+![Director briefing from team performance](./docs/screenshots/18-team-director-briefing.png)
 
 ### Sprint pulse
 
@@ -201,6 +211,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 - **People / roles / cycles** with self and peer JSON bundles
 - **Writing desk**: competencies, evidence links, citation freeze, HTML subject packets
 - **Consistency** and **team performance** views before you share (including cross-cycle trends and cycle compare)
+- **Director / upward packs**: briefing HTML, calib room pack, promo committee export, home attention tray, skip-level talking points, encrypted read-only bundle
 - **Sprint pulse** for date-window coaching and evidence freshness
 - **Person timeline** on each dossier
 - **Bias / faithfulness lint** (advisory) on drafts
