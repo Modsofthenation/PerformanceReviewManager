@@ -19,6 +19,7 @@ import { TeamPerformancePage } from "./pages/TeamPerformancePage";
 import { SprintPulsePage } from "./pages/SprintPulsePage";
 import { SearchPage } from "./pages/SearchPage";
 import { BackfillPage } from "./pages/BackfillPage";
+import { TemplatesPage } from "./pages/TemplatesPage";
 
 const NAV = [
   {
@@ -45,6 +46,7 @@ const NAV = [
     label: "Tools",
     links: [
       { to: "/chat", label: "AI Chat" },
+      { to: "/templates", label: "Templates" },
       { to: "/settings", label: "Settings" },
     ],
   },
@@ -252,6 +254,7 @@ export function App() {
           <Route path="/sprint-pulse" element={<SprintPulsePage />} />
           <Route path="/backfill" element={<BackfillPage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

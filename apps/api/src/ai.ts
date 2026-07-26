@@ -12,7 +12,8 @@ export type AiFeature =
   | "bias_lint"
   | "peer_synthesize"
   | "framework_extract"
-  | "meeting_summary";
+  | "meeting_summary"
+  | "skip_level_talking_points";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 

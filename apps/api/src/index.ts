@@ -110,14 +110,17 @@ import { localPeerSynthesize } from "./peerSynth.js";
 import { bitbucketSearchMembers, bitbucketTestConnection } from "./bitbucket.js";
 import { githubSearchUsers, githubTestConnection } from "./github.js";
 import { jiraSearchUsers, jiraTestConnection } from "./jira.js";
+import { linearSearchUsers, linearViewer } from "./linear.js";
 import { buildDeliveryRollup } from "./deliveryRollup.js";
 import {
   ensureIntegrationRow,
   getBitbucketConfig,
   getGitHubConfig,
   getJiraConfig,
+  getLinearConfig,
   syncPersonIntegrations,
 } from "./integrations.js";
+import { registerFeatureRoutes, bundleFieldsForKind } from "./featureRoutes.js";
 import {
   buildPersonTimeline,
   collectRatingChanges,
@@ -1830,10 +1833,13 @@ app.post("/api/bundles/export", async (c) => {
   const cycle = db.select().from(cycles).where(eq(cycles.id, body.cycleId)).all()[0];
   if (!person || !cycle) return c.json({ error: "Not found" }, 404);
   const templateKey = body.kind === "self" ? "ic_self" : "peer";
+  const custom = bundleFieldsForKind(body.kind);
   const bundle = {
     version: 1,
     kind: body.kind,
-    templateKey,
+    templateKey: custom?.templateKey ?? templateKey,
+    templateName: custom?.templateName ?? null,
+    blocks: custom?.blocks ?? null,
     cycleId: body.cycleId,
     cycleName: cycle.name,
     subjectPersonId: body.subjectPersonId,
@@ -1841,7 +1847,8 @@ app.post("/api/bundles/export", async (c) => {
     peerAuthorName: body.peerAuthorName ?? null,
     exportedAt: nowIso(),
     fields:
-      body.kind === "self"
+      custom?.fields ??
+      (body.kind === "self"
         ? {
             top_outcomes: "",
             growth_areas: "",
@@ -1854,7 +1861,7 @@ app.post("/api/bundles/export", async (c) => {
             strengths: "",
             growth: "",
             observation_confidence: "occasional",
-          },
+          }),
     instructions:
       body.kind === "self"
         ? "Fill fields, save this JSON, and return to your manager for import. Do not rename cycleId/subjectPersonId."
@@ -2213,7 +2220,7 @@ function mapExternalLink(row: typeof personExternalLinks.$inferSelect): PersonEx
 }
 
 function isKnownIntegrationProvider(provider: string): provider is IntegrationProvider {
-  return provider === "jira" || provider === "bitbucket" || provider === "github";
+  return provider === "jira" || provider === "bitbucket" || provider === "github" || provider === "linear";
 }
 
 app.get("/api/integrations", (c) => {
@@ -2221,6 +2228,7 @@ app.get("/api/integrations", (c) => {
     jira: mapIntegrationSettings("jira"),
     bitbucket: mapIntegrationSettings("bitbucket"),
     github: mapIntegrationSettings("github"),
+    linear: mapIntegrationSettings("linear"),
   });
 });
 
@@ -2297,6 +2305,12 @@ app.post("/api/integrations/:provider/test", async (c) => {
       const result = await githubTestConnection(cfg);
       return c.json(result);
     }
+    if (provider === "linear") {
+      const cfg = getLinearConfig();
+      if (!cfg) return c.json({ error: "Enable Linear and save an API key first" }, 400);
+      const viewer = await linearViewer(cfg);
+      return c.json({ ok: true, displayName: viewer.name, accountId: viewer.id, email: viewer.email });
+    }
     return c.json({ error: "Unknown provider" }, 404);
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : "Connection failed" }, 400);
@@ -2343,6 +2357,12 @@ app.get("/api/integrations/:provider/users", async (c) => {
         username: u.login,
       }));
       return c.json({ items });
+    }
+    if (provider === "linear") {
+      const cfg = getLinearConfig();
+      if (!cfg) return c.json({ error: "Linear not configured" }, 400);
+      const users = await linearSearchUsers(cfg, q);
+      return c.json({ items: users });
     }
     return c.json({ error: "Unknown provider" }, 404);
   } catch (e) {
@@ -4362,6 +4382,11 @@ registerP1Routes(app, {
     };
   },
   frameworkInsufficient,
+});
+
+registerFeatureRoutes(app, {
+  buildEvidenceContext,
+  buildWorkspaceContext,
 });
 
 /** Packaged desktop: serve the Vite UI from PRM_UI_DIR so the webview is same-origin with /api. */

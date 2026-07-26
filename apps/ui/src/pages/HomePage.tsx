@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DirectorAttentionDTO, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { OnboardingWizard } from "../components/OnboardingWizard";
 
 type CommandItem = {
   person: { id: string; name: string; roleTitle: string | null } | null;
@@ -240,6 +241,8 @@ export function HomePage() {
         job="Unblock the next person in your review pipeline — roles, bundles, then writing."
         primary={cycleId ? <Link className="btn secondary" to="/cycles">Manage cycles & bundles</Link> : undefined}
       />
+
+      <OnboardingWizard />
 
       {next}
 

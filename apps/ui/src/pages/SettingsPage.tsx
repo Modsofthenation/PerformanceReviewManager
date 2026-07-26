@@ -5,6 +5,7 @@ import { useTheme } from "../hooks/useTheme";
 import { ACCENTS, type Accent, type ColorMode } from "../lib/theme";
 import { NextStep, PageHeader } from "../components/PageChrome";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
+import { RetentionPanel } from "../components/RetentionPanel";
 
 type AiSettings = {
   enabled: boolean;
@@ -155,6 +156,8 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <RetentionPanel />
 
       <IntegrationsPanel />
 
