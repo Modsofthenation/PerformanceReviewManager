@@ -13,9 +13,9 @@ export function PageSectionNav({
   ariaLabel?: string;
 }) {
   const [activeId, setActiveId] = useState(items[0]?.id ?? "");
+  const sectionKey = items.map((item) => item.id).join("|");
 
   useEffect(() => {
-    const ids = items.map((item) => item.id).join("|");
     const nodes = items
       .map((item) => document.getElementById(item.id))
       .filter((el): el is HTMLElement => Boolean(el));
@@ -50,8 +50,7 @@ export function PageSectionNav({
 
     for (const node of nodes) observer.observe(node);
     return () => observer.disconnect();
-    // ids string keeps deps stable when the same section list is reused
-  }, [items, items.map((i) => i.id).join("|")]);
+  }, [sectionKey, items]);
 
   function goTo(id: string) {
     const el = document.getElementById(id);
