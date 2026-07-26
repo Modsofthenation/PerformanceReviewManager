@@ -28,7 +28,7 @@ Numbering matches the README Screens section (`01` unlock through `14` settings)
 | `11-team-performance.png` | Team performance |
 | `12-backfill.png` | Backfill |
 | `13-chat.png` | AI Chat |
-| `14-settings.png` | Settings (section nav + appearance) |
+| `14-settings.png` | Settings (sticky section nav + appearance) |
 | `15-director-attention.png` | Home — Needs director attention |
 | `16-writing-desk-director.png` | Writing desk — Skip-level / Director card |
 | `17-consistency-director-packs.png` | Consistency — calib / briefing / bundle |
@@ -36,4 +36,4 @@ Numbering matches the README Screens section (`01` unlock through `14` settings)
 | `19-promo-committee.png` | Promotion — Promo committee export |
 | `20-sprint-pulse.png` | Sprint pulse |
 
-`01-unlock` is the empty-vs-demo create screen. `14-settings` includes the sticky **On this page** nav (Appearance → Danger zone).
+`01-unlock` is the empty-vs-demo create screen. Sticky **On this page** nav appears on Home, Person, Writing desk, Team performance, Consistency, Cycles, Roles, Sprint pulse, Promotion detail, and Settings.

@@ -93,7 +93,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Answer "who is blocked, and what should I do next?" without hunting through every page.
 
-**How it works:** Pick a cycle to see pipeline status (self / peer / manager), deadline nudges for missing self reviews, and a compact cycle dashboard (writing time, evidence coverage, thin dossiers). Links out to writing desks, backfill, and team performance when the numbers look thin. **Needs director attention** surfaces flags only (stagnant ratings, thin evidence, promo-ready, open concern counts) with a jump into consistency / director packs — no private note bodies.
+**How it works:** Pick a cycle to see pipeline status (self / peer / manager), deadline nudges for missing self reviews, and a compact cycle dashboard (writing time, evidence coverage, thin dossiers). Links out to writing desks, backfill, and team performance when the numbers look thin. **Needs director attention** surfaces flags only (stagnant ratings, thin evidence, promo-ready, open concern counts) with a jump into consistency / director packs — no private note bodies. Sticky **On this page** jumps between cycle, attention, dashboard, and queue.
 
 ![Command center](./docs/screenshots/02-home.png)
 
@@ -111,7 +111,7 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 **Intent:** Build a citation pool all year so the writing desk is not empty in week one of reviews.
 
-**How it works:** Capture achievements, goals, feedback (with optional 1:1 theme tags), documents, concern / underperformance notes, and external links (for example Jira or Bitbucket sync). The **Timeline** panel stitches those events with manager reviews and rating decisions so you can prep a 1:1 without opening five pages. Visibility controls keep EM-only material out of subject exports. AI digests and drafts pull from this pool (and from concerns only when you opt them in).
+**How it works:** Capture achievements, goals, feedback (with optional 1:1 theme tags), documents, concern / underperformance notes, and external links (for example Jira or Bitbucket sync). The **Timeline** panel stitches those events with manager reviews and rating decisions so you can prep a 1:1 without opening five pages. Visibility controls keep EM-only material out of subject exports. AI digests and drafts pull from this pool (and from concerns only when you opt them in). Sticky **On this page** jumps across timeline, integrations, and capture sections.
 
 ![Person dossier](./docs/screenshots/04-person.png)
 
