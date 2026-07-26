@@ -71,6 +71,7 @@ import {
   nowIso,
   requireSession,
   bootstrapVault,
+  destroyWorkspace,
   unlockVault,
   writeEncryptedDocument,
   writeFrameworkFile,
@@ -196,7 +197,8 @@ app.use("/api/*", async (c, next) => {
     c.req.path === "/api/health" ||
     c.req.path === "/api/workspace/status" ||
     c.req.path === "/api/workspace/init" ||
-    c.req.path === "/api/workspace/unlock"
+    c.req.path === "/api/workspace/unlock" ||
+    c.req.path === "/api/workspace/destroy"
   ) {
     return next();
   }
@@ -367,6 +369,25 @@ app.post("/api/workspace/unlock", async (c) => {
 app.post("/api/workspace/lock", (c) => {
   lockVault();
   return c.json({ ok: true, encryptedAtRest: true });
+});
+
+/** Wipe local vault + data so a new empty/demo workspace can be created. Public (password-gated). */
+app.post("/api/workspace/destroy", async (c) => {
+  if (!isInitialized()) return c.json({ error: "No workspace to delete" }, 400);
+  const body = await c.req.json<{ password?: string; confirm?: string }>();
+  if (body.confirm !== "DELETE") {
+    return c.json({ error: 'Type confirm: "DELETE" to erase the workspace' }, 400);
+  }
+  if (!body.password) return c.json({ error: "password required" }, 400);
+  try {
+    destroyWorkspace(body.password);
+    return c.json({ ok: true, initialized: false });
+  } catch (e) {
+    const err = e as Error & { code?: string };
+    const status =
+      err.message === "Invalid password" ? 401 : err.code === "legal_hold" ? 403 : 400;
+    return c.json({ error: err.message || "Destroy failed", code: err.code }, status);
+  }
 });
 
 app.get("/api/workspace/backups", (c) => {

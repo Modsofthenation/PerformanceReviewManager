@@ -4,8 +4,20 @@ import { api } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
 import { ACCENTS, type Accent, type ColorMode } from "../lib/theme";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { PageSectionNav, type SectionNavItem } from "../components/PageSectionNav";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
 import { RetentionPanel } from "../components/RetentionPanel";
+
+const SETTINGS_SECTIONS: SectionNavItem[] = [
+  { id: "settings-appearance", label: "Appearance" },
+  { id: "settings-retention", label: "Retention" },
+  { id: "settings-integrations", label: "Integrations" },
+  { id: "settings-audit", label: "Audit" },
+  { id: "settings-backup", label: "Backup" },
+  { id: "settings-ai", label: "AI" },
+  { id: "settings-danger", label: "Danger zone" },
+  { id: "settings-desktop", label: "Desktop" },
+];
 
 type AiSettings = {
   enabled: boolean;
@@ -22,7 +34,11 @@ type AiSettings = {
   apiKeyFromEnv?: boolean;
 };
 
-export function SettingsPage() {
+export function SettingsPage({
+  onWorkspaceDestroyed,
+}: {
+  onWorkspaceDestroyed: () => Promise<void>;
+}) {
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -33,6 +49,11 @@ export function SettingsPage() {
     Array<{ filename: string; byteSize: number; modifiedAt: string }>
   >([]);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [destroyOpen, setDestroyOpen] = useState(false);
+  const [destroyPassword, setDestroyPassword] = useState("");
+  const [destroyConfirm, setDestroyConfirm] = useState("");
+  const [destroyBusy, setDestroyBusy] = useState(false);
+  const [destroyError, setDestroyError] = useState<string | null>(null);
   const { colorMode, setColorMode, accent, setAccent, resolved } = useTheme();
 
   async function load() {
@@ -106,7 +127,9 @@ export function SettingsPage() {
         }
       />
 
-      <div className="panel stack">
+      <div className="settings-layout">
+        <div className="settings-main stack">
+      <div id="settings-appearance" className="panel stack settings-section">
         <div className="panel-title">
           <h2>Appearance</h2>
         </div>
@@ -157,11 +180,15 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <RetentionPanel />
+      <div id="settings-retention" className="settings-section">
+        <RetentionPanel />
+      </div>
 
-      <IntegrationsPanel />
+      <div id="settings-integrations" className="settings-section">
+        <IntegrationsPanel />
+      </div>
 
-      <div className="panel">
+      <div id="settings-audit" className="panel settings-section">
         <h2>Activity audit</h2>
         <p className="muted">
           Hash-chained local activity log with append-only SQLite triggers. Verify recomputes the chain;
@@ -228,7 +255,7 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="panel stack">
+      <div id="settings-backup" className="panel stack settings-section">
         <h2>Backup & restore</h2>
         <p className="muted">
           Encrypted snapshots of the unlocked SQLite DB under data/backups. Restore replaces the live
@@ -339,6 +366,7 @@ export function SettingsPage() {
         />
       )}
 
+      <div id="settings-ai" className="settings-section">
       <form
         id="ai-settings-form"
         className="panel"
@@ -502,8 +530,98 @@ export function SettingsPage() {
         </div>
         {msg && <p className="muted">{msg}</p>}
       </form>
+      </div>
 
-      <div className="panel stack">
+      <div id="settings-danger" className="panel stack settings-section">
+        <h2>Danger zone</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Permanently erase this local workspace (database, vault, uploads, and backups), then create a
+          new empty or demo workspace. Legal hold must be off. This cannot be undone.
+        </p>
+        {!destroyOpen ? (
+          <div className="cta-primary-row">
+            <button
+              type="button"
+              className="btn danger"
+              onClick={() => {
+                setDestroyOpen(true);
+                setDestroyError(null);
+                setDestroyPassword("");
+                setDestroyConfirm("");
+              }}
+            >
+              Delete workspace…
+            </button>
+          </div>
+        ) : (
+          <form
+            className="stack"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setDestroyBusy(true);
+              setDestroyError(null);
+              try {
+                if (destroyConfirm !== "DELETE") {
+                  setDestroyError('Type DELETE to confirm.');
+                  setDestroyBusy(false);
+                  return;
+                }
+                await api("/api/workspace/destroy", {
+                  method: "POST",
+                  body: JSON.stringify({ password: destroyPassword, confirm: "DELETE" }),
+                });
+                await onWorkspaceDestroyed();
+              } catch (err) {
+                setDestroyError(err instanceof Error ? err.message : "Delete failed");
+              } finally {
+                setDestroyBusy(false);
+              }
+            }}
+          >
+            <div className="field">
+              <label htmlFor="destroy-password">Workspace password</label>
+              <input
+                id="destroy-password"
+                type="password"
+                value={destroyPassword}
+                onChange={(e) => setDestroyPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="destroy-confirm">Type DELETE to confirm</label>
+              <input
+                id="destroy-confirm"
+                value={destroyConfirm}
+                onChange={(e) => setDestroyConfirm(e.target.value)}
+                autoComplete="off"
+                placeholder="DELETE"
+                required
+              />
+            </div>
+            {destroyError && <p style={{ color: "var(--danger)" }}>{destroyError}</p>}
+            <div className="cta-primary-row">
+              <button className="btn danger" type="submit" disabled={destroyBusy}>
+                {destroyBusy ? "…" : "Erase workspace permanently"}
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={destroyBusy}
+                onClick={() => {
+                  setDestroyOpen(false);
+                  setDestroyError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      <div id="settings-desktop" className="panel stack settings-section">
         <h2>Desktop updates</h2>
         <p className="muted" style={{ margin: 0 }}>
           Packaged builds serve the UI from the local API (same-origin) to avoid WebView “Failed to fetch”. Check GitHub
@@ -549,6 +667,10 @@ export function SettingsPage() {
         >
           Check for updates
         </button>
+      </div>
+        </div>
+
+        <PageSectionNav items={SETTINGS_SECTIONS} ariaLabel="On this page" />
       </div>
     </div>
   );
