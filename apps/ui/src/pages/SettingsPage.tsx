@@ -134,7 +134,7 @@ export function SettingsPage({
         id="settings-appearance"
         title="Appearance"
         when="Change color mode or accent whenever the UI feels too bright, too dark, or hard to scan."
-        how={`Pick a mode and accent below. Preferences stay in this browser; System follows your OS (${resolved} right now).`}
+        how={`Pick a mode and accent below. Eight accents (Teal, Ocean, Forest, Slate, Coral, Amber, Magenta, Citrus) × dark/light. Preferences stay in this browser; System follows your OS (${resolved} right now).`}
       >
         <div className="field">
           <label htmlFor="theme-select">Color mode</label>
@@ -160,19 +160,7 @@ export function SettingsPage({
                 aria-checked={accent === item.id}
                 onClick={() => setAccent(item.id as Accent)}
               >
-                <span
-                  className="accent-dot"
-                  style={{
-                    ["--swatch" as string]:
-                      item.id === "teal"
-                        ? "#14b8a6"
-                        : item.id === "ocean"
-                          ? "#38bdf8"
-                          : item.id === "forest"
-                            ? "#4ade80"
-                            : "#94a3b8",
-                  }}
-                />
+                <span className="accent-dot" style={{ ["--swatch" as string]: item.swatch }} />
                 {item.label}
               </button>
             ))}

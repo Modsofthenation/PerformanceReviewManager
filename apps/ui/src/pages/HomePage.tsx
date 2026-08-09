@@ -49,7 +49,11 @@ export function HomePage() {
   useEffect(() => {
     api<CycleDTO[]>("/api/cycles").then((c) => {
       setCycles(c);
-      if (c[0]) setCycleId(c[0].id);
+      const preferred =
+        c.find((x) => x.status === "manager_open") ||
+        c.find((x) => x.status !== "closed") ||
+        c[0];
+      if (preferred) setCycleId(preferred.id);
     });
     api<WorkspaceStatus>("/api/workspace/status").then((s) => {
       setThinEvidenceCount(s.thinEvidenceCount ?? 0);

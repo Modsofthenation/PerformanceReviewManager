@@ -5,8 +5,10 @@ Local **solo EM workbench** for evidence-backed performance reviews and promotio
 ICs never log in. Self and peer input arrives as JSON import bundles. Your vault stays on disk: **Lock & encrypt** seals SQLite and dossier files at rest.
 
 <p align="center">
-  <img src="./docs/screenshots/02-home.png" alt="Command center" width="900" />
+  <img src="./docs/screenshots/themes/dark-coral-home.png" alt="Command center in dark Coral" width="900" />
 </p>
+
+<p align="center"><em>Dark · Coral — one of sixteen appearance combinations</em></p>
 
 ## Why this exists
 
@@ -61,13 +63,9 @@ pnpm desktop:dev      # native window (needs WebView + Rust)
 pnpm desktop:build
 ```
 
-Desktop installers are built on demand: Actions → **CI** → **Run workflow** (uploads `desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Merges to `main` only run unit tests. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
-
-The desktop shell spawns a bundled Node API sidecar, serves the UI from that same origin (avoids WebView `Failed to fetch`), injects a launch token into the webview, and stores vault data under the OS app-data directory (not a CI build path). If unlock hangs, check `desktop-api.log` next to the vault.
+Desktop installers are built on demand: Actions → **CI** → **Run workflow** (uploads `desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Merges to `main` only run unit tests + typecheck. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
 
 ### Cursor MCP (bulk load)
-
-`@prm/mcp` unlocks the vault and writes dossier evidence. Pair it with Jira, Bitbucket, or other MCPs when you need a cold-start backfill instead of typing every note by hand.
 
 ```bash
 pnpm mcp
@@ -77,75 +75,104 @@ Setup: [`packages/mcp/README.md`](./packages/mcp/README.md) · [`.cursor/mcp.jso
 
 ---
 
+## Appearance
+
+Settings → Appearance picks **dark / light / system** plus one of **eight accents**. That is sixteen looks on the same product surface.
+
+| Accents | |
+|---------|---|
+| Classic | Teal · Ocean · Forest · Slate |
+| Vibrant | Coral · Amber · Magenta · Citrus |
+
+### Dark accents
+
+| Teal | Ocean | Forest | Slate |
+|:---:|:---:|:---:|:---:|
+| ![dark teal](./docs/screenshots/themes/dark-teal-home.png) | ![dark ocean](./docs/screenshots/themes/dark-ocean-home.png) | ![dark forest](./docs/screenshots/themes/dark-forest-home.png) | ![dark slate](./docs/screenshots/themes/dark-slate-home.png) |
+| **Coral** | **Amber** | **Magenta** | **Citrus** |
+| ![dark coral](./docs/screenshots/themes/dark-coral-home.png) | ![dark amber](./docs/screenshots/themes/dark-amber-home.png) | ![dark magenta](./docs/screenshots/themes/dark-magenta-home.png) | ![dark citrus](./docs/screenshots/themes/dark-citrus-home.png) |
+
+### Light accents
+
+| Teal | Ocean | Forest | Slate |
+|:---:|:---:|:---:|:---:|
+| ![light teal](./docs/screenshots/themes/light-teal-home.png) | ![light ocean](./docs/screenshots/themes/light-ocean-home.png) | ![light forest](./docs/screenshots/themes/light-forest-home.png) | ![light slate](./docs/screenshots/themes/light-slate-home.png) |
+| **Coral** | **Amber** | **Magenta** | **Citrus** |
+| ![light coral](./docs/screenshots/themes/light-coral-home.png) | ![light amber](./docs/screenshots/themes/light-amber-home.png) | ![light magenta](./docs/screenshots/themes/light-magenta-home.png) | ![light citrus](./docs/screenshots/themes/light-citrus-home.png) |
+
+Every main page was also captured in every accent × mode. Browse the matrix under [`docs/screenshots/themes/`](./docs/screenshots/themes/) or the index in [`docs/screenshots/THEMES.md`](./docs/screenshots/THEMES.md).
+
+---
+
 ## Screens
 
-Regenerate with `pnpm screenshots` (UI + API running; default password `workbench`).
+Regenerate with `pnpm screenshots` (UI + API running; demo password `workbench`). The tour below rotates accents so you see the product across the palette.
 
 ### Unlock
 
-**Intent:** Keep the workspace sealed when you walk away. The unlock gate is the trust boundary for local data.
+**Intent:** Keep the workspace sealed when you walk away.
 
-**How it works:** On first run you create a workspace password and choose an empty vault or a seeded demo org. Later sessions decrypt the vault with that password. **Lock & encrypt** re-seals SQLite and files so a stolen laptop disk is not a readable review archive. To wipe and start over, use **Erase workspace** on Unlock or **Delete workspace** in Settings (password + type `DELETE`).
+**How it works:** On first run you create a workspace password and choose an empty vault or a seeded demo org. Later sessions decrypt with that password. **Lock & encrypt** re-seals SQLite and files. Wipe with **Erase workspace** / **Delete workspace** (password + type `DELETE`).
 
 ![Unlock / create workbench](./docs/screenshots/01-unlock.png)
 
-### Home (command center)
+### Home (command center) — dark Teal
 
-**Intent:** Answer "who is blocked, and what should I do next?" without hunting through every page.
+**Intent:** Answer "who is blocked, and what should I do next?"
 
-**How it works:** Pick a cycle to see pipeline status (self / peer / manager), deadline nudges for missing self reviews, and a compact cycle dashboard (writing time, evidence coverage, thin dossiers). Links out to writing desks, backfill, and team performance when the numbers look thin. **Needs director attention** surfaces flags only (stagnant ratings, thin evidence, promo-ready, open concern counts) with a jump into consistency / director packs — no private note bodies. Sticky **On this page** jumps between cycle, attention, dashboard, and queue.
+**How it works:** Pick a cycle for pipeline status, deadline nudges, writing-time / evidence dashboard, and **Needs director attention** (flags only — no private note bodies). Sticky **On this page** jumps between cycle, attention, dashboard, and queue.
 
 ![Command center](./docs/screenshots/02-home.png)
 
 ![Needs director attention](./docs/screenshots/15-director-attention.png)
 
-### Team
+### Team — dark Coral
 
-**Intent:** Maintain the roster of directs you actually manage reviews for.
+**Intent:** Maintain the roster of directs you manage reviews for.
 
-**How it works:** List, add, or CSV-import people, then open a person to work their dossier. This is the directory, not the evaluation surface. Role assignment and cycle participation hang off these records.
+**How it works:** List, add, or CSV-import people (EM required first), then open a dossier. Role assignment and cycle participation hang off these records.
 
 ![Team](./docs/screenshots/03-team.png)
 
-### Person dossier
+### Person dossier — dark Magenta
 
-**Intent:** Build a citation pool all year so the writing desk is not empty in week one of reviews.
+**Intent:** Build a citation pool all year so writing season is not empty.
 
-**How it works:** Capture achievements, goals, feedback (with optional 1:1 theme tags), documents, concern / underperformance notes, and external links (for example Jira or Bitbucket sync). The **Timeline** panel stitches those events with manager reviews and rating decisions so you can prep a 1:1 without opening five pages. Visibility controls keep EM-only material out of subject exports. AI digests and drafts pull from this pool (and from concerns only when you opt them in). Sticky **On this page** jumps across timeline, integrations, and capture sections.
+**How it works:** Achievements, goals, feedback (optional 1:1 themes), documents, concerns, integrations, and a **Timeline**. Visibility keeps EM-only material out of subject exports.
 
 ![Person dossier](./docs/screenshots/04-person.png)
 
-### Roles
+### Roles — light Ocean
 
-**Intent:** Make the evaluation bar explicit. Ratings should map to role expectations, not a private mental model.
+**Intent:** Make the evaluation bar explicit.
 
-**How it works:** Author or import RoleDefinitions (ladder levels, competency keys, expectations). Assign each person a current role and optionally a next role for promo / gap work. Uploaded R&R docs can be structured manually or with AI extract. Writing desks and promotion packets read from these definitions.
+**How it works:** Author or import RoleDefinitions, assign current / next roles, extract from R&R docs. Writing desks and promo packets read from these definitions.
 
 ![Roles](./docs/screenshots/05-roles.png)
 
-### Cycles
+### Cycles — dark Citrus
 
-**Intent:** Time-box a review season and collect self / peer input without live IC login.
+**Intent:** Time-box a review season without live IC login.
 
-**How it works:** Create a cycle with a window and soft phases. Export JSON bundles for self and peer forms, collect them outside the app, then import responses. Waive with a reason when someone is not returning a form. Participants snapshot who was on the team for that cycle.
+**How it works:** Create a cycle, export self/peer JSON bundles, import responses, waive with a reason when needed.
 
 ![Cycles](./docs/screenshots/06-cycles.png)
 
-### Writing desk
+### Writing desk — dark Coral
 
-**Intent:** Produce an evidence-backed manager review in a bounded amount of time (target ≤45 minutes per person).
+**Intent:** Evidence-backed manager review in a bounded time (target ≤45 min/person).
 
-**How it works:** Score competencies and overall against the assigned role, link dossier evidence to non-middle scores, draft narrative sections (optionally with AI from an allowlisted citation set), run bias / faithfulness lint, log decision reasons when ratings move, then finalize. Finalize freezes citation snapshots. Share exports HTML (print to PDF) with private notes and EM-only sources stripped. For upward share: **Skip-level talking points** (AI, forced achievement cites) and a per-person **Director card** HTML briefing.
+**How it works:** Score against the assigned role, link evidence, draft (optionally with AI), lint, finalize (freezes cites), then share HTML with private / EM-only stripped. Skip-level talking points and a per-person director card for upward share.
 
 ![Writing desk](./docs/screenshots/07-writing-desk.png)
 
 ![Skip-level talking points and Director card](./docs/screenshots/16-writing-desk-director.png)
 
-### Promotions
+### Promotions — light Magenta / dark Ocean
 
-**Intent:** Reuse the same role bar for next-level and promotion cases instead of a parallel doc pile.
+**Intent:** Reuse the same role bar for next-level cases.
 
-**How it works:** Open a promotion packet against a target RoleDefinition. Mark gaps / demonstrating signals, draft the case (optionally with AI), and keep it alongside the cycle review history so skip-level conversations stay evidence-backed. After submit, **Promo committee export** prints an HTML packet with allowlisted cites and delivery themes (private / EM-only stripped).
+**How it works:** Mark gaps vs demonstrating, draft the case, then **Promo committee export** for a printable packet with allowlisted cites.
 
 ![Promotions](./docs/screenshots/08-promotions.png)
 
@@ -153,55 +180,55 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 
 ![Promo committee export](./docs/screenshots/19-promo-committee.png)
 
-### Consistency
+### Consistency — dark Forest
 
-**Intent:** Catch unfair shape in your own drafts before anyone else sees them (everyone a 4, extreme scores with no cites, missing roles).
+**Intent:** Catch unfair shape in your own drafts before anyone else sees them.
 
-**How it works:** For a selected cycle, show overall rating distribution and a card per person with competencies, evidence link counts, and flags (thin evidence, extreme overall, unassigned role). Jump into each writing desk to fix gaps. This is single-EM calibration, not a multi-manager room. **Calibration bundles** add director handoff: print calib room pack, cycle director briefing, encrypted read-only `.prm.enc` bundle, plus JSON export/import for decision round-trip.
+**How it works:** Rating distribution, per-person cards, flags (thin evidence, extreme overall, unassigned role). **Calibration bundles** for director handoff and encrypted read-only `.prm.enc` packs.
 
 ![Consistency](./docs/screenshots/10-consistency.png)
 
 ![Calibration bundles / director packs](./docs/screenshots/17-consistency-director-packs.png)
 
-### Team performance
+### Team performance — light Coral / Amber
 
-**Intent:** See the team's rating and coaching shape as graphs, not only as a queue of drafts.
+**Intent:** See rating and coaching shape as graphs.
 
-**How it works:** Cycle-scoped charts for overall distribution, evidence vs overall, competency averages, promo readiness, writing-time buckets, level mix, and top 1:1 themes. Cross-cycle **rating trends** and **cycle compare** call out movers, repeat thin dossiers, and theme drift. The people table adds competency sparklines and prior-cycle overall deltas when history exists. **Director briefing** opens a printable cycle pack for the skip-level conversation.
+**How it works:** Distribution, evidence scatter, competency averages, promo readiness, writing-time buckets, themes, cross-cycle trends, and a printable director briefing.
 
 ![Team performance](./docs/screenshots/11-team-performance.png)
 
 ![Director briefing from team performance](./docs/screenshots/18-team-director-briefing.png)
 
-### Sprint pulse
+### Sprint pulse — dark Magenta
 
-**Intent:** Review the last sprint (or any date window) for coaching, not final ratings.
+**Intent:** Coaching view for a date window, not final ratings.
 
-**How it works:** Pick last 7 / 14 / 30 days or a custom range. See per-person achievement volume, Jira / Bitbucket throughput, feedback themes, open concerns, and evidence freshness (in-window vs older dossier items, plus stale-only cites on manager drafts).
+**How it works:** Last 7 / 14 / 30 days or custom range — throughput, themes, concerns, evidence freshness.
 
 ![Sprint pulse](./docs/screenshots/20-sprint-pulse.png)
 
-### Backfill
+### Backfill — light Citrus
 
-**Intent:** Unblock writing when dossiers are still empty after you first adopt the tool.
+**Intent:** Unblock writing when dossiers are still thin after first adopt.
 
-**How it works:** Lists people below the thin-dossier threshold (few achievements / feedback / docs / goals). Walk a short wizard to add starter evidence, or use MCP / integrations for bulk load. The goal is a usable citation pool, not perfect history on day one.
+**How it works:** Wizard for starter evidence, or MCP / integrations for bulk load.
 
 ![Backfill](./docs/screenshots/12-backfill.png)
 
-### AI Chat
+### AI Chat — dark Ocean
 
-**Intent:** Ask grounded questions over the workspace or a single dossier without inventing evidence.
+**Intent:** Grounded questions over the workspace or a dossier without inventing evidence.
 
-**How it works:** Chat is scoped to workspace or person context, cites allowlisted ids from real dossier rows, and respects private-tier egress settings. It is for synthesis and retrieval, not a substitute for the writing desk finalize path.
+**How it works:** Scoped chat with allowlisted cites; respects private-tier egress settings.
 
 ![AI Chat](./docs/screenshots/13-chat.png)
 
-### Settings
+### Settings — dark Coral
 
-**Intent:** Configure providers, privacy gates, appearance, and vault maintenance in one place.
+**Intent:** Providers, privacy gates, appearance, and vault maintenance.
 
-**How it works:** Set AI provider and models (Anthropic, OpenAI, Cursor gateway, Ollama), toggle egress for private notes / meetings / document extracts, manage Jira / Bitbucket / GitHub / Linear credentials, run encrypted backup / restore, verify the activity log, and choose appearance (system / dark / light plus Teal, Ocean, Forest, or Slate accent). A sticky **On this page** nav jumps between sections. **Danger zone** permanently erases the local vault so you can create a new empty or demo workspace.
+**How it works:** AI providers, egress toggles, Jira / Bitbucket / GitHub / Linear, backup / restore, activity verify, and the eight-accent appearance picker. **Danger zone** erases the vault.
 
 ![Settings](./docs/screenshots/14-settings.png)
 
@@ -212,21 +239,17 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 - **Encrypted vault** (AES-256-GCM) for DB and dossier files on lock
 - **People / roles / cycles** with self and peer JSON bundles
 - **Writing desk**: competencies, evidence links, citation freeze, HTML subject packets
-- **Consistency** and **team performance** views before you share (including cross-cycle trends and cycle compare)
-- **Director / upward packs**: briefing HTML, calib room pack, promo committee export, home attention tray, skip-level talking points, encrypted read-only bundle
-- **Sprint pulse** for date-window coaching and evidence freshness
-- **Person timeline** on each dossier
-- **Bias / faithfulness lint** (advisory) on drafts
-- **Promotions** against next-role expectations
-- **Backfill** wizard plus MCP / Jira / Bitbucket paths for thin dossiers
+- **Consistency** and **team performance** views before you share
+- **Director / upward packs**: briefing HTML, calib room pack, promo committee export, skip-level talking points
+- **Sprint pulse** for date-window coaching
+- **Eight accents × dark/light** appearance system (Coral, Amber, Magenta, Citrus plus Teal, Ocean, Forest, Slate)
 - **AI**: digests, section draft, peer synthesize, chat, with citation allowlist
-- **Desktop** packaging (Tauri); installers via Actions **Run workflow** (not on every merge)
-- **Dark / light** theme preference plus accent colors
+- **Desktop** packaging (Tauri); installers via Actions **Run workflow**
 - **Delete / recreate workspace** from Unlock or Settings
 
 ## Docs
 
-Product and architecture live under [`/docs`](./docs). Start with [`docs/PRODUCT_BRIEF.md`](./docs/PRODUCT_BRIEF.md). Core loop evaluation: [`docs/CORE_LOOP_EVAL.md`](./docs/CORE_LOOP_EVAL.md). Cursor cloud notes: [`AGENTS.md`](./AGENTS.md).
+Product and architecture live under [`/docs`](./docs). Start with [`docs/PRODUCT_BRIEF.md`](./docs/PRODUCT_BRIEF.md). Core loop evaluation: [`docs/CORE_LOOP_EVAL.md`](./docs/CORE_LOOP_EVAL.md). Theme matrix: [`docs/screenshots/THEMES.md`](./docs/screenshots/THEMES.md). Cursor cloud notes: [`AGENTS.md`](./AGENTS.md).
 
 ## License & community
 

@@ -1,6 +1,14 @@
 export type ColorMode = "dark" | "light" | "system";
 export type ResolvedTheme = "dark" | "light";
-export type Accent = "teal" | "ocean" | "forest" | "slate";
+export type Accent =
+  | "teal"
+  | "ocean"
+  | "forest"
+  | "slate"
+  | "coral"
+  | "amber"
+  | "magenta"
+  | "citrus";
 
 /** @deprecated Prefer ColorMode; kept for callers that only mean resolved dark/light. */
 export type Theme = ResolvedTheme;
@@ -14,12 +22,18 @@ export const DEFAULT_COLOR_MODE: ColorMode = "system";
 export const DEFAULT_ACCENT: Accent = "teal";
 export const DEFAULT_THEME: ResolvedTheme = "dark";
 
-export const ACCENTS: Array<{ id: Accent; label: string }> = [
-  { id: "teal", label: "Teal" },
-  { id: "ocean", label: "Ocean" },
-  { id: "forest", label: "Forest" },
-  { id: "slate", label: "Slate" },
+export const ACCENTS: Array<{ id: Accent; label: string; swatch: string }> = [
+  { id: "teal", label: "Teal", swatch: "#14b8a6" },
+  { id: "ocean", label: "Ocean", swatch: "#38bdf8" },
+  { id: "forest", label: "Forest", swatch: "#4ade80" },
+  { id: "slate", label: "Slate", swatch: "#94a3b8" },
+  { id: "coral", label: "Coral", swatch: "#ff6b4a" },
+  { id: "amber", label: "Amber", swatch: "#f59e0b" },
+  { id: "magenta", label: "Magenta", swatch: "#ec4899" },
+  { id: "citrus", label: "Citrus", swatch: "#84cc16" },
 ];
+
+const ACCENT_IDS = new Set(ACCENTS.map((a) => a.id));
 
 export function isColorMode(value: unknown): value is ColorMode {
   return value === "dark" || value === "light" || value === "system";
@@ -31,7 +45,7 @@ export function isTheme(value: unknown): value is ColorMode {
 }
 
 export function isAccent(value: unknown): value is Accent {
-  return value === "teal" || value === "ocean" || value === "forest" || value === "slate";
+  return typeof value === "string" && ACCENT_IDS.has(value as Accent);
 }
 
 export function systemPrefersDark(): boolean {
