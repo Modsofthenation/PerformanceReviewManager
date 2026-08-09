@@ -21,7 +21,7 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 - `.session` stores the auth token only (not the AES key). After an API process restart you must unlock again even if the UI still has a token.
 
 ### Known pre-existing issues (not environment problems)
-- `pnpm build` (production) and `pnpm -r typecheck` may still fail on residual TypeScript strictness issues in the UI/API; Dev servers (`tsx`/`vite`) run fine because they do not strict-typecheck.
+- `pnpm build` (production) may still fail on residual packaging issues; prefer `pnpm -r typecheck` + `pnpm test` as the merge gate. Dev servers (`tsx`/`vite`) run fine because they do not strict-typecheck.
 - Core loop evaluation & capture gaps: `docs/CORE_LOOP_EVAL.md`.
 
 ### Cursor MCP (`@prm/mcp`)

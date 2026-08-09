@@ -596,7 +596,12 @@ export function checksum(payload: string | Buffer) {
   return createHash("sha256").update(payload).digest("hex");
 }
 
-export function logActivity(action: string, entityType?: string, entityId?: string, detail: Record<string, unknown> = {}) {
+export function logActivity(
+  action: string,
+  entityType?: string | null,
+  entityId?: string | null,
+  detail: Record<string, unknown> = {},
+) {
   const db = getDb();
   const ws = db.select().from(workspace).limit(1).all()[0];
   const prevHash = ws?.lastActivityHash ?? "genesis";

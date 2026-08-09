@@ -32,12 +32,12 @@ Product context lives under `docs/`. Cloud-agent notes: `AGENTS.md`.
 ## Before you open a PR
 
 1. Keep diffs surgical — touch only what the change needs
-2. Run `pnpm test` (API unit tests; this is what CI gates on `main`)
+2. Run `pnpm -r typecheck` and `pnpm test` (CI gates both on `main`)
 3. For API behavior changes, add or extend tests under `apps/api/src/*.test.ts`
 4. Do not commit `data/`, `.env`, secrets, or real PII
 5. Align docs with shipped behavior (prefer honesty over aspirational claims)
 
-`pnpm -r typecheck` / production `pnpm build` may still fail on residual strictness issues; prefer fixing types you touch rather than widening `any`.
+Production `pnpm build` may still have packaging rough edges; typecheck + tests are the merge bar.
 
 ## Desktop
 
