@@ -2,6 +2,8 @@
   "name": "performance-review-manager",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "description": "Local solo EM workbench for evidence-backed performance reviews",
   "scripts": {
     "dev": "pnpm --parallel --filter @prm/api --filter @prm/ui dev",
     "dev:api": "pnpm --filter @prm/api dev",
