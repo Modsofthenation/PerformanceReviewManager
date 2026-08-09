@@ -525,6 +525,15 @@ app.post("/api/people/import", async (c) => {
   }
   if (!rows.length) return c.json({ error: "No rows to import" }, 400);
   if (rows.length > 500) return c.json({ error: "Max 500 rows per import" }, 400);
+  if (!em) {
+    return c.json(
+      {
+        error:
+          "Create an EM (a person with no manager) before importing directs, or pass defaultManagerId.",
+      },
+      400,
+    );
+  }
 
   const existing = db.select().from(people).all();
   const byEmail = new Map(

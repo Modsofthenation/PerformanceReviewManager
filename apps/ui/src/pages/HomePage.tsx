@@ -77,22 +77,7 @@ export function HomePage() {
       })
       .catch(() => setDueWeek([]));
 
-    // Scheduled integration sync while the app is open (session-scoped; mirrors deadline nudge UX).
-    let lastSyncAt = 0;
-    const runScheduledSync = () => {
-      const now = Date.now();
-      if (now - lastSyncAt < 30 * 60_000) return;
-      lastSyncAt = now;
-      api<{ count: number }>("/api/integrations/sync-all", { method: "POST", body: "{}" }).catch(
-        () => undefined,
-      );
-    };
-    const syncTimer = window.setTimeout(runScheduledSync, 45_000);
-    const syncInterval = window.setInterval(runScheduledSync, 30 * 60_000);
-    return () => {
-      window.clearTimeout(syncTimer);
-      window.clearInterval(syncInterval);
-    };
+    return () => undefined;
   }, []);
 
   useEffect(() => {

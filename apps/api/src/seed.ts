@@ -114,6 +114,27 @@ export async function seedWorkspace(opts: {
     throw new Error("Workspace already initialized");
   }
 
+  const day = (offsetDays: number) => {
+    const d = new Date();
+    d.setUTCHours(12, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    return d.toISOString().slice(0, 10);
+  };
+  // Keep the open cycle and "recent" evidence relative to today so demos stay in-window.
+  const openStart = day(-150);
+  const openEnd = day(30);
+  const priorStart = day(-330);
+  const priorEnd = day(-151);
+  const midCycle = day(-90);
+  const midFeedback = day(-60);
+  const recentA = day(-12);
+  const recentB = day(-10);
+  const recentC = day(-9);
+  const recentD = day(-11);
+  const roleFrom = openStart;
+  const priorCycleName = `Prior cycle (${priorStart.slice(0, 4)})`;
+  const openCycleName = `Current cycle (${openStart.slice(0, 7)} → ${openEnd.slice(0, 7)})`;
+
   const wsId = id("ws");
   const accountId = id("acct");
   const createdAt = nowIso();
@@ -224,7 +245,7 @@ export async function seedWorkspace(opts: {
       roleDefinitionId,
       frameworkVersionId: fwvId,
       targetNextRoleDefinitionId: nextKey ? roleIds[nextKey] : null,
-      effectiveFrom: "2026-01-01",
+      effectiveFrom: roleFrom,
       assignedByAccountId: accountId,
     }).run();
   }
@@ -235,7 +256,7 @@ export async function seedWorkspace(opts: {
     db.insert(goals).values({
       id: id("goal"),
       personId: pid,
-      title: `Deliver H1 roadmap outcomes for ${member.levelKey}`,
+      title: `Deliver roadmap outcomes for ${member.levelKey}`,
       description: "Measurable delivery against squad commitments.",
       status: "on_track",
       createdAt,
@@ -245,7 +266,7 @@ export async function seedWorkspace(opts: {
       personId: pid,
       title: "Shipped checkout reliability improvements",
       description: "Reduced timeout errors; partnered with SRE.",
-      occurredAt: "2026-03-15",
+      occurredAt: midCycle,
       createdAt,
     }).run();
     db.insert(feedbackItems).values({
@@ -255,7 +276,7 @@ export async function seedWorkspace(opts: {
       kind: "praise",
       body: "Clear communication in cross-functional design reviews.",
       visibility: "em_and_subject",
-      occurredAt: "2026-04-02",
+      occurredAt: midFeedback,
       themesJson: JSON.stringify(["collaboration", "delivery"]),
       createdAt,
     }).run();
@@ -270,7 +291,7 @@ export async function seedWorkspace(opts: {
       personId: pid,
       title: i === 0 ? "Closed checkout latency epic" : "Merged payment retry hardening",
       description: "Synced-style achievement for the current coaching window.",
-      occurredAt: i === 0 ? "2026-07-18" : "2026-07-20",
+      occurredAt: i === 0 ? recentA : recentB,
       createdAt,
       sourceProvider: i === 0 ? "jira" : "bitbucket",
       externalId: i === 0 ? "CHK-241" : "pr-1882",
@@ -283,7 +304,7 @@ export async function seedWorkspace(opts: {
       kind: "coaching",
       body: "Discussed pacing and stakeholder updates for the current sprint.",
       visibility: "em_only",
-      occurredAt: "2026-07-21",
+      occurredAt: recentC,
       themesJson: JSON.stringify(["pacing", "stakeholders"]),
       createdAt,
     }).run();
@@ -292,7 +313,7 @@ export async function seedWorkspace(opts: {
   db.insert(concernLogs).values({
     id: id("concern"),
     personId: firstDirect,
-    occurredAt: "2026-07-19",
+    occurredAt: recentD,
     title: "Missed partner handoff",
     body: "Late handoff to design delayed review by a day.",
     expectationText: "Confirm handoffs in Slack the morning of the due date.",
@@ -306,9 +327,9 @@ export async function seedWorkspace(opts: {
   const priorCycleId = id("cycle");
   db.insert(cycles).values({
     id: priorCycleId,
-    name: "H2 2025",
-    windowStart: "2025-07-01",
-    windowEnd: "2025-12-31",
+    name: priorCycleName,
+    windowStart: priorStart,
+    windowEnd: priorEnd,
     status: "closed",
     createdAt,
   }).run();
@@ -316,9 +337,9 @@ export async function seedWorkspace(opts: {
   const cycleId = id("cycle");
   db.insert(cycles).values({
     id: cycleId,
-    name: "H1 2026",
-    windowStart: "2026-01-01",
-    windowEnd: "2026-06-30",
+    name: openCycleName,
+    windowStart: openStart,
+    windowEnd: openEnd,
     status: "manager_open",
     createdAt,
   }).run();

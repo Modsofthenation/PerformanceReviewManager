@@ -104,6 +104,18 @@ export function SettingsPage({
     !settings.hasApiKey &&
     !apiKey;
 
+  async function testAiConnection() {
+    try {
+      const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
+        method: "POST",
+        body: "{}",
+      });
+      setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Test failed");
+    }
+  }
+
   return (
     <div className="stack">
       <PageHeader
@@ -111,17 +123,7 @@ export function SettingsPage({
         job="Appearance, AI, integrations, and private-tier egress. Keys stay encrypted with the workspace secret."
         primary={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         secondary={
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={async () => {
-              const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
-                method: "POST",
-                body: "{}",
-              });
-              setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
-            }}
-          >
+          <button type="button" className="btn secondary" onClick={() => void testAiConnection()}>
             Test AI connection
           </button>
         }
@@ -341,17 +343,7 @@ export function SettingsPage({
           label="AI ready for writing desk"
           detail="Digest and section drafts pull from dossier + imports. Private notes stay off cloud unless you opt in below."
           action={
-            <button
-              type="button"
-              className="btn"
-              onClick={async () => {
-                const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
-                  method: "POST",
-                  body: "{}",
-                });
-                setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
-              }}
-            >
+            <button type="button" className="btn" onClick={() => void testAiConnection()}>
               Test AI connection
             </button>
           }
@@ -518,17 +510,7 @@ export function SettingsPage({
         ))}
         <div className="cta-primary-row">
           <button className="btn">Save AI settings</button>
-          <button
-            type="button"
-            className="btn secondary"
-            onClick={async () => {
-              const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
-                method: "POST",
-                body: "{}",
-              });
-              setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
-            }}
-          >
+          <button type="button" className="btn secondary" onClick={() => void testAiConnection()}>
             Test AI connection
           </button>
         </div>
