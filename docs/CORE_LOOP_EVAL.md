@@ -15,7 +15,7 @@ upload role R&R → tag people → year-round dossier
 
 | Step | Status | Notes |
 |------|--------|--------|
-| Encrypted workspace unlock/lock | Done | AES vault; seed password `workbench`; `.session` is token-only (re-unlock after API restart) |
+| Encrypted workspace unlock/lock | Done | AES vault; demo seed password `workbench` (demo only — never a silent API default); `.session` is token-only (re-unlock after API restart) |
 | Encrypted backup / restore | Done | Settings → one-click snapshot under `data/backups`; restore replaces live DB while unlocked |
 | People list + CSV / manual add | Done | `POST /api/people/import` + Team paste/file; template download |
 | Role catalog + assign + author | Done | Seeded ladder; Roles page add/edit/delete; CSV/markdown or AI extract from R&R doc |
@@ -39,7 +39,7 @@ upload role R&R → tag people → year-round dossier
 | Promotion packets | Done | Next-role marks + AI case draft |
 | Backfill + MCP bulk load | Done | Thin = ach+fb+docs+goals &lt; 2; MCP needs explicit unlock / `PRM_PASSWORD` |
 | Settings → AI | Done | Private notes / meeting / document extract egress **enforced** on cloud paths |
-| Desktop CSP / launch token / API sidecar | Done | CSP set; shell IPC removed; packaged Node + `prm-api.mjs` spawned by Tauri; CI builds Linux/macOS/Windows on `main` |
+| Desktop CSP / launch token / API sidecar | Done | CSP set; shell IPC removed; packaged Node + `prm-api.mjs` spawned by Tauri; desktop installers via Actions **Run workflow** (not every merge) |
 
 ## Remaining gaps (honest)
 

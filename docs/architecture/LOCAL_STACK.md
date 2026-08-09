@@ -10,19 +10,19 @@ Primary target: installable app on **Linux, Windows, macOS**. No Docker/Postgres
 
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Shell | **Tauri 2** | dmg / msi|NSIS / AppImage|deb |
+| Shell | **Tauri 2** | dmg / msi|NSIS / AppImage|deb (manual CI `workflow_dispatch`) |
 | UI | **React + TypeScript + Vite** | |
-| Backend bridge | **Prefer Tauri IPC commands** for DB/FS/keychain/HTTP; optional thin Hono only if needed | Avoid unauthenticated TCP |
-| If HTTP sidecar used | Hono on `127.0.0.1` + **per-launch capability token** + origin checks | Or Unix socket / named pipe |
-| DB | **SQLite** via **Rusqlite in Rust** (preferred) or one pinned JS driver | Pick one in Phase 0; enables SQLCipher path |
-| ORM / migrations | Drizzle or sqlx migrations — single choice in Phase 0 | |
-| Files | OS app-data directory | |
+| Backend (shipped) | **Node Hono sidecar** on `127.0.0.1` + session token; desktop adds **per-launch capability token** | Prefer migrating privileged ops to Tauri IPC over time |
+| Backend (target) | Tauri IPC commands for DB/FS/HTTP without a long-lived TCP sidecar | Aspirational |
+| DB (shipped) | **SQLite** via **better-sqlite3** + Drizzle; AES-GCM file seal when locked | Plaintext on disk while unlocked |
+| DB (target) | Rusqlite / SQLCipher path | Aspirational |
+| Files | OS app-data directory (desktop) or `PRM_DATA_DIR` / `./data` (dev) | |
 | Search | SQLite FTS5 | |
-| Jobs | Durable `jobs` table + run-while-open worker | Reminders don’t fire when app closed — documented |
-| Auth | Single Account; OS keychain for API keys | Linux: Secret Service or app-password-wrapped key file fallback |
-| AI | Settings → AI; BYO keys + Ollama | |
-| Encryption | **Required** for real data: SQLCipher or authenticated encryption of DB+files | Phase 0/1 gate |
-| Packaging | Code signing + notarization (Apple) + Windows Authenticode | Phase 0 infrastructure |
+| Jobs | In-process while app open | Reminders don’t fire when app closed — documented |
+| Auth | Single Account; workspace password vault | API keys encrypted with workspace secret (keychain still a target) |
+| AI | Settings → AI; BYO keys + Ollama + Cursor gateway | |
+| Encryption | **Required** for real data: authenticated encryption of DB+files on lock | |
+| Packaging | Unsigned CI artifacts today; code signing + notarization still needed | |
 
 ---
 
@@ -30,16 +30,18 @@ Primary target: installable app on **Linux, Windows, macOS**. No Docker/Postgres
 
 ```
 ┌──────────────────────────────────────────┐
-│ Tauri (Win / Mac / Linux)                │
-│   React UI ── IPC ── Rust commands       │
-│                 │                        │
-│            SQLite (encrypted)            │
-│            App-data files (encrypted)    │
-│            OS keychain                   │
+│ Tauri (Win / Mac / Linux)  [optional]    │
+│   React UI ── HTTP ── Node Hono sidecar  │
+│                 │      (127.0.0.1)       │
+│            SQLite (sealed on lock)       │
+│            App-data files (sealed)       │
+│            Workspace-secret crypto       │
 └───────────┬──────────────────┬───────────┘
             ▼                  ▼
      Cloud AI (opt-in)    Ollama (opt)
 ```
+
+**Dev browser mode:** Vite UI + `pnpm dev:api` (no launch token). Anyone on the same OS account who can reach loopback and guess/know the password owns the vault.
 
 **Rejected as v1 primary:** Electron (fallback only), Docker-only UX, Next.js SSR, naked Postgres.
 
@@ -58,9 +60,9 @@ Same OS paths as before (`Application Support` / `%APPDATA%` / `~/.local/share/.
   backups/
 ```
 
-- **Refuse or hard-warn** if path is under Dropbox/iCloud/OneDrive/Google Drive sync folders.  
-- Backup: SQLite Online Backup API / `VACUUM INTO`, then encrypt zip; verify restore.  
-- Portability: versioned workspace archive with schema version + forward migrations.
+- **Hard-warn** if path is under Dropbox/iCloud/OneDrive/Google Drive sync folders (status + unlock UI).  
+- Backup: encrypted `.sqlite.enc` snapshots under `backups/`; verify restore while unlocked.  
+- Portability: versioned workspace archive with schema version + forward migrations (partial).
 
 ---
 
@@ -74,7 +76,7 @@ Same OS paths as before (`Application Support` / `%APPDATA%` / `~/.local/share/.
 
 ## AI configuration
 
-Fully in-app **Settings → AI** (see Features §8). Keys never in SQLite. Dev env overrides allowed for `pnpm dev` only.
+Fully in-app **Settings → AI** (see Features §8). Keys are encrypted with the workspace secret in SQLite. Dev env overrides allowed for `pnpm dev` only. OS keychain storage remains a target, not current behavior.
 
 ---
 
