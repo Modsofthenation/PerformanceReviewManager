@@ -70,7 +70,7 @@ Conceptual routes — implemented as Tauri commands or authenticated localhost:
 - Link evidence; snapshots on finalize
 
 ### AI
-- Settings get/set (keychain)
+- Settings get/set (API keys encrypted with workspace secret)
 - `evidenceDigest`, `draftSection`, `roleGapAnalysis`, `promotionDraft`, `biasLint`
 - Returns `generation_id`; client accepts into draft
 
