@@ -50,6 +50,7 @@ import type {
   IntegrationSyncResult,
   PersonExternalLinkDTO,
   TeamPerformanceDTO,
+  ReviewDTO,
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
@@ -1395,10 +1396,10 @@ app.get("/api/packets/:cycleId/:personId", (c) => {
   const currentRole = loadRole(participant?.roleDefinitionId ?? a?.roleDefinitionId);
   const nextRole = loadRole(participant?.targetNextRoleDefinitionId ?? a?.targetNextRoleDefinitionId);
   const revs = db.select().from(reviews).where(and(eq(reviews.cycleId, cycleId), eq(reviews.subjectPersonId, personId))).all();
-  const mapRev = (r: typeof reviews.$inferSelect) => ({
+  const mapRev = (r: typeof reviews.$inferSelect): ReviewDTO => ({
     id: r.id,
-    type: r.type as PacketDTO["selfReview"] extends infer T ? NonNullable<T>["type"] : never,
-    status: r.status as PacketDTO["managerReview"] extends infer T ? NonNullable<T>["status"] : never,
+    type: r.type as ReviewDTO["type"],
+    status: r.status as ReviewDTO["status"],
     subjectPersonId: r.subjectPersonId,
     authorName: r.authorName,
     payload: JSON.parse(r.payloadJson) as Record<string, unknown>,
@@ -4375,15 +4376,14 @@ app.post("/api/exports/readonly-bundle", async (c) => {
   };
 
   if (include.has("director_briefing")) {
-    parts.directorBriefing = buildDirectorBriefing(db, {
+    const briefing = buildDirectorBriefing(db, {
       cycleId: cycle.id,
       personId: body.personId,
       loadRole,
       assignmentFor,
     });
-    parts.directorBriefingHtml = parts.directorBriefing
-      ? renderDirectorBriefingHtml(parts.directorBriefing as NonNullable<typeof parts.directorBriefing>)
-      : null;
+    parts.directorBriefing = briefing;
+    parts.directorBriefingHtml = briefing ? renderDirectorBriefingHtml(briefing) : null;
   }
   if (include.has("calib_room")) {
     // Reuse JSON shape from calib-room endpoint logic via briefing distribution + consistency-like cards
@@ -4429,7 +4429,12 @@ app.post("/api/exports/readonly-bundle", async (c) => {
 
 registerP1Routes(app, {
   loadRole,
-  assignmentFor,
+  assignmentFor: (personId) => {
+    const a = assignmentFor(personId);
+    return a
+      ? { roleDefinitionId: a.roleDefinitionId, frameworkVersionId: a.frameworkVersionId }
+      : null;
+  },
   getPublishedVersion: () => {
     const v = getPublishedVersion();
     if (!v) return null;
