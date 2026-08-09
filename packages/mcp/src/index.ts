@@ -5,7 +5,7 @@
  *
  * Env:
  *   PRM_API_URL   default http://127.0.0.1:8787
- *   PRM_PASSWORD  default workbench
+ *   PRM_PASSWORD  unlock password (required for auto-unlock; no demo default)
  *   PRM_TOKEN     optional pre-unlocked session token
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -35,8 +35,8 @@ export function UnlockPage({
     setError(null);
     try {
       if (!status.initialized) {
-        if (password.trim().length < 4) {
-          setError("Choose a password with at least 4 characters.");
+        if (password.trim().length < 8) {
+          setError("Choose a password with at least 8 characters.");
           setBusy(false);
           return;
         }
@@ -135,8 +135,14 @@ export function UnlockPage({
         ) : !status.initialized ? (
           <p className="muted">
             {setupMode === "demo"
-              ? "Demo data is for exploring the product. You can erase the workspace later from Unlock or Settings and create a new one."
-              : "No sample people or reviews. You will add the roster from Team."}
+              ? "Demo data is for exploring the product. Never store real employee data behind the demo password. You can erase the workspace later from Unlock or Settings and create a new one."
+              : "No sample people or reviews. You will add the roster from Team. Choose a strong password — there is no cloud recovery."}
+          </p>
+        ) : null}
+
+        {status.dataDirSyncRisk && status.dataDirSyncWarning ? (
+          <p style={{ color: "var(--danger)" }} role="alert">
+            {status.dataDirSyncWarning}
           </p>
         ) : null}
 

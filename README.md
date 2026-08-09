@@ -48,9 +48,9 @@ pnpm dev
 |---|---|
 | UI | http://localhost:5173 |
 | API | http://127.0.0.1:8787 |
-| Seed password | `workbench` |
+| Seed password (demo only) | `workbench` |
 
-First load: choose **Empty workspace** or **Demo team** (8-person org, password default `workbench`), then unlock later sessions with your password. Between sessions use **Lock & encrypt**. To wipe and start over, use **Delete workspace** in Settings (or **Erase workspace** on the unlock screen) — password + type `DELETE`.
+First load: choose **Empty workspace** or **Demo team** (8-person org). Demo mode pre-fills password `workbench` for exploration only — **never** put real employee data behind it. Empty workspaces require an explicit password (8+ characters); the API never invents a default. Between sessions use **Lock & encrypt**. To wipe and start over, use **Delete workspace** in Settings (or **Erase workspace** on the unlock screen) — password + type `DELETE`.
 
 Requires **pnpm 10.33.3** (see [`AGENTS.md`](./AGENTS.md) if Corepack hands you pnpm 11).
 

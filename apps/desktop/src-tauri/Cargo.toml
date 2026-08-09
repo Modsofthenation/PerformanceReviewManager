@@ -2,7 +2,7 @@
 name = "prm-desktop"
 version = "0.1.0"
 description = "Performance Review Manager desktop shell"
-authors = ["you"]
+authors = ["Damon van der Linde"]
 edition = "2021"
 
 [build-dependencies]

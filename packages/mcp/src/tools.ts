@@ -72,9 +72,12 @@ export function registerPrmTools(server: McpServer, client: PrmClient) {
     {
       title: "Unlock workspace",
       description:
-        "Unlock the encrypted PRM vault with the workspace password and cache the session token for later tools. Default demo password is workbench.",
+        "Unlock the encrypted PRM vault with the workspace password and cache the session token for later tools. Set PRM_PASSWORD or pass password explicitly — there is no silent demo default.",
       inputSchema: z.object({
-        password: z.string().optional().describe("Workspace password. Defaults to PRM_PASSWORD or workbench."),
+        password: z
+          .string()
+          .optional()
+          .describe("Workspace password. Defaults to PRM_PASSWORD env only (never a built-in demo password)."),
       }),
     },
     async ({ password }) => {
@@ -483,7 +486,7 @@ export function registerPrmTools(server: McpServer, client: PrmClient) {
 External source context: ${source ?? "unspecified (Jira / Google / docs / chat exports)"}.
 
 Workflow:
-1. Call prm_status. If locked, prm_unlock (password workbench unless told otherwise).
+1. Call prm_status. If locked, prm_unlock with the workspace password (or set PRM_PASSWORD). Demo vaults often use workbench — never assume that for real data.
 2. prm_list_people / prm_list_roles to map names → person ids and role ids.
 3. Prefer a first-run backfill: for each direct with thin dossiers (<2 achievements/feedback/docs), gather recent outcomes before drafting reviews. The UI Backfill wizard (/backfill) mirrors this path.
 4. Gather items from the external system (tickets closed, docs, 1:1 notes, transcripts).

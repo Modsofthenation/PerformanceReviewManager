@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { BiasFinding, DecisionLogEntry, DeliveryCiteSuggestion, GapMark, PacketDTO, PromoReadiness } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
-import { api, getToken, apiUrl } from "../lib/api";
+import { api, authHeaders, apiUrl } from "../lib/api";
 import { estimateThenConfirm } from "../lib/aiEstimate";
 import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
@@ -330,9 +330,8 @@ export function WritingDeskPage() {
 
   async function openSubjectHtml() {
     if (!cycleId || !personId) return;
-    const token = getToken();
     const res = await fetch(apiUrl(`/api/exports/subject/${cycleId}/${personId}?format=html`), {
-      headers: token ? { "x-prm-token": token } : {},
+      headers: authHeaders(),
     });
     if (!res.ok) {
       setError("Could not load HTML packet");

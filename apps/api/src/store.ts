@@ -18,7 +18,7 @@ import {
   rmSync,
   copyFileSync,
 } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, resolve, relative } from "node:path";
 import { openDatabase, type Db } from "@prm/db";
 import { activityEvents, workspace } from "@prm/db";
 import { eq } from "drizzle-orm";
@@ -257,9 +257,46 @@ export function setWorkspaceSecret(secret: Buffer) {
   workspaceSecret = secret;
 }
 
+function timingSafeStringEqual(a: string, b: string) {
+  try {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 export function requireSession(token: string | undefined) {
   const current = getSessionToken();
-  return Boolean(current && token && current === token && workspaceSecret && existsSync(DB_PATH));
+  return Boolean(
+    current &&
+      token &&
+      timingSafeStringEqual(current, token) &&
+      workspaceSecret &&
+      existsSync(DB_PATH),
+  );
+}
+
+/** Warn when the vault lives inside a consumer cloud-sync folder. */
+export function dataDirSyncRisk(): { risky: boolean; warning?: string } {
+  const normalized = ROOT.replace(/\\/g, "/").toLowerCase();
+  const markers: Array<{ re: RegExp; name: string }> = [
+    { re: /\/dropbox(\s*\(|\/|$)/, name: "Dropbox" },
+    { re: /\/(library\/mobile documents|icloud)(\/|$)/, name: "iCloud" },
+    { re: /\/(onedrive|one drive)(\/|$)/, name: "OneDrive" },
+    { re: /\/google drive(\/|$)/, name: "Google Drive" },
+  ];
+  for (const m of markers) {
+    if (m.re.test(normalized)) {
+      return {
+        risky: true,
+        warning: `Data directory appears to be inside ${m.name}. Cloud sync can corrupt or expose an unlocked vault — move PRM_DATA_DIR (or the desktop app-data path) outside sync folders.`,
+      };
+    }
+  }
+  return { risky: false };
 }
 
 /** Initialize vault + open plaintext DB for first-time create/seed. */
@@ -533,10 +570,16 @@ export function writeFrameworkFile(filename: string, data: Buffer) {
 
 export function readDocumentFile(storagePath: string) {
   const secret = getWorkspaceSecret();
-  if (existsSync(storagePath)) return readFileSync(storagePath);
-  if (existsSync(`${storagePath}.enc`) && secret) {
-    openSealedFile(storagePath, secret);
-    return readFileSync(storagePath);
+  const resolved = resolve(storagePath);
+  const root = resolve(paths.files);
+  const rel = relative(root, resolved);
+  if (!rel || rel.startsWith("..") || resolved === root) {
+    throw new Error("Document path outside vault files");
+  }
+  if (existsSync(resolved)) return readFileSync(resolved);
+  if (existsSync(`${resolved}.enc`) && secret) {
+    openSealedFile(resolved, secret);
+    return readFileSync(resolved);
   }
   throw new Error("Document not found");
 }

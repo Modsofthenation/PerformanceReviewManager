@@ -1,13 +1,8 @@
-import { apiUrl, getToken } from "./api";
+import { apiUrl, authHeaders } from "./api";
 
 /** Open an HTML export in a new tab (Print → PDF). */
 export async function openHtmlExport(path: string) {
-  const headers = new Headers();
-  const token = getToken();
-  if (token) headers.set("x-prm-token", token);
-  const launch = typeof window !== "undefined" ? window.__PRM_LAUNCH_TOKEN__?.trim() : "";
-  if (launch) headers.set("x-prm-launch-token", launch);
-  const res = await fetch(apiUrl(path), { headers });
+  const res = await fetch(apiUrl(path), { headers: authHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error((err as { error?: string }).error || "Export failed");
@@ -21,14 +16,10 @@ export async function openHtmlExport(path: string) {
 
 /** Download a binary export (e.g. encrypted readonly bundle). */
 export async function downloadBinaryExport(path: string, init: RequestInit, fallbackName: string) {
-  const headers = new Headers(init.headers);
+  const headers = authHeaders(init.headers);
   if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  const token = getToken();
-  if (token) headers.set("x-prm-token", token);
-  const launch = typeof window !== "undefined" ? window.__PRM_LAUNCH_TOKEN__?.trim() : "";
-  if (launch) headers.set("x-prm-launch-token", launch);
   const res = await fetch(apiUrl(path), { ...init, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));

@@ -11,7 +11,7 @@ import type {
   PersonExternalLinkDTO,
   PersonTimelineDTO,
 } from "@prm/shared";
-import { api, getToken, apiUrl } from "../lib/api";
+import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
@@ -564,7 +564,7 @@ export function PersonPage() {
               <strong>{d.title}</strong> <span className="muted">({d.filename} · {d.visibility} · {d.occurredAt})</span>{" "}
               <a href={`/api/documents/${d.id}/download`} onClick={(e) => {
                 e.preventDefault();
-                fetch(apiUrl(`/api/documents/${d.id}/download`), { headers: { "x-prm-token": getToken() ?? "" } })
+                fetch(apiUrl(`/api/documents/${d.id}/download`), { headers: authHeaders() })
                   .then((r) => r.blob())
                   .then((blob) => {
                     const url = URL.createObjectURL(blob);
@@ -587,10 +587,7 @@ export function PersonPage() {
             fd.append("title", docTitle || docFile.name);
             fd.append("visibility", "em_and_subject");
             fd.append("occurredAt", new Date().toISOString().slice(0, 10));
-            const headers: Record<string, string> = { "x-prm-token": getToken() ?? "" };
-            if (typeof window !== "undefined" && window.__PRM_LAUNCH_TOKEN__) {
-              headers["x-prm-launch-token"] = window.__PRM_LAUNCH_TOKEN__;
-            }
+            const headers = authHeaders();
             const res = await fetch(apiUrl(`/api/people/${id}/documents`), {
               method: "POST",
               headers,
@@ -700,7 +697,7 @@ export function PersonPage() {
                 if (!docId) return;
                 try {
                   const fileRes = await fetch(apiUrl(`/api/documents/${docId}/download`), {
-                    headers: { "x-prm-token": getToken() || "" },
+                    headers: authHeaders(),
                   });
                   if (!fileRes.ok) throw new Error("Could not load document");
                   const text = await fileRes.text();

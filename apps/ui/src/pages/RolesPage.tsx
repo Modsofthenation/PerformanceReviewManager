@@ -6,7 +6,7 @@ import type {
   RoleDraftDTO,
   RoleFrameworkInfo,
 } from "@prm/shared";
-import { api, getToken, apiUrl } from "../lib/api";
+import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 
@@ -168,12 +168,7 @@ export function RolesPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const headers: HeadersInit = {};
-      const token = getToken();
-      if (token) headers["x-prm-token"] = token;
-      if (typeof window !== "undefined" && window.__PRM_LAUNCH_TOKEN__) {
-        headers["x-prm-launch-token"] = window.__PRM_LAUNCH_TOKEN__;
-      }
+      const headers = authHeaders();
       const res = await fetch(apiUrl("/api/roles/framework/upload"), { method: "POST", headers, body: fd });
       const json = (await res.json()) as {
         error?: string;

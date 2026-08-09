@@ -27,6 +27,16 @@ function launchToken(): string | null {
   return window.__PRM_LAUNCH_TOKEN__?.trim() || null;
 }
 
+/** Headers for authenticated API fetches outside `api()` (downloads, FormData). */
+export function authHeaders(init?: HeadersInit): Headers {
+  const headers = new Headers(init);
+  const token = getToken();
+  if (token) headers.set("x-prm-token", token);
+  const launch = launchToken();
+  if (launch) headers.set("x-prm-launch-token", launch);
+  return headers;
+}
+
 /** Packaged desktop sets this; browser/Vite leaves it empty so `/api` stays relative (proxy). */
 export function apiBaseUrl(): string {
   if (typeof window === "undefined") return "";
@@ -62,14 +72,10 @@ export async function waitForApi(opts?: { attempts?: number; delayMs?: number })
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
+  const headers = authHeaders(init.headers);
   if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  const token = getToken();
-  if (token) headers.set("x-prm-token", token);
-  const launch = launchToken();
-  if (launch) headers.set("x-prm-launch-token", launch);
   const res = await fetch(apiUrl(path), { ...init, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
