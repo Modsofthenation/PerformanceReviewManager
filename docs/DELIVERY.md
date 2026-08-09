@@ -6,22 +6,27 @@ Aligned to [TRUST_MODEL.md](./architecture/TRUST_MODEL.md).
 
 ## Phase 0 — Foundations & safety
 
-**Status:** Implemented in-repo (browser+API; Tauri shell compiles).
+**Status:** Vertical slice shipped (browser + API; Tauri shell + Node sidecar). Several Phase 0 *targets* remain open — see below.
 
-**Outcome:** Signed-capable app skeleton that can hold real data safely.
+**Outcome:** App skeleton that can hold real data safely **when locked**, with honest threat-model docs.
 
-- Tauri + Vite UI + IPC (spike: no naked HTTP API)
-- Encrypted SQLite + app-data layout; sync-folder warning
-- Single Account; keychain + Linux fallback
-- `Person` / EmploymentRecord / manager tree
-- CSV import
-- ActivityEvent hash chain
-- Workspace backup/restore (SQLite backup API)
-- Synthetic 12-person seed org (demo + AI fixtures later)
-- CI matrix spike on one primary OS, then expand; signing keys process started
-- Design-partner outreach (data-handling agreement)
+**Shipped**
+- Tauri shell + Vite UI + Node Hono API on `127.0.0.1` (launch token in packaged desktop)
+- AES-256-GCM seal of SQLite + files on lock; sync-folder hard-warn
+- Single Account; workspace-password vault (API keys encrypted with workspace secret — not OS keychain yet)
+- `Person` / manager tree + CSV import (requires EM)
+- ActivityEvent hash chain + HMAC export
+- Encrypted workspace backup/restore
+- Synthetic **8-person** demo seed (rolling relative cycle dates)
+- CI: unit tests on every `main` PR; desktop installers on manual `workflow_dispatch`
 
-**Exit:** App runs encrypted workspace on at least one OS; backup/restore verified; trust model reflected in UI copy.
+**Still open (do not claim done)**
+- OS keychain for API keys
+- SQLCipher / Rusqlite-primary path
+- Signed / notarized installers + auto-update
+- IPC-only topology without Node sidecar
+
+**Exit (partial):** App runs encrypted-at-rest workspace on supported OS targets; backup/restore verified; trust model reflected in UI copy. Signing + keychain remain follow-ups.
 
 ---
 
@@ -111,8 +116,8 @@ docs/
 |-------|----------|
 | Product mode | Solo EM workbench |
 | Collaboration | Import bundles |
-| Stack | Tauri + Vite/React + SQLite encrypted |
+| Stack | Tauri + Vite/React + SQLite (AES seal on lock) + Node Hono sidecar |
 | Upward / live anonymity / adverse impact | Hosted-only |
 | next_level_gap | Conditional |
 | Local retention | Current + previous cycle (+ export to SoR) |
-| AI keys | In-app Settings → keychain |
+| AI keys | In-app Settings → encrypted with workspace secret (keychain target) |

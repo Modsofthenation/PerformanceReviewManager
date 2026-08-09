@@ -57,10 +57,17 @@ No anonymity theater: imported peer text is attributed to the named peer for the
 
 ## Security baseline (v1)
 
-- Encrypt SQLite + `files/` at rest (workspace password / OS key material) — **required before real employee data**
-- Local API authenticated per launch (capability token) **or** Tauri IPC only (no naked TCP)
-- API keys in OS keychain (with documented Linux fallback)
-- Refuse/warn if app-data path is inside Dropbox/iCloud/OneDrive
-- Consistent backup via SQLite backup API + encrypted archive
+### Shipped today
+- Encrypt SQLite + `files/` at rest with the workspace password (scrypt + AES-256-GCM seal on **Lock & encrypt**)
+- Local API bound to `127.0.0.1`; session token after unlock; packaged desktop adds a per-launch capability token
+- Integration / AI secrets stored encrypted in SQLite under the workspace secret (not returned in plaintext from settings GETs)
+- Hard-warn when the data directory looks like Dropbox / iCloud / OneDrive / Google Drive
+- Encrypted backup / restore under `data/backups`
+
+### Not shipped yet (do not market as done)
+- OS keychain custody for API keys (keys ride the workspace secret today)
+- SQLCipher / Rusqlite-in-Rust as the primary DB path (Node `better-sqlite3` + file seal is what runs)
+- Signed auto-update / notarized installers (desktop artifacts are manual CI builds)
+- Background jobs when the app is closed
 
 See [LOCAL_STACK.md](./LOCAL_STACK.md) and [SYSTEM.md](./SYSTEM.md).

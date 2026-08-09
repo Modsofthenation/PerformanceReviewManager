@@ -16,16 +16,16 @@ Hosted multi-tenant SaaS is a **separate track**, not a config switch.
 
 ## Stack
 
-See [LOCAL_STACK.md](./LOCAL_STACK.md). Summary: Tauri 2, React/Vite, SQLite encrypted, IPC-first, app-data files, keychain, BYO AI + Ollama.
+See [LOCAL_STACK.md](./LOCAL_STACK.md). Summary: Tauri 2 (optional shell), React/Vite, SQLite via better-sqlite3 with AES-GCM seal on lock, Node Hono on loopback (+ launch token in desktop), app-data files, BYO AI + Ollama. OS keychain and IPC-only topology remain targets.
 
 ---
 
 ## Topology
 
 ```
-Tauri → React UI → IPC/commands → SQLite + files + keychain
-                         ↓
-              Cloud AI / Ollama (opt-in)
+Tauri (optional) → React UI → HTTP (127.0.0.1 Hono) → SQLite + files + workspace crypto
+                                      ↓
+                           Cloud AI / Ollama (opt-in)
 ```
 
 ---
@@ -37,7 +37,7 @@ Tauri → React UI → IPC/commands → SQLite + files + keychain
 | Workspace Account (EM) | Full read/write on workspace; export subject packets; configure AI |
 | Person (no Account) | Not an actor in-app; appears in exports the EM creates |
 
-Export redaction (`packages/policy`) strips `em_only` fields from subject packets. This is **share-time policy**, not protection from the EM.
+Export redaction strips `em_only` fields from subject packets (implemented in API export paths). This is **share-time policy**, not protection from the EM.
 
 ---
 
