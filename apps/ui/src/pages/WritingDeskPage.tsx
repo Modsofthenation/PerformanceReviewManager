@@ -245,6 +245,15 @@ export function WritingDeskPage() {
     return changes;
   }
 
+  async function runAiAction(fn: () => Promise<void>) {
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI request failed");
+    }
+  }
+
   async function save(nextStatus = "draft") {
     if (!cycleId || !personId) return;
     setError(null);
@@ -527,42 +536,46 @@ export function WritingDeskPage() {
                 <button
                   className="btn secondary"
                   type="button"
-                  onClick={async () => {
-                    const ok = await estimateThenConfirm(
-                      "evidence_digest",
-                      { cycleId, personId },
-                      "Generate evidence digest",
-                    );
-                    if (!ok) return;
-                    const res = await api<{ outputText: string; citeSuggestions?: DeliveryCiteSuggestion[] }>(
-                      "/api/ai/digest",
-                      {
-                        method: "POST",
-                        body: JSON.stringify({ cycleId, personId }),
-                      },
-                    );
-                    setDigest(res.outputText);
-                    setCiteSuggestions(res.citeSuggestions ?? []);
-                  }}
+                  onClick={() =>
+                    void runAiAction(async () => {
+                      const ok = await estimateThenConfirm(
+                        "evidence_digest",
+                        { cycleId, personId },
+                        "Generate evidence digest",
+                      );
+                      if (!ok) return;
+                      const res = await api<{ outputText: string; citeSuggestions?: DeliveryCiteSuggestion[] }>(
+                        "/api/ai/digest",
+                        {
+                          method: "POST",
+                          body: JSON.stringify({ cycleId, personId }),
+                        },
+                      );
+                      setDigest(res.outputText);
+                      setCiteSuggestions(res.citeSuggestions ?? []);
+                    })
+                  }
                 >
                   Generate evidence digest
                 </button>
                 <button
                   className="btn secondary"
                   type="button"
-                  onClick={async () => {
-                    const ok = await estimateThenConfirm(
-                      "skip_level_talking_points",
-                      { cycleId, personId },
-                      "Generate skip-level talking points",
-                    );
-                    if (!ok) return;
-                    const res = await api<{ outputText: string }>("/api/ai/skip-level-talking-points", {
-                      method: "POST",
-                      body: JSON.stringify({ cycleId, personId }),
-                    });
-                    setSkipLevel(res.outputText);
-                  }}
+                  onClick={() =>
+                    void runAiAction(async () => {
+                      const ok = await estimateThenConfirm(
+                        "skip_level_talking_points",
+                        { cycleId, personId },
+                        "Generate skip-level talking points",
+                      );
+                      if (!ok) return;
+                      const res = await api<{ outputText: string }>("/api/ai/skip-level-talking-points", {
+                        method: "POST",
+                        body: JSON.stringify({ cycleId, personId }),
+                      });
+                      setSkipLevel(res.outputText);
+                    })
+                  }
                 >
                   Generate skip-level talking points
                 </button>
@@ -640,19 +653,21 @@ export function WritingDeskPage() {
                 className="btn secondary"
                 type="button"
                 disabled={!packet.peerReviews.length}
-                onClick={async () => {
-                  const ok = await estimateThenConfirm(
-                    "peer_synthesize",
-                    { cycleId, personId },
-                    "Synthesize peer themes",
-                  );
-                  if (!ok) return;
-                  const res = await api<{ outputText: string }>("/api/ai/peer-synthesize", {
-                    method: "POST",
-                    body: JSON.stringify({ cycleId, personId }),
-                  });
-                  setPeerSynth(res.outputText);
-                }}
+                onClick={() =>
+                  void runAiAction(async () => {
+                    const ok = await estimateThenConfirm(
+                      "peer_synthesize",
+                      { cycleId, personId },
+                      "Synthesize peer themes",
+                    );
+                    if (!ok) return;
+                    const res = await api<{ outputText: string }>("/api/ai/peer-synthesize", {
+                      method: "POST",
+                      body: JSON.stringify({ cycleId, personId }),
+                    });
+                    setPeerSynth(res.outputText);
+                  })
+                }
               >
                 Synthesize peer themes
               </button>
@@ -936,20 +951,22 @@ export function WritingDeskPage() {
                 type="button"
                 className="btn ghost"
                 disabled={finalized}
-                onClick={async () => {
-                  const ok = await estimateThenConfirm(
-                    "draft_section",
-                    { cycleId, personId, section: "summary" },
-                    "AI draft: summary",
-                  );
-                  if (!ok) return;
-                  const res = await api<{ outputText: string }>("/api/ai/draft-section", {
-                    method: "POST",
-                    body: JSON.stringify({ cycleId, personId, section: "summary" }),
-                  });
-                  setSummary(res.outputText);
-                  markDirty();
-                }}
+                onClick={() =>
+                  void runAiAction(async () => {
+                    const ok = await estimateThenConfirm(
+                      "draft_section",
+                      { cycleId, personId, section: "summary" },
+                      "AI draft: summary",
+                    );
+                    if (!ok) return;
+                    const res = await api<{ outputText: string }>("/api/ai/draft-section", {
+                      method: "POST",
+                      body: JSON.stringify({ cycleId, personId, section: "summary" }),
+                    });
+                    setSummary(res.outputText);
+                    markDirty();
+                  })
+                }
               >
                 AI draft this section
               </button>
@@ -970,20 +987,22 @@ export function WritingDeskPage() {
                 type="button"
                 className="btn ghost"
                 disabled={finalized}
-                onClick={async () => {
-                  const ok = await estimateThenConfirm(
-                    "draft_section",
-                    { cycleId, personId, section: "strengths" },
-                    "AI draft: strengths",
-                  );
-                  if (!ok) return;
-                  const res = await api<{ outputText: string }>("/api/ai/draft-section", {
-                    method: "POST",
-                    body: JSON.stringify({ cycleId, personId, section: "strengths" }),
-                  });
-                  setStrengths(res.outputText);
-                  markDirty();
-                }}
+                onClick={() =>
+                  void runAiAction(async () => {
+                    const ok = await estimateThenConfirm(
+                      "draft_section",
+                      { cycleId, personId, section: "strengths" },
+                      "AI draft: strengths",
+                    );
+                    if (!ok) return;
+                    const res = await api<{ outputText: string }>("/api/ai/draft-section", {
+                      method: "POST",
+                      body: JSON.stringify({ cycleId, personId, section: "strengths" }),
+                    });
+                    setStrengths(res.outputText);
+                    markDirty();
+                  })
+                }
               >
                 AI draft this section
               </button>
@@ -1004,20 +1023,22 @@ export function WritingDeskPage() {
                 type="button"
                 className="btn ghost"
                 disabled={finalized}
-                onClick={async () => {
-                  const ok = await estimateThenConfirm(
-                    "draft_section",
-                    { cycleId, personId, section: "growth_areas" },
-                    "AI draft: growth areas",
-                  );
-                  if (!ok) return;
-                  const res = await api<{ outputText: string }>("/api/ai/draft-section", {
-                    method: "POST",
-                    body: JSON.stringify({ cycleId, personId, section: "growth_areas" }),
-                  });
-                  setGrowth(res.outputText);
-                  markDirty();
-                }}
+                onClick={() =>
+                  void runAiAction(async () => {
+                    const ok = await estimateThenConfirm(
+                      "draft_section",
+                      { cycleId, personId, section: "growth_areas" },
+                      "AI draft: growth areas",
+                    );
+                    if (!ok) return;
+                    const res = await api<{ outputText: string }>("/api/ai/draft-section", {
+                      method: "POST",
+                      body: JSON.stringify({ cycleId, personId, section: "growth_areas" }),
+                    });
+                    setGrowth(res.outputText);
+                    markDirty();
+                  })
+                }
               >
                 AI draft this section
               </button>
@@ -1104,17 +1125,19 @@ export function WritingDeskPage() {
                 <button
                   type="button"
                   className="btn secondary"
-                  onClick={async () => {
-                    const res = await api<{ findings: BiasFinding[] }>("/api/ai/bias-lint", {
-                      method: "POST",
-                      body: JSON.stringify({
-                        cycleId,
-                        personId,
-                        text: [summary, strengths, growth, devPlan, roleFit].join("\n\n"),
-                      }),
-                    });
-                    setBiasFindings(res.findings);
-                  }}
+                  onClick={() =>
+                    void runAiAction(async () => {
+                      const res = await api<{ findings: BiasFinding[] }>("/api/ai/bias-lint", {
+                        method: "POST",
+                        body: JSON.stringify({
+                          cycleId,
+                          personId,
+                          text: [summary, strengths, growth, devPlan, roleFit].join("\n\n"),
+                        }),
+                      });
+                      setBiasFindings(res.findings);
+                    })
+                  }
                 >
                   Run lint
                 </button>
@@ -1122,34 +1145,36 @@ export function WritingDeskPage() {
                   <button
                     type="button"
                     className="btn"
-                    onClick={async () => {
-                      const res = await api<{
-                        fields: Record<string, string>;
-                        applied: number;
-                        findings: BiasFinding[];
-                      }>("/api/ai/apply-all-faithfulness-fixes", {
-                        method: "POST",
-                        body: JSON.stringify({
-                          cycleId,
-                          personId,
-                          fields: {
-                            summary,
-                            strengths,
-                            growth_areas: growth,
-                            dev_plan: devPlan,
-                            role_fit: roleFit,
-                          },
-                        }),
-                      });
-                      markDirty();
-                      setSummary(res.fields.summary ?? summary);
-                      setStrengths(res.fields.strengths ?? strengths);
-                      setGrowth(res.fields.growth_areas ?? growth);
-                      setDevPlan(res.fields.dev_plan ?? devPlan);
-                      setRoleFit(res.fields.role_fit ?? roleFit);
-                      setBiasFindings(res.findings);
-                      setStatus(`Applied ${res.applied} faithfulness fix(es)`);
-                    }}
+                    onClick={() =>
+                      void runAiAction(async () => {
+                        const res = await api<{
+                          fields: Record<string, string>;
+                          applied: number;
+                          findings: BiasFinding[];
+                        }>("/api/ai/apply-all-faithfulness-fixes", {
+                          method: "POST",
+                          body: JSON.stringify({
+                            cycleId,
+                            personId,
+                            fields: {
+                              summary,
+                              strengths,
+                              growth_areas: growth,
+                              dev_plan: devPlan,
+                              role_fit: roleFit,
+                            },
+                          }),
+                        });
+                        markDirty();
+                        setSummary(res.fields.summary ?? summary);
+                        setStrengths(res.fields.strengths ?? strengths);
+                        setGrowth(res.fields.growth_areas ?? growth);
+                        setDevPlan(res.fields.dev_plan ?? devPlan);
+                        setRoleFit(res.fields.role_fit ?? roleFit);
+                        setBiasFindings(res.findings);
+                        setStatus(`Applied ${res.applied} faithfulness fix(es)`);
+                      })
+                    }
                   >
                     Apply all fixes
                   </button>

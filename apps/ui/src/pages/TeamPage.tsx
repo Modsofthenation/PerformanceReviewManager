@@ -117,6 +117,16 @@ export function TeamPage() {
             <tr><th>Name</th><th>Title</th><th>Level</th><th>Role</th><th>Next</th><th>Your move</th></tr>
           </thead>
           <tbody>
+            {em && (
+              <tr>
+                <td data-label="Name">{em.name}</td>
+                <td data-label="Title" className="muted">{em.title}</td>
+                <td data-label="Level">{em.levelKey}</td>
+                <td data-label="Role" className="muted">EM account</td>
+                <td data-label="Next" className="muted">—</td>
+                <td data-label="Your move"><Link className="btn" to={`/team/${em.id}`}>Open dossier</Link></td>
+              </tr>
+            )}
             {directs.map((p) => (
               <tr key={p.id}>
                 <td data-label="Name">{p.name}</td>
@@ -133,15 +143,6 @@ export function TeamPage() {
                 </td>
               </tr>
             ))}
-            {em && directs.length === 0 && (
-              <tr>
-                <td data-label="Name">{em.name}</td>
-                <td data-label="Title" className="muted">{em.title}</td>
-                <td data-label="Level">{em.levelKey}</td>
-                <td data-label="Role" colSpan={2} className="muted">EM account</td>
-                <td data-label="Your move"><Link className="btn" to={`/team/${em.id}`}>Open dossier</Link></td>
-              </tr>
-            )}
           </tbody>
         </table>
         )}
@@ -176,7 +177,7 @@ export function TeamPage() {
         <h2>Import CSV</h2>
         <p className="muted">
           Columns: name (required), email, title, levelKey, hireDate. Duplicates by email or exact name are skipped.
-          New people report to the workspace EM.
+          Requires an EM on the roster first — new people report to that EM (or `defaultManagerId`).
         </p>
         <div className="field">
           <label htmlFor="csv-paste">Paste CSV</label>
