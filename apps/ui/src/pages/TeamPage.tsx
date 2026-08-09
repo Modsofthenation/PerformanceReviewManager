@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PeopleImportResult, PersonDTO } from "@prm/shared";
-import { api, getToken, apiUrl } from "../lib/api";
+import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
 export function TeamPage() {
@@ -212,12 +212,7 @@ export function TeamPage() {
               // Authenticated download via fetch (anchor alone omits x-prm-token).
               e.preventDefault();
               void (async () => {
-                const headers: HeadersInit = {};
-                const token = getToken();
-                if (token) headers["x-prm-token"] = token;
-                const launch = typeof window !== "undefined" ? window.__PRM_LAUNCH_TOKEN__ : undefined;
-                if (launch) headers["x-prm-launch-token"] = launch;
-                const res = await fetch(apiUrl("/api/people/import/template"), { headers });
+                const res = await fetch(apiUrl("/api/people/import/template"), { headers: authHeaders() });
                 if (!res.ok) {
                   setImportMsg("Could not download template");
                   return;

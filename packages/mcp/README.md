@@ -21,7 +21,7 @@ Add to **Cursor Settings → MCP** (or project `.cursor/mcp.json`):
       "args": ["--dir", "/absolute/path/to/PerformanceReviewManager", "exec", "tsx", "packages/mcp/src/index.ts"],
       "env": {
         "PRM_API_URL": "http://127.0.0.1:8787",
-        "PRM_PASSWORD": "workbench"
+        "PRM_PASSWORD": "your-workspace-password"
       }
     }
   }

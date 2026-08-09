@@ -499,6 +499,9 @@ export interface WorkspaceStatus {
   encryptedAtRest?: boolean;
   /** Directs with thin dossiers — useful for backfill CTA after unlock. */
   thinEvidenceCount?: number;
+  /** True when data dir looks like Dropbox/iCloud/OneDrive/Google Drive. */
+  dataDirSyncRisk?: boolean;
+  dataDirSyncWarning?: string;
 }
 
 export interface AiEstimateDTO {

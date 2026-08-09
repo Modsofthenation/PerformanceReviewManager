@@ -11,7 +11,7 @@
       ],
       "env": {
         "PRM_API_URL": "http://127.0.0.1:8787",
-        "PRM_PASSWORD": "workbench"
+        "PRM_PASSWORD": "your-workspace-password"
       }
     }
   }

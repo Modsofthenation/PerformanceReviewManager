@@ -87,7 +87,22 @@ fn write_launch_token(path: &Path, token: &str) -> std::io::Result<()> {
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent)?;
   }
-  fs::write(path, token)
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f = fs::OpenOptions::new()
+      .write(true)
+      .create(true)
+      .truncate(true)
+      .mode(0o600)
+      .open(path)?;
+    f.write_all(token.as_bytes())?;
+    return Ok(());
+  }
+  #[cfg(not(unix))]
+  {
+    fs::write(path, token)
+  }
 }
 
 fn random_token() -> String {

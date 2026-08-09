@@ -81,7 +81,15 @@ import {
   createEncryptedBackup,
   listEncryptedBackups,
   restoreEncryptedBackup,
+  dataDirSyncRisk,
 } from "./store.js";
+import {
+  checkAuthRateLimit,
+  clearAuthFailures,
+  recordAuthFailure,
+  validateWorkspacePassword,
+} from "./authPolicy.js";
+import { timingSafeEqual } from "node:crypto";
 import {
   buildChatSystemPrompt,
   buildSystemPrompt,
@@ -164,10 +172,21 @@ const CORS_ORIGINS = [
 
 function corsOrigin(origin: string): string | null {
   if (CORS_ORIGINS.includes(origin)) return origin;
-  // Windows/Android custom-protocol workaround hosts: http(s)://*.localhost
-  if (/^https?:\/\/(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/i.test(origin)) return origin;
+  // Packaged Tauri custom-protocol hosts only — not arbitrary *.localhost
+  if (/^https?:\/\/(?:tauri|asset)\.localhost(?::\d+)?$/i.test(origin)) return origin;
   if (origin.startsWith("tauri://")) return origin;
   return null;
+}
+
+function launchTokenMatches(hdr: string, launch: string) {
+  try {
+    const a = Buffer.from(hdr);
+    const b = Buffer.from(launch);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 app.use(
@@ -185,7 +204,7 @@ app.use("/api/*", async (c, next) => {
   if (launch) {
     if (c.req.path === "/api/health") return next();
     const hdr = c.req.header("x-prm-launch-token") ?? "";
-    if (hdr !== launch) {
+    if (!launchTokenMatches(hdr, launch)) {
       return c.json({ error: "Invalid or missing launch token", code: "launch_token_required" }, 401);
     }
   }
@@ -313,6 +332,7 @@ app.get("/api/workspace/status", (c) => {
       /* locked */
     }
   }
+  const syncRisk = dataDirSyncRisk();
   const body: WorkspaceStatus & { encryptedAtRest: boolean } = {
     initialized,
     unlocked,
@@ -322,6 +342,8 @@ app.get("/api/workspace/status", (c) => {
     aiProvider,
     thinEvidenceCount,
     encryptedAtRest: enc.encryptedAtRest,
+    dataDirSyncRisk: syncRisk.risky,
+    dataDirSyncWarning: syncRisk.warning,
   };
   return c.json(body);
 });
@@ -329,12 +351,14 @@ app.get("/api/workspace/status", (c) => {
 app.post("/api/workspace/init", async (c) => {
   if (isInitialized()) return c.json({ error: "Already initialized" }, 400);
   const body = await c.req.json<{ name?: string; password?: string; seed?: boolean }>();
-  const password = body.password || "workbench";
-  if (body.seed !== false) {
-    const result = await seedWorkspace({ name: body.name, password });
+  const pw = validateWorkspacePassword(body.password);
+  if (!pw.ok) return c.json({ error: pw.error }, 400);
+  // Seed only when explicitly requested — never default to demo data.
+  if (body.seed === true) {
+    const result = await seedWorkspace({ name: body.name, password: pw.password });
     return c.json({ ...result, token: getSessionToken(), encryptedAtRest: false });
   }
-  const { hash, salt } = bootstrapVault(password);
+  const { hash, salt } = bootstrapVault(pw.password);
   const db = getDb();
   const wsId = id("ws");
   db.insert(workspace)
@@ -354,14 +378,18 @@ app.post("/api/workspace/init", async (c) => {
 
 app.post("/api/workspace/unlock", async (c) => {
   if (!isInitialized()) return c.json({ error: "Not initialized" }, 400);
+  const limited = checkAuthRateLimit("unlock");
+  if (limited) return c.json({ error: limited, code: "rate_limited" }, 429);
   const { password } = await c.req.json<{ password: string }>();
   try {
     const token = unlockVault(password);
+    clearAuthFailures("unlock");
     const db = getDb();
     const ws = db.select().from(workspace).limit(1).all()[0];
     logActivity("workspace.unlock", "workspace", ws?.id);
     return c.json({ token, name: ws?.name, encryptedAtRest: false });
   } catch (e) {
+    recordAuthFailure("unlock");
     return c.json({ error: e instanceof Error ? e.message : "Unlock failed" }, 401);
   }
 });
@@ -374,6 +402,8 @@ app.post("/api/workspace/lock", (c) => {
 /** Wipe local vault + data so a new empty/demo workspace can be created. Public (password-gated). */
 app.post("/api/workspace/destroy", async (c) => {
   if (!isInitialized()) return c.json({ error: "No workspace to delete" }, 400);
+  const limited = checkAuthRateLimit("destroy");
+  if (limited) return c.json({ error: limited, code: "rate_limited" }, 429);
   const body = await c.req.json<{ password?: string; confirm?: string }>();
   if (body.confirm !== "DELETE") {
     return c.json({ error: 'Type confirm: "DELETE" to erase the workspace' }, 400);
@@ -381,8 +411,10 @@ app.post("/api/workspace/destroy", async (c) => {
   if (!body.password) return c.json({ error: "password required" }, 400);
   try {
     destroyWorkspace(body.password);
+    clearAuthFailures("destroy");
     return c.json({ ok: true, initialized: false });
   } catch (e) {
+    recordAuthFailure("destroy");
     const err = e as Error & { code?: string };
     const status =
       err.message === "Invalid password" ? 401 : err.code === "legal_hold" ? 403 : 400;
