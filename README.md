@@ -227,3 +227,10 @@ Regenerate with `pnpm screenshots` (UI + API running; default password `workbenc
 ## Docs
 
 Product and architecture live under [`/docs`](./docs). Start with [`docs/PRODUCT_BRIEF.md`](./docs/PRODUCT_BRIEF.md). Core loop evaluation: [`docs/CORE_LOOP_EVAL.md`](./docs/CORE_LOOP_EVAL.md). Cursor cloud notes: [`AGENTS.md`](./AGENTS.md).
+
+## License & community
+
+- License: [`LICENSE`](./LICENSE) (MIT)
+- Security reports: [`SECURITY.md`](./SECURITY.md)
+- Contributing: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
