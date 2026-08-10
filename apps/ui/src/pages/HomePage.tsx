@@ -243,7 +243,7 @@ export function HomePage() {
               <Link to="/team">Team</Link> — add directs (you’re already EM if you entered your name at create)
             </li>
             <li>
-              <Link to="/roles">Roles</Link> — assign current (+ optional next) role definitions
+              <Link to="/roles">Roles</Link> — PE career ladder is preloaded (Graduate → CTO); assign current (+ optional next)
             </li>
             <li>
               <Link to="/cycles">Cycles</Link> — open a review window and export self/peer bundles

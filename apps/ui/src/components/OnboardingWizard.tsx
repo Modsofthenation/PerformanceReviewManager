@@ -72,7 +72,7 @@ export function OnboardingWizard({ onActiveChange }: { onActiveChange?: (active:
         <NextStep
           tone="brand"
           label={data.personCount === 0 ? "Add yourself and your directs" : "Add your directs"}
-          detail="On Team: you are the EM (no manager). Then add each direct, or paste a CSV. Roles can wait until after the first cycle."
+          detail="On Team: add directs (you may already be EM). Roles from the PE Engineering Career Framework are already loaded — assign each person on Roles, then open a cycle."
           action={
             <>
               <Link className="btn" to="/team">

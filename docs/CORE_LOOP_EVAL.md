@@ -18,7 +18,7 @@ upload role R&R → tag people → year-round dossier
 | Encrypted workspace unlock/lock | Done | AES vault; demo seed password `workbench` (demo only — never a silent API default); `.session` is token-only (re-unlock after API restart) |
 | Encrypted backup / restore | Done | Settings → one-click snapshot under `data/backups`; restore replaces live DB while unlocked |
 | People list + CSV / manual add | Done | `POST /api/people/import` + Team paste/file; template download |
-| Role catalog + assign + author | Done | Seeded ladder; Roles page add/edit/delete; CSV/markdown or AI extract from R&R doc |
+| Role catalog + assign + author | Done | Seeded PE Engineering Career Framework (Graduate → CTO, IC + management); Roles page add/edit/delete; CSV/markdown or AI extract from R&R doc |
 | Continuous dossier | Done | Achievements, goals, feedback, documents + visibility |
 | Concern / underperformance log | Done | Per-person dated concerns + plan; `ai_allowed` default off; opted-in concerns feed digests/drafts |
 | Cycle create + phase wizard | Done | Soft statuses (`self_open` → `closed`); editable window; waive-with-reason on missing self/peer |
