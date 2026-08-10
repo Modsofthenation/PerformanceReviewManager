@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a product or DX improvement
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer aligning with [docs/PRODUCT_BRIEF.md](https://github.com/Modsofthenation/PerformanceReviewManager/blob/main/docs/PRODUCT_BRIEF.md) and the solo-EM trust model.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What EM workflow is painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Concrete behavior change (not just “make AI better”)
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Workbench (local solo EM)
+        - Import-path collaboration
+        - Hosted-only (out of v1)
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

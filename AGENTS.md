@@ -26,6 +26,6 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 
 ### Cursor MCP (`@prm/mcp`)
 - Stdio MCP for bulk-loading dossier evidence into the local API: `pnpm mcp` (or `pnpm --filter @prm/mcp start`).
-- Requires API on `127.0.0.1:8787`; unlocks with `PRM_PASSWORD` (default `workbench`).
+- Requires API on `127.0.0.1:8787`. Unlock via `prm_unlock` or set `PRM_PASSWORD` to the workspace password — there is **no** built-in demo default (demo vaults often use `workbench`, but never assume that for real data).
 - Setup example: `.cursor/mcp.json.example` and `packages/mcp/README.md`.
 - Typical flow with other MCPs (Jira/Google): fetch externally → `prm_bulk_load_evidence` / `prm_upload_document` here.

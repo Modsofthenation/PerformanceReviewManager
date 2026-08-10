@@ -97,16 +97,16 @@ Aligned to [TRUST_MODEL.md](./architecture/TRUST_MODEL.md).
 ## Module layout
 
 ```
-apps/desktop/          # Tauri
+apps/desktop/          # Tauri shell + API sidecar packaging
 apps/ui/               # React + Vite
-packages/core/         # domain services (TS or Rust)
-packages/db/           # schema, migrations
-packages/policy/       # export redaction rules
-packages/packet/       # assembly
-packages/ai/           # providers, evals
-packages/bundles/      # export/import formats
+apps/api/              # Node Hono + better-sqlite3
+packages/db/           # schema, openDatabase
+packages/shared/       # shared DTOs / types
+packages/mcp/          # stdio MCP bulk-loader
 docs/
 ```
+
+Domain services (packet assembly, AI providers, export policy) currently live under `apps/api` rather than separate packages. Splitting them is optional cleanup, not a release blocker.
 
 ---
 

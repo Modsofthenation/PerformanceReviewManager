@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Modsofthenation/PerformanceReviewManager/security/advisories/new
+    about: Report security issues privately (do not file a public issue). See SECURITY.md.
+  - name: Product docs
+    url: https://github.com/Modsofthenation/PerformanceReviewManager/blob/main/docs/PRODUCT_BRIEF.md
+    about: Scope, trust model, and v1 non-goals before requesting features.

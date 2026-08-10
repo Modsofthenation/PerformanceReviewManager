@@ -249,16 +249,18 @@ Regenerate with `pnpm screenshots` (UI + API running; demo password `workbench`)
 - **Sprint pulse** for date-window coaching
 - **Eight accents × dark/light** appearance system (Coral, Amber, Magenta, Citrus plus Teal, Ocean, Forest, Slate)
 - **AI**: digests, section draft, peer synthesize, chat, with citation allowlist
-- **Desktop** packaging (Tauri); installers via Actions → **Desktop Installers** → **Run workflow**
-- **Delete / recreate workspace** from Unlock or Settings
+- **Desktop** packaging (Tauri); installers via Actions → **Desktop Installers** or tagged **Release**- **Delete / recreate workspace** from Unlock or Settings
 
 ## Docs
 
-Product and architecture live under [`/docs`](./docs). Start with [`docs/PRODUCT_BRIEF.md`](./docs/PRODUCT_BRIEF.md). Core loop evaluation: [`docs/CORE_LOOP_EVAL.md`](./docs/CORE_LOOP_EVAL.md). Theme matrix: [`docs/screenshots/THEMES.md`](./docs/screenshots/THEMES.md). Cursor cloud notes: [`AGENTS.md`](./AGENTS.md).
+Product and architecture live under [`/docs`](./docs). Start with [`docs/PRODUCT_BRIEF.md`](./docs/PRODUCT_BRIEF.md). Core loop evaluation: [`docs/CORE_LOOP_EVAL.md`](./docs/CORE_LOOP_EVAL.md). Theme matrix: [`docs/screenshots/THEMES.md`](./docs/screenshots/THEMES.md). Public flip checklist: [`docs/PUBLIC_RELEASE.md`](./docs/PUBLIC_RELEASE.md). Cursor cloud notes: [`AGENTS.md`](./AGENTS.md).
 
 ## License & community
 
 - License: [`LICENSE`](./LICENSE) (MIT)
+- Third-party notices (bundled Node sidecar): [`THIRD_PARTY.md`](./THIRD_PARTY.md)
+- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
 - Security reports: [`SECURITY.md`](./SECURITY.md)
 - Contributing: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
 - Code of conduct: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)

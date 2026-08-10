@@ -44,7 +44,7 @@ On Windows the Node child is spawned with `CREATE_NO_WINDOW`. Sidecar stdout/std
 
 ### Updates
 
-Settings → **Check for updates** compares the packaged version (`get_app_version` IPC) to the latest GitHub Release. Fully signed silent auto-update still needs `tauri-plugin-updater` + CI signing keys.
+Settings → **Check for updates** compares the packaged version (`get_app_version` IPC) to the latest GitHub Release. If no release exists yet (404), the UI says so and points at the **Release** / **Desktop Installers** workflows. Fully signed silent auto-update still needs `tauri-plugin-updater` + CI signing keys.
 
 Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 

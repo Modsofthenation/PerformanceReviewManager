@@ -604,7 +604,7 @@ export function SettingsPage({
         id="settings-desktop"
         title="Desktop updates"
         when="Use on packaged desktop builds when you want to know if a newer installer is available."
-        how="Check GitHub Releases for the latest tag versus your installed version; signed auto-update needs Tauri updater keys in CI."
+        how="Compares your installed version to the latest GitHub Release tag. This is a manual check only — signed silent auto-update needs Tauri updater keys in CI."
         action={
           <button
             type="button"
@@ -626,19 +626,33 @@ export function SettingsPage({
                   "https://api.github.com/repos/Modsofthenation/PerformanceReviewManager/releases/latest",
                   { headers: { Accept: "application/vnd.github+json" } },
                 );
-                if (!res.ok) {
-                  setMsg(`Could not reach GitHub releases (${res.status}). Download artifacts from Actions on main.`);
+                if (res.status === 404) {
+                  setMsg(
+                    `Installed app version ${localVersion}. No public GitHub Release yet — maintainers can publish one via Actions → Release, or build unsigned installers via Actions → Desktop Installers.`,
+                  );
                   return;
                 }
-                const json = (await res.json()) as { tag_name?: string; html_url?: string; name?: string };
+                if (!res.ok) {
+                  setMsg(
+                    `Could not reach GitHub Releases (${res.status}). Try again later, or download unsigned installers from Actions → Desktop Installers / Release.`,
+                  );
+                  return;
+                }
+                const json = (await res.json()) as {
+                  tag_name?: string;
+                  html_url?: string;
+                  name?: string;
+                  prerelease?: boolean;
+                };
                 const tag = json.tag_name ?? json.name ?? "unknown";
+                const pre = json.prerelease ? " (pre-release)" : "";
                 setMsg(
-                  `Installed app version ${localVersion}. Latest GitHub release: ${tag}. ${json.html_url ?? ""}`,
+                  `Installed app version ${localVersion}. Latest GitHub release: ${tag}${pre}. ${json.html_url ?? ""} — download the installer for your OS; installs are not auto-applied.`,
                 );
               } catch (e) {
                 setMsg(
                   e instanceof Error
-                    ? `${e.message} — use CI artifact desktop-windows-x86_64 / desktop-linux / desktop-macos`
+                    ? `${e.message} — use Actions artifacts desktop-windows-x86_64 / desktop-linux-x86_64 / desktop-macos-aarch64`
                     : "Update check failed",
                 );
               }
@@ -650,6 +664,7 @@ export function SettingsPage({
       >
         <p className="muted" style={{ margin: 0 }}>
           Packaged builds serve the UI from the local API (same-origin) to avoid WebView “Failed to fetch”.
+          Releases are unsigned until code signing lands — verify checksums yourself.
         </p>
       </Section>
       </PageSectionsLayout>
