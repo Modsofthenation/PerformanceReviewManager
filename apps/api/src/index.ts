@@ -97,11 +97,14 @@ import {
   buildSystemPrompt,
   getAiConfig,
   localDigest,
+  normalizeAiProvider,
+  probeCursorCloudKey,
   resolveCursorBaseUrl,
   runChat,
   storeGeneration,
   type ChatMessage,
 } from "./ai.js";
+import { CURSOR_CLOUD_API_BASE } from "./cursorCloud.js";
 import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations.js";
 import { runBiasToneLint } from "./bias.js";
 import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
@@ -2218,20 +2221,25 @@ app.post("/api/people/:id/feedback", async (c) => {
 app.get("/api/ai/settings", (c) => {
   const db = getDb();
   const row = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
-  const provider = row?.provider ?? "anthropic";
+  const gatewayBaseUrl = resolveCursorBaseUrl(row?.ollamaBaseUrl);
+  const provider = normalizeAiProvider(row?.provider, gatewayBaseUrl);
   const hasStoredKey = Boolean(row?.apiKeyEncrypted);
-  const hasEnvCursorKey = provider === "cursor" && Boolean(process.env.CURSOR_API_KEY?.trim());
-  const cursorBaseUrl = resolveCursorBaseUrl(row?.ollamaBaseUrl);
+  const hasEnvCursorKey =
+    (provider === "cursor" || provider === "openai_compatible") &&
+    Boolean(process.env.CURSOR_API_KEY?.trim());
   return c.json({
     enabled: Boolean(row?.enabled),
     provider,
     modelDigest: row?.modelDigest,
     modelDraft: row?.modelDraft,
     localOnly: Boolean(row?.localOnly),
-    // For OpenAI-compatible provider, expose the gateway URL in the shared field (never invent 18789).
     ollamaBaseUrl:
-      provider === "cursor" ? cursorBaseUrl ?? "" : (row?.ollamaBaseUrl ?? "http://127.0.0.1:11434"),
-    cursorBaseUrl,
+      provider === "openai_compatible"
+        ? gatewayBaseUrl ?? ""
+        : provider === "ollama"
+          ? (row?.ollamaBaseUrl ?? "http://127.0.0.1:11434")
+          : (row?.ollamaBaseUrl ?? "http://127.0.0.1:11434"),
+    cursorBaseUrl: provider === "openai_compatible" ? gatewayBaseUrl : null,
     privateNotesEgress: Boolean(row?.privateNotesEgress),
     meetingSummaryEgress: Boolean(row?.meetingSummaryEgress),
     documentExtractEgress: Boolean(row?.documentExtractEgress),
@@ -3272,10 +3280,12 @@ app.post("/api/ai/test", async (c) => {
     cfg.localOnly || cfg.provider === "ollama"
       ? cfg.ollamaBaseUrl
       : cfg.provider === "cursor"
-        ? cfg.cursorBaseUrl
-        : cfg.provider === "openai"
-          ? "https://api.openai.com/v1"
-          : "https://api.anthropic.com";
+        ? CURSOR_CLOUD_API_BASE
+        : cfg.provider === "openai_compatible"
+          ? cfg.openaiCompatibleBaseUrl
+          : cfg.provider === "openai"
+            ? "https://api.openai.com/v1"
+            : "https://api.anthropic.com";
   try {
     if (!cfg.enabled) {
       return c.json(
@@ -3306,6 +3316,17 @@ app.post("/api/ai/test", async (c) => {
         { ok: false, error: "No API key on file — paste a key, Save, then Test.", provider: cfg.provider, baseUrlTried: tried },
         400,
       );
+    }
+    // Cloud Agents: validate the key via /v1/me (fast). Full digests launch a no-repo agent.
+    if (cfg.provider === "cursor" && cfg.apiKey) {
+      const probe = await probeCursorCloudKey(cfg.apiKey);
+      return c.json({
+        ok: true,
+        model: probe.model,
+        sample: probe.sample,
+        provider: cfg.provider,
+        baseUrlTried: probe.baseUrlTried,
+      });
     }
     const text = await runChat("evidence_digest", [
       { role: "system", content: "Reply with exactly: OK" },

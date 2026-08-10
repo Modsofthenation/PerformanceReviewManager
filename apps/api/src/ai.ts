@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { aiSettings } from "@prm/db";
 import { decryptSecret, getDb, getWorkspaceSecret, id, logActivity, nowIso } from "./store.js";
 import { aiGenerations } from "@prm/db";
+import { CURSOR_CLOUD_API_BASE, cursorCloudMe, runCursorCloudAgent } from "./cursorCloud.js";
 
 export type AiFeature =
   | "evidence_digest"
@@ -17,6 +18,9 @@ export type AiFeature =
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+/** Providers stored in ai_settings.provider (plus legacy aliases). */
+export type AiProviderId = "anthropic" | "openai" | "cursor" | "openai_compatible" | "ollama";
+
 function formatFetchFailure(label: string, baseUrl: string, err: unknown): Error {
   const detail = err instanceof Error ? err.message : String(err);
   const cause =
@@ -30,9 +34,7 @@ function formatFetchFailure(label: string, baseUrl: string, err: unknown): Error
     /fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|network|socket|timed out/i.test(combined);
   if (isNetwork) {
     return new Error(
-      `${label} could not reach ${baseUrl} (${combined || "network error"}). ` +
-        `Cursor dashboard keys (crsr_…) are for Cloud Agents — they are not a chat API. ` +
-        `Use Anthropic, OpenAI, or Ollama, or point this field at a running OpenAI-compatible /v1 gateway.`,
+      `${label} could not reach ${baseUrl} (${combined || "network error"}). Check the URL and that the service is running.`,
     );
   }
   return new Error(`${label} request failed: ${combined || "unknown error"}`);
@@ -137,11 +139,43 @@ export function resolveCursorBaseUrl(stored: string | null | undefined): string 
   return defaultCursorBaseUrl();
 }
 
+/**
+ * Normalize stored provider id.
+ * Legacy: `provider=cursor` + a custom gateway URL meant OpenAI-compatible chat —
+ * map that to `openai_compatible`. Bare `cursor` means Cloud Agents (`crsr_` keys).
+ */
+export function normalizeAiProvider(
+  stored: string | null | undefined,
+  gatewayBaseUrl: string | null,
+): AiProviderId {
+  const raw = (stored ?? "anthropic").trim();
+  if (raw === "openai_compatible") return "openai_compatible";
+  if (raw === "openai") return "openai";
+  if (raw === "ollama") return "ollama";
+  if (raw === "anthropic") return "anthropic";
+  if (raw === "cursor") {
+    if (gatewayBaseUrl) return "openai_compatible";
+    return "cursor";
+  }
+  return "anthropic";
+}
+
+function defaultModelsFor(provider: AiProviderId): { digest: string; draft: string } {
+  if (provider === "cursor") return { digest: "", draft: "" }; // Cursor account default
+  if (provider === "openai" || provider === "openai_compatible") {
+    return { digest: "gpt-4o-mini", draft: "gpt-4o-mini" };
+  }
+  if (provider === "ollama") return { digest: "llama3.1", draft: "llama3.1" };
+  return { digest: "claude-sonnet-4-5", draft: "claude-sonnet-4-5" };
+}
+
 export function getAiConfig() {
   const db = getDb();
   const row = db.select().from(aiSettings).where(eq(aiSettings.id, "default")).all()[0];
   const secret = getWorkspaceSecret();
-  const provider = row?.provider ?? "anthropic";
+  const gatewayBaseUrl = resolveCursorBaseUrl(row?.ollamaBaseUrl);
+  const provider = normalizeAiProvider(row?.provider, gatewayBaseUrl);
+  const defaults = defaultModelsFor(provider);
   let apiKey: string | null = null;
   if (row?.apiKeyEncrypted && secret) {
     try {
@@ -150,23 +184,42 @@ export function getAiConfig() {
       apiKey = null;
     }
   }
-  if (!apiKey && provider === "cursor") {
+  if (!apiKey && (provider === "cursor" || provider === "openai_compatible")) {
     apiKey = process.env.CURSOR_API_KEY?.trim() || null;
   }
   return {
     enabled: Boolean(row?.enabled),
+    /** Effective provider after legacy migration. */
     provider,
-    modelDigest: row?.modelDigest ?? (provider === "cursor" ? "gpt-4o-mini" : "claude-sonnet-4-5"),
-    modelDraft: row?.modelDraft ?? (provider === "cursor" ? "gpt-4o-mini" : "claude-sonnet-4-5"),
+    /** Raw value in DB (may still be legacy `cursor` + gateway). */
+    storedProvider: row?.provider ?? "anthropic",
+    modelDigest: row?.modelDigest ?? defaults.digest,
+    modelDraft: row?.modelDraft ?? defaults.draft,
     localOnly: Boolean(row?.localOnly),
     ollamaBaseUrl: row?.ollamaBaseUrl ?? DEFAULT_OLLAMA_BASE,
-    cursorBaseUrl: resolveCursorBaseUrl(row?.ollamaBaseUrl),
+    /** OpenAI-compatible gateway base (null when using Cloud Agents / Anthropic / etc.). */
+    openaiCompatibleBaseUrl: provider === "openai_compatible" ? gatewayBaseUrl : null,
+    /** @deprecated alias — same as openaiCompatibleBaseUrl */
+    cursorBaseUrl: provider === "openai_compatible" ? gatewayBaseUrl : null,
     privateNotesEgress: Boolean(row?.privateNotesEgress),
     meetingSummaryEgress: Boolean(row?.meetingSummaryEgress),
     documentExtractEgress: Boolean(row?.documentExtractEgress),
     apiKey,
     hasApiKey: Boolean(apiKey),
-    apiKeyFromEnv: provider === "cursor" && !row?.apiKeyEncrypted && Boolean(process.env.CURSOR_API_KEY?.trim()),
+    apiKeyFromEnv:
+      (provider === "cursor" || provider === "openai_compatible") &&
+      !row?.apiKeyEncrypted &&
+      Boolean(process.env.CURSOR_API_KEY?.trim()),
+  };
+}
+
+export async function probeCursorCloudKey(apiKey: string) {
+  const me = await cursorCloudMe(apiKey);
+  return {
+    ok: true as const,
+    model: `cursor-cloud:${me.apiKeyName ?? "api-key"}`,
+    sample: me.userEmail ? `Authenticated as ${me.userEmail}` : `Key OK (${me.apiKeyName ?? "unnamed"})`,
+    baseUrlTried: CURSOR_CLOUD_API_BASE,
   };
 }
 
@@ -183,8 +236,10 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
   if (!cfg.apiKey) {
     throw new Error(
       cfg.provider === "cursor"
-        ? "No Cursor API key — paste one in Settings or set CURSOR_API_KEY"
-        : "No API key configured",
+        ? "No Cursor API key — paste a crsr_… key from cursor.com/dashboard/api (or set CURSOR_API_KEY)"
+        : cfg.provider === "openai_compatible"
+          ? "No API key — paste a gateway key in Settings or set CURSOR_API_KEY"
+          : "No API key configured",
     );
   }
   const model = feature === "evidence_digest" ? cfg.modelDigest : cfg.modelDraft;
@@ -192,21 +247,34 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
     const text = await callOpenAI(cfg.apiKey, model || "gpt-4o-mini", messages);
     return { text, model: `openai:${model}`, provider: "openai" as const };
   }
-  if (cfg.provider === "cursor") {
-    if (!cfg.cursorBaseUrl) {
+  if (cfg.provider === "openai_compatible") {
+    if (!cfg.openaiCompatibleBaseUrl) {
       throw new Error(
-        "OpenAI-compatible base URL required. Cursor dashboard API keys (crsr_…) talk to Cloud Agents, not /v1/chat/completions. " +
-          "Prefer Anthropic, OpenAI, or Ollama — or set a gateway URL that implements OpenAI Chat Completions.",
+        "OpenAI-compatible base URL required. Set a gateway that implements /v1/chat/completions, " +
+          "or switch provider to Cursor Cloud Agents to use a crsr_… dashboard key.",
       );
     }
     const text = await callOpenAI(
       cfg.apiKey,
       model || "gpt-4o-mini",
       messages,
-      cfg.cursorBaseUrl,
+      cfg.openaiCompatibleBaseUrl,
       "OpenAI-compatible",
     );
-    return { text, model: `cursor:${model || "gpt-4o-mini"}`, provider: "cursor" as const };
+    return {
+      text,
+      model: `openai_compatible:${model || "gpt-4o-mini"}`,
+      provider: "openai_compatible" as const,
+    };
+  }
+  if (cfg.provider === "cursor") {
+    const result = await runCursorCloudAgent({
+      apiKey: cfg.apiKey,
+      messages,
+      feature,
+      model: model || null,
+    });
+    return { text: result.text, model: result.model, provider: "cursor" as const };
   }
   const text = await callAnthropic(cfg.apiKey, model || "claude-sonnet-4-5", messages, maxTokens);
   return { text, model: `anthropic:${model}`, provider: "anthropic" as const };
