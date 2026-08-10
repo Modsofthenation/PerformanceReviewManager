@@ -148,7 +148,7 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Settings → AI (keys, provider, models, test) | P0 | Anthropic / OpenAI / Cursor / Ollama; Cursor uses OpenAI-compatible gateway + `crsr_` key |
+| Settings → AI (keys, provider, models, test) | P0 | Anthropic / OpenAI / OpenAI-compatible gateway / Ollama; Cursor `crsr_` keys are Cloud Agents only (not chat) |
 | Evidence digest, draft sections, peer synthesize | P0 | |
 | Role gap analysis + promo draft | P0 | |
 | Bias / tone lint | P0 | Advisory; ephemeral findings by default |

@@ -21,14 +21,15 @@ Workbench trust: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 **Settings → AI** (workspace admin):
 
 - Enable AI  
-- Provider: Anthropic / OpenAI / **Cursor** / Ollama  
-- API key → encrypted with workspace secret (masked in UI); Test connection  
-  - Cursor: `crsr_…` from [cursor.com/dashboard → API Keys](https://cursor.com/dashboard), or `CURSOR_API_KEY` env  
-  - Cursor calls an **OpenAI-compatible** `/chat/completions` base URL (Settings field, default `http://127.0.0.1:18789/v1` or `CURSOR_API_BASE_URL`) — point this at your Cursor OpenAI-compatible gateway/proxy  
-- Models per capability (Cursor defaults toward `composer-2.5`)  
+- Provider: Anthropic / OpenAI / **OpenAI-compatible (custom URL)** / Ollama  
+- API key → encrypted with workspace secret (masked in UI); Test connection saves then probes  
+  - Anthropic / OpenAI: standard cloud keys  
+  - OpenAI-compatible: any gateway that implements `/v1/chat/completions` (set Base URL explicitly)  
+  - **Cursor dashboard keys (`crsr_…`) are for Cloud Agents only** — they are not a chat API for this app  
+  - Optional env for custom gateways: `CURSOR_API_BASE_URL` / `CURSOR_API_KEY`  
+- Models per capability  
 - **Local-only** mode  
 - **Private-tier egress matrix** (per class: private notes, meeting summaries, document extracts) — default **deny** for cloud  
-- Custom URL requires explicit “unverified endpoint” acknowledgment  
 - Surface provider retention/training **facts** (not unkeepable guarantees)
 
 Missing key → writing desk works; Generate CTA → Settings.

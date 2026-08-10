@@ -11,8 +11,10 @@ type Onboarding = {
   workspaceName: string | null;
 };
 
-/** Shown after empty workspace create until team + first cycle exist (or dismissed). */
-export function OnboardingWizard() {
+type StepKey = "team" | "cycle" | "done";
+
+/** Single checklist after empty workspace create until team + first cycle exist. */
+export function OnboardingWizard({ onActiveChange }: { onActiveChange?: (active: boolean) => void }) {
   const [data, setData] = useState<Onboarding | null>(null);
 
   async function load() {
@@ -27,80 +29,113 @@ export function OnboardingWizard() {
     load();
   }, []);
 
+  useEffect(() => {
+    onActiveChange?.(Boolean(data && !data.completed));
+  }, [data, onActiveChange]);
+
   if (!data || data.completed) return null;
 
-  const step = data.personCount === 0 ? "team" : data.cycleCount === 0 ? "cycle" : "roles";
+  const step: StepKey =
+    data.personCount === 0 ? "team" : data.cycleCount === 0 ? "cycle" : "done";
 
-  if (step === "team") {
-    return (
-      <NextStep
-        tone="brand"
-        label="Set up your empty workspace"
-        detail="1) Add yourself as EM on Team, 2) add directs, 3) assign roles, 4) open a cycle. Demo seed was skipped."
-        action={
-          <>
-            <Link className="btn" to="/team">
-              Add people
-            </Link>
+  const steps = [
+    { key: "team" as const, label: "Add your team", done: data.personCount > 0 },
+    { key: "cycle" as const, label: "Open a review cycle", done: data.cycleCount > 0 },
+    { key: "done" as const, label: "Assign roles & write", done: step === "done" },
+  ];
+
+  return (
+    <div className="panel stack" style={{ gap: "0.75rem" }}>
+      <div>
+        <h2 style={{ margin: 0 }}>Get set up</h2>
+        <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+          Three steps — then Home becomes your review command center.
+        </p>
+      </div>
+      <ol style={{ margin: 0, paddingLeft: "1.25rem" }}>
+        {steps.map((s) => (
+          <li
+            key={s.key}
+            style={{
+              marginBottom: "0.35rem",
+              color: s.done ? "var(--ok)" : s.key === step ? "var(--fg)" : "var(--muted)",
+              fontWeight: s.key === step ? 600 : 400,
+            }}
+          >
+            {s.done ? "✓ " : s.key === step ? "→ " : ""}
+            {s.label}
+          </li>
+        ))}
+      </ol>
+
+      {step === "team" && (
+        <NextStep
+          tone="brand"
+          label={data.personCount === 0 ? "Add yourself and your directs" : "Add your directs"}
+          detail="On Team: you are the EM (no manager). Then add each direct, or paste a CSV. Roles can wait until after the first cycle."
+          action={
+            <>
+              <Link className="btn" to="/team">
+                Open team
+              </Link>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={async () => {
+                  await api("/api/workspace/settings", {
+                    method: "PUT",
+                    body: JSON.stringify({ onboarding: { completed: true, step: "skipped" } }),
+                  });
+                  setData({ ...data, completed: true });
+                }}
+              >
+                Skip for now
+              </button>
+            </>
+          }
+        />
+      )}
+
+      {step === "cycle" && (
+        <NextStep
+          tone="brand"
+          label="Open your first review cycle"
+          detail={`${data.personCount} people on the roster. Create a cycle window, then export self-review bundles from Cycles.`}
+          action={
+            <>
+              <Link className="btn" to="/cycles">
+                Create cycle
+              </Link>
+              <Link className="btn secondary" to="/team">
+                Edit team
+              </Link>
+            </>
+          }
+        />
+      )}
+
+      {step === "done" && (
+        <NextStep
+          tone="ok"
+          label="Ready to write"
+          detail="Assign any missing roles, then use Home as your pipeline. You can re-open this checklist anytime by clearing onboarding in workspace settings."
+          action={
             <button
               type="button"
-              className="btn ghost"
+              className="btn"
               onClick={async () => {
                 await api("/api/workspace/settings", {
                   method: "PUT",
-                  body: JSON.stringify({ onboarding: { completed: true, step: "skipped" } }),
+                  body: JSON.stringify({ onboarding: { completed: true, step: "done" } }),
                 });
                 setData({ ...data, completed: true });
               }}
             >
-              Dismiss
+              Go to command center
             </button>
-          </>
-        }
-      />
-    );
-  }
-
-  if (step === "cycle") {
-    return (
-      <NextStep
-        tone="brand"
-        label="Open your first review cycle"
-        detail="People are on the roster. Create a cycle window, then export self-review bundles from Cycles."
-        action={
-          <>
-            <Link className="btn" to="/cycles">
-              Create cycle
-            </Link>
-            <Link className="btn secondary" to="/roles">
-              Assign roles
-            </Link>
-          </>
-        }
-      />
-    );
-  }
-
-  return (
-    <NextStep
-      tone="ok"
-      label="Workspace ready"
-      detail="Team and cycle exist. Assign any missing roles, then write from Home."
-      action={
-        <button
-          type="button"
-          className="btn"
-          onClick={async () => {
-            await api("/api/workspace/settings", {
-              method: "PUT",
-              body: JSON.stringify({ onboarding: { completed: true, step: "done" } }),
-            });
-            setData({ ...data, completed: true });
-          }}
-        >
-          Mark setup complete
-        </button>
-      }
-    />
+          }
+        />
+      )}
+    </div>
   );
 }

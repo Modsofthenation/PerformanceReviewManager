@@ -45,6 +45,7 @@ export function HomePage() {
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
   const [cycleStats, setCycleStats] = useState<CycleStatsDTO | null>(null);
   const [attention, setAttention] = useState<DirectorAttentionDTO | null>(null);
+  const [setupActive, setSetupActive] = useState(false);
 
   useEffect(() => {
     api<CycleDTO[]>("/api/cycles").then((c) => {
@@ -122,26 +123,8 @@ export function HomePage() {
   }, [items]);
 
   const next = (() => {
-    if (personCount === 0) {
-      return (
-        <NextStep
-          tone="brand"
-          label="Add your team"
-          detail="This workspace has no people yet. Add yourself as EM and your directs on Team, then assign roles and open a cycle."
-          action={<Link className="btn" to="/team">Open team</Link>}
-        />
-      );
-    }
-    if (!cycleId) {
-      return (
-        <NextStep
-          tone="warn"
-          label="Create a review cycle"
-          detail="Open a cycle, then export self-review bundles and write manager drafts from Home."
-          action={<Link className="btn" to="/cycles">Create cycle</Link>}
-        />
-      );
-    }
+    // OnboardingWizard owns the empty / first-cycle path — avoid duplicate banners.
+    if (setupActive || personCount === 0 || !cycleId) return null;
     if (stats.unassigned[0]?.person) {
       const p = stats.unassigned[0].person;
       return (
@@ -224,18 +207,50 @@ export function HomePage() {
     );
   })();
 
+  const showSetupOnly = personCount === 0 || (!cycleId && (setupActive || cycles.length === 0));
+
   return (
     <div className="stack">
       <PageHeader
-        title="Command center"
-        job="Unblock the next person in your review pipeline — roles, bundles, then writing."
-        primary={cycleId ? <Link className="btn secondary" to="/cycles">Manage cycles & bundles</Link> : undefined}
+        title={showSetupOnly ? "Welcome" : "Command center"}
+        job={
+          showSetupOnly
+            ? "Set up your team and first cycle — then this page becomes your review pipeline."
+            : "Unblock the next person in your review pipeline — roles, bundles, then writing."
+        }
+        primary={
+          !showSetupOnly && cycleId ? (
+            <Link className="btn secondary" to="/cycles">
+              Manage cycles & bundles
+            </Link>
+          ) : undefined
+        }
       />
 
-      <OnboardingWizard />
+      <OnboardingWizard onActiveChange={setSetupActive} />
 
       {next}
 
+      {showSetupOnly ? (
+        <Section
+          id="home-setup"
+          title="What happens next"
+          when="After empty workspace create — before the review command center is useful."
+          how="Add people on Team (CSV or one-by-one), optionally assign roles, then create a cycle. Demo workspaces skip this."
+        >
+          <ol style={{ margin: 0, paddingLeft: "1.25rem" }}>
+            <li>
+              <Link to="/team">Team</Link> — add directs (you’re already EM if you entered your name at create)
+            </li>
+            <li>
+              <Link to="/roles">Roles</Link> — assign current (+ optional next) role definitions
+            </li>
+            <li>
+              <Link to="/cycles">Cycles</Link> — open a review window and export self/peer bundles
+            </li>
+          </ol>
+        </Section>
+      ) : (
       <PageSectionsLayout
         sections={[
           { id: "home-cycle", label: "Cycle" },
@@ -538,6 +553,7 @@ export function HomePage() {
         )}
       </Section>
       </PageSectionsLayout>
+      )}
     </div>
   );
 }
