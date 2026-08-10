@@ -263,4 +263,3 @@ Product and architecture live under [`/docs`](./docs). Start with [`docs/PRODUCT
 - Security reports: [`SECURITY.md`](./SECURITY.md)
 - Contributing: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - Code of conduct: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
-- Code of conduct: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
