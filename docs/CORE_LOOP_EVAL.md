@@ -39,7 +39,7 @@ upload role R&R → tag people → year-round dossier
 | Promotion packets | Done | Next-role marks + AI case draft |
 | Backfill + MCP bulk load | Done | Thin = ach+fb+docs+goals &lt; 2; MCP needs explicit unlock / `PRM_PASSWORD` |
 | Settings → AI | Done | Private notes / meeting / document extract egress **enforced** on cloud paths |
-| Desktop CSP / launch token / API sidecar | Done | CSP set; shell IPC removed; packaged Node + `prm-api.mjs` spawned by Tauri; desktop installers via Actions **Run workflow** (not every merge) |
+| Desktop CSP / launch token / API sidecar | Done | CSP set; shell IPC removed; packaged Node + `prm-api.mjs` spawned by Tauri; desktop installers via Actions → **Desktop Installers** → **Run workflow** (not every merge) |
 
 ## Remaining gaps (honest)
 
