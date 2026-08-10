@@ -48,6 +48,8 @@ Settings → **Check for updates** compares the packaged version (`get_app_versi
 
 Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 
+### Desktop Installers (artifacts only)
+
 CI (`ci.yml`) runs unit tests + typecheck only. Desktop installers are built on demand via the **Desktop Installers** workflow (`workflow_dispatch`). Default platform choice is **windows-and-linux**; the Actions UI also offers Windows-only, Linux-only, macOS, or all three. Each green job uploads an Actions artifact (retained 30 days):
 
 | Artifact name | Typical contents |
@@ -56,13 +58,21 @@ CI (`ci.yml`) runs unit tests + typecheck only. Desktop installers are built on 
 | `desktop-macos-aarch64` | `.dmg` / `.app` under `bundle/` |
 | `desktop-windows-x86_64` | `.msi` / NSIS `.exe` under `bundle/` |
 
-Download from the run’s **Artifacts** section in the GitHub UI, or:
-
 ```bash
 gh workflow run "Desktop Installers" -f platforms=windows-and-linux
 gh run download <run-id> -n desktop-windows-x86_64
 # also: desktop-linux-x86_64, desktop-macos-aarch64
 ```
+
+### GitHub Releases (alpha / tagged)
+
+Use the **Release** workflow (Actions → **Release** → **Run workflow**) to build installers and publish a GitHub Release:
+
+- Input `version`: semver without `v` (default `0.1.0-alpha.1`)
+- Input `prerelease`: leave on for alphas
+- Or push a tag `v*` (hyphenated versions such as `v0.1.0-alpha.1` are treated as pre-releases)
+
+Assets attached to the release are the platform installers (`.deb` / `.AppImage`, `.dmg`, `.msi` / `.exe`).
 
 ## Icons
 

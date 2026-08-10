@@ -1,0 +1,287 @@
+name: Release
+
+on:
+  # Cut a GitHub Release with desktop installers (Linux / macOS / Windows).
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver without leading v (e.g. 0.1.0-alpha.1)"
+        required: true
+        type: string
+        default: "0.1.0-alpha.1"
+      prerelease:
+        description: "Mark the GitHub Release as a pre-release"
+        required: true
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.out.outputs.version }}
+      tag: ${{ steps.out.outputs.tag }}
+      prerelease: ${{ steps.out.outputs.prerelease }}
+    steps:
+      - id: out
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+            PRERELEASE="${{ inputs.prerelease }}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+            VERSION="${TAG_NAME#v}"
+            if [[ "$VERSION" == *"-"* ]]; then
+              PRERELEASE=true
+            else
+              PRERELEASE=false
+            fi
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].+)?$ ]]; then
+            echo "Invalid version: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=v$VERSION prerelease=$PRERELEASE"
+
+  test:
+    name: Test (Ubuntu)
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm rebuild better-sqlite3
+      - run: pnpm -r typecheck
+      - run: pnpm test
+
+  desktop:
+    name: Desktop ${{ matrix.platform }}
+    needs: [meta, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: --target x86_64-unknown-linux-gnu
+            rust_target: x86_64-unknown-linux-gnu
+            artifact: desktop-linux-x86_64
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust_target: aarch64-apple-darwin
+            artifact: desktop-macos-aarch64
+          - platform: windows-latest
+            args: --target x86_64-pc-windows-msvc
+            rust_target: x86_64-pc-windows-msvc
+            artifact: desktop-windows-x86_64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Linux WebKit deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm rebuild better-sqlite3
+      - name: Align package versions to release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          python3 - <<'PY' "$VERSION"
+          import json, pathlib, re, sys
+          version = sys.argv[1]
+          roots = [
+            pathlib.Path("package.json"),
+            pathlib.Path("apps/api/package.json"),
+            pathlib.Path("apps/ui/package.json"),
+            pathlib.Path("apps/desktop/package.json"),
+            pathlib.Path("packages/db/package.json"),
+            pathlib.Path("packages/mcp/package.json"),
+            pathlib.Path("packages/shared/package.json"),
+          ]
+          for path in roots:
+            data = json.loads(path.read_text())
+            data["version"] = version
+            path.write_text(json.dumps(data, indent=2) + "\n")
+          conf = pathlib.Path("apps/desktop/src-tauri/tauri.conf.json")
+          conf_data = json.loads(conf.read_text())
+          conf_data["version"] = version
+          conf.write_text(json.dumps(conf_data, indent=2) + "\n")
+          cargo = pathlib.Path("apps/desktop/src-tauri/Cargo.toml")
+          text = cargo.read_text()
+          text, n = re.subn(r'(?m)^version = "[^"]+"', f'version = "{version}"', text, count=1)
+          if n != 1:
+              raise SystemExit("failed to patch Cargo.toml version")
+          cargo.write_text(text)
+          print(f"set version {version}")
+          PY
+      - name: Bundle API sidecar + Node
+        run: node apps/desktop/scripts/bundle-api-sidecar.mjs --node
+        env:
+          PRM_BUNDLE_NODE: "1"
+      - uses: tauri-apps/tauri-action@v0
+        id: tauri
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          args: ${{ matrix.args }}
+          includeUpdaterJson: false
+      - name: Smoke API sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIDE="apps/desktop/src-tauri/sidecars"
+          UI="apps/desktop/src-tauri/ui-dist"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            NODE="$SIDE/node.exe"
+          else
+            NODE="$SIDE/node"
+            chmod +x "$NODE" || true
+          fi
+          test -f "$NODE"
+          test -f "$SIDE/prm-api.mjs"
+          test -f "$UI/index.html"
+          DATA="${RUNNER_TEMP:-/tmp}/prm-sidecar-smoke"
+          rm -rf "$DATA"
+          mkdir -p "$DATA"
+          PRM_DATA_DIR="$DATA" PRM_PORT=8799 PRM_LAUNCH_TOKEN=ci-smoke PRM_UI_DIR="$UI" \
+            "$NODE" "$SIDE/prm-api.mjs" >"$DATA/out.log" 2>&1 &
+          PID=$!
+          cleanup() { kill "$PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          for i in $(seq 1 50); do
+            if curl -sf "http://127.0.0.1:8799/api/health" >/dev/null; then
+              echo "sidecar healthy"
+              curl -sf "http://127.0.0.1:8799/api/workspace/status" -H "x-prm-launch-token: ci-smoke"
+              echo
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "sidecar failed to become healthy" >&2
+          cat "$DATA/out.log" >&2 || true
+          exit 1
+      - name: Stage installer artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="apps/desktop/src-tauri/target/${{ matrix.rust_target }}/release/bundle"
+          DST="${RUNNER_TEMP}/release-assets"
+          mkdir -p "$DST"
+          # Prefer distributable installers; skip raw .app directories.
+          find "$SRC" -type f \( \
+            -name '*.deb' -o -name '*.AppImage' -o -name '*.rpm' -o \
+            -name '*.dmg' -o -name '*.msi' -o -name '*.exe' \
+          \) -print -exec cp -v {} "$DST/" \;
+          ls -la "$DST"
+          test -n "$(ls -A "$DST")"
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish GitHub Release
+    needs: [meta, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: release-assets
+          pattern: desktop-*
+          merge-multiple: true
+      - name: List assets
+        run: find release-assets -type f | sort
+      - name: Ensure release tag exists
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ needs.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: Performance Review Manager ${{ needs.meta.outputs.tag }}
+          prerelease: ${{ needs.meta.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          body: |
+            ## Alpha release
+
+            Local workbench for evidence-backed performance reviews and promotion cases.
+
+            ### Desktop installers
+
+            | Platform | Artifact |
+            |----------|----------|
+            | Linux x86_64 | `.deb` / `.AppImage` |
+            | macOS Apple Silicon | `.dmg` |
+            | Windows x86_64 | `.msi` / NSIS `.exe` |
+
+            ### Notes
+
+            - First-run: create an empty workspace or demo team; lock/encrypt between sessions.
+            - Demo password is for exploration only — do not store real employee data behind it.
+            - Signed auto-update is not enabled yet; use **Settings → Check for desktop updates** or download from this release.
+
+            ### Verify
+
+            Compare checksums after download if your browser provides them, then install and unlock a fresh workspace.
+          files: |
+            release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

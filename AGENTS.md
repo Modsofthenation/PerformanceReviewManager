@@ -8,7 +8,7 @@ Performance Review Manager — a local, single-user ("solo EM") pnpm monorepo. S
 - `@prm/api` (`apps/api`) — Hono + better-sqlite3 backend on `http://127.0.0.1:8787`. Run with `pnpm dev:api` (uses `tsx watch`, no strict typecheck).
 - `@prm/ui` (`apps/ui`) — React + Vite frontend on `http://localhost:5173`, proxies `/api` → the API. Run with `pnpm dev:ui`.
 - `pnpm dev` runs both in parallel — this is the primary dev entrypoint.
-- `@prm/desktop` (`apps/desktop`) — Tauri shell. `desktop:dev`/`desktop:build` need Rust + system WebView libraries and are not validated in the headless cloud VM. Packaged desktop installers run only via Actions → **Desktop Installers** → **Run workflow** (not on every merge; defaults to Windows + Linux).
+- `@prm/desktop` (`apps/desktop`) — Tauri shell. `desktop:dev`/`desktop:build` need Rust + system WebView libraries and are not validated in the headless cloud VM. Packaged desktop installers run via Actions → **Desktop Installers** → **Run workflow** (not on every merge; defaults to Windows + Linux). Formal GitHub Releases (with installers attached) use Actions → **Release** → **Run workflow**.
 
 ### Package manager (important, non-obvious)
 - This repo requires **pnpm 10.33.3**. The VM's default corepack resolves pnpm 11, which (a) rejects this committed lockfile via a `minimumReleaseAge` supply-chain policy and (b) ignores the `pnpm.onlyBuiltDependencies` field in `package.json` that is needed to build the `better-sqlite3` native module. The update script pins 10.33.3 via `corepack prepare pnpm@10.33.3 --activate`; keep using pnpm 10.x. If native `better-sqlite3` is missing, run `pnpm rebuild better-sqlite3`.
