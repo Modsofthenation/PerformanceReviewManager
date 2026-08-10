@@ -94,7 +94,7 @@ jobs:
             rust_target: aarch64-apple-darwin
             artifact: desktop-macos-aarch64
           - platform: windows-latest
-            args: --target x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc --bundles nsis
             rust_target: x86_64-pc-windows-msvc
             artifact: desktop-windows-x86_64
     runs-on: ${{ matrix.platform }}
