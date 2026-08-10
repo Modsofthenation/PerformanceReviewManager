@@ -2269,14 +2269,21 @@ app.put("/api/ai/settings", async (c) => {
   else if (body.apiKey && secret) apiKeyEncrypted = encryptSecret(body.apiKey, secret);
   else if (body.apiKey && !secret) return c.json({ error: "Workspace secret unavailable — re-unlock" }, 400);
 
+  const provider = body.provider ?? current?.provider ?? "anthropic";
+  let ollamaBaseUrl = body.ollamaBaseUrl ?? current?.ollamaBaseUrl;
+  // Cloud Agents must not keep a leftover custom gateway URL (legacy cursor+URL → openai_compatible).
+  if (provider === "cursor") {
+    ollamaBaseUrl = "http://127.0.0.1:11434";
+  }
+
   db.update(aiSettings)
     .set({
       enabled: body.enabled === undefined ? current?.enabled ?? 0 : body.enabled ? 1 : 0,
-      provider: body.provider ?? current?.provider ?? "anthropic",
+      provider,
       modelDigest: body.modelDigest ?? current?.modelDigest,
       modelDraft: body.modelDraft ?? current?.modelDraft,
       localOnly: body.localOnly === undefined ? current?.localOnly ?? 0 : body.localOnly ? 1 : 0,
-      ollamaBaseUrl: body.ollamaBaseUrl ?? current?.ollamaBaseUrl,
+      ollamaBaseUrl,
       privateNotesEgress:
         body.privateNotesEgress === undefined ? current?.privateNotesEgress ?? 0 : body.privateNotesEgress ? 1 : 0,
       meetingSummaryEgress:
