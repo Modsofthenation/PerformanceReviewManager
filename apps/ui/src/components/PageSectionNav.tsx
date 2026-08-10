@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type SectionNavItem = {
   id: string;
@@ -6,9 +6,9 @@ export type SectionNavItem = {
 };
 
 /**
- * Sticky “On this page” links with active-section highlighting.
- * Scroll tracking avoids layout thrashing: use IntersectionObserver entry
- * geometry only, coalesce updates to animation frames, and skip no-op sets.
+ * Sticky “On this page” links. Active state is click/hash driven only —
+ * no IntersectionObserver scroll-spy (that was a major source of scroll jank
+ * on long pages, especially in WebView).
  */
 export function PageSectionNav({
   items,
@@ -19,89 +19,35 @@ export function PageSectionNav({
 }) {
   const [activeId, setActiveId] = useState(items[0]?.id ?? "");
   const sectionKey = items.map((item) => item.id).join("|");
-  const clickLockUntil = useRef(0);
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-
-  useEffect(() => {
-    const first = sectionKey.split("|")[0];
-    if (first) setActiveId(first);
-  }, [sectionKey]);
 
   useEffect(() => {
     const ids = sectionKey.split("|").filter(Boolean);
-    const nodes = ids
-      .map((id) => document.getElementById(id))
-      .filter((el): el is HTMLElement => Boolean(el));
-    if (nodes.length === 0) return;
+    const fromHash = window.location.hash.replace(/^#/, "");
+    if (fromHash && ids.includes(fromHash)) {
+      setActiveId(fromHash);
+      return;
+    }
+    if (ids[0]) setActiveId(ids[0]);
+  }, [sectionKey]);
 
-    const ratios = new Map<string, number>();
-    const tops = new Map<string, number>();
-    let raf = 0;
-
-    const commit = () => {
-      raf = 0;
-      if (Date.now() < clickLockUntil.current) return;
-
-      const ordered = itemsRef.current;
-      let bestId = "";
-      let bestRatio = 0;
-      for (const item of ordered) {
-        const ratio = ratios.get(item.id) ?? 0;
-        if (ratio > bestRatio) {
-          bestRatio = ratio;
-          bestId = item.id;
-        }
-      }
-      if (bestId && bestRatio > 0.02) {
-        setActiveId((prev) => (prev === bestId ? prev : bestId));
-        return;
-      }
-
-      let aboveId = "";
-      let aboveTop = -Infinity;
-      for (const item of ordered) {
-        const top = tops.get(item.id);
-        if (top == null) continue;
-        if (top <= 140 && top >= aboveTop) {
-          aboveTop = top;
-          aboveId = item.id;
-        }
-      }
-      if (aboveId) setActiveId((prev) => (prev === aboveId ? prev : aboveId));
+  useEffect(() => {
+    const ids = new Set(sectionKey.split("|").filter(Boolean));
+    const onHash = () => {
+      const id = window.location.hash.replace(/^#/, "");
+      if (id && ids.has(id)) setActiveId(id);
     };
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = entry.target.id;
-          ratios.set(id, entry.isIntersecting ? entry.intersectionRatio : 0);
-          // Prefer observer-provided rect — do not call getBoundingClientRect (forces layout).
-          tops.set(id, entry.boundingClientRect.top);
-        }
-        if (!raf) raf = requestAnimationFrame(commit);
-      },
-      {
-        root: null,
-        rootMargin: "-10% 0px -55% 0px",
-        // Fewer thresholds → fewer callbacks while scrolling.
-        threshold: [0, 0.25, 0.6, 1],
-      },
-    );
-
-    for (const node of nodes) observer.observe(node);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      observer.disconnect();
-    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, [sectionKey]);
 
   function goTo(id: string) {
     const el = document.getElementById(id);
     if (!el) return;
-    clickLockUntil.current = Date.now() + 700;
     setActiveId(id);
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Update hash without fighting smooth scroll (replaceState avoids hashchange jump).
+    const url = `${window.location.pathname}${window.location.search}#${id}`;
+    window.history.replaceState(null, "", url);
     el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   }
 

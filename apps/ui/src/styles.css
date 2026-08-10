@@ -477,9 +477,7 @@ a:hover { color: var(--brand-strong); }
 .settings-section,
 .page-section {
   scroll-margin-top: 1.25rem;
-  /* Skip paint/layout for off-screen sections on long pages (Settings, Person, Writing desk). */
-  content-visibility: auto;
-  contain-intrinsic-size: auto 24rem;
+  /* Avoid content-visibility here — size estimation caused scroll jumps/jank on long pages. */
 }
 .page-section-nav {
   position: sticky;
