@@ -119,7 +119,7 @@ export function UnlockPage({
               onClick={() => selectMode("empty")}
             >
               <strong>Empty workspace</strong>
-              <span>Start clean — enter your name as EM, then add directs on Team.</span>
+              <span>Start clean — enter your name as EM, then a guided setup for team, roles, AI, and evidence.</span>
             </button>
             <button
               type="button"

@@ -1,11 +1,16 @@
 import type { Hono } from "hono";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
+  achievements,
   cycleParticipants,
   cycles,
   documents,
+  feedbackItems,
+  goals,
+  integrationSettings,
   people,
   reviews,
+  roleAssignments,
   workspace,
 } from "@prm/db";
 import { buildAiEstimate } from "./aiEstimate.js";
@@ -23,6 +28,7 @@ import {
   purgeEligibleCycles,
   readWorkspaceSettings,
   writeWorkspaceSettings,
+  type OnboardingStep,
   type RetentionPolicy,
 } from "./workspaceSettings.js";
 import { getDb, id, logActivity, nowIso } from "./store.js";
@@ -60,7 +66,7 @@ export function registerFeatureRoutes(app: Hono<any>, helpers: Helpers) {
     const body = await c.req.json<{
       retention?: RetentionPolicy;
       legalHold?: boolean;
-      onboarding?: { completed?: boolean; step?: string };
+      onboarding?: { completed?: boolean; step?: string; skipped?: Partial<Record<string, boolean>> };
     }>();
     if (body.retention && !["current_plus_previous", "current_only", "keep_all"].includes(body.retention)) {
       return c.json({ error: "Invalid retention policy" }, 400);
@@ -335,16 +341,80 @@ export function registerFeatureRoutes(app: Hono<any>, helpers: Helpers) {
   app.get("/api/onboarding", (c) => {
     const db = getDb();
     const ws = db.select().from(workspace).limit(1).all()[0];
-    const personCount = db.select().from(people).all().length;
+    const allPeople = db.select().from(people).all();
+    const directs = allPeople.filter((p) => p.managerId);
     const cycleCount = db.select().from(cycles).all().filter((x) => x.status !== "purged").length;
     const settings = readWorkspaceSettings();
+    const ai = getAiConfig();
+
+    let unassignedRoleCount = 0;
+    let thinEvidenceCount = 0;
+    for (const p of directs) {
+      const active = db
+        .select()
+        .from(roleAssignments)
+        .where(and(eq(roleAssignments.personId, p.id), isNull(roleAssignments.effectiveTo)))
+        .all()[0];
+      if (!active) unassignedRoleCount += 1;
+      const ach = db.select().from(achievements).where(eq(achievements.personId, p.id)).all().length;
+      const fb = db.select().from(feedbackItems).where(eq(feedbackItems.toPersonId, p.id)).all().length;
+      const docs = db.select().from(documents).where(eq(documents.personId, p.id)).all().length;
+      const goalsN = db.select().from(goals).where(eq(goals.personId, p.id)).all().length;
+      if (ach + fb + docs + goalsN < 2) thinEvidenceCount += 1;
+    }
+
+    const integrationsEnabled = db
+      .select()
+      .from(integrationSettings)
+      .all()
+      .filter((r) => r.enabled)
+      .map((r) => r.id);
+
+    const skipped = settings.onboarding?.skipped ?? {};
+    const inferredStep = (): OnboardingStep => {
+      if (allPeople.length === 0 || directs.length === 0) return "team";
+      if (unassignedRoleCount > 0 && !skipped.roles) return "roles";
+      if (!ai.hasApiKey && !ai.enabled && !skipped.ai) return "ai";
+      if (integrationsEnabled.length === 0 && !skipped.integrations) return "integrations";
+      if (thinEvidenceCount > 0 && !skipped.backfill) return "backfill";
+      return "done";
+    };
+
+    const step = (settings.onboarding?.step as OnboardingStep | undefined) ?? inferredStep();
+    const neverStarted = settings.onboarding === undefined;
+    const completed =
+      Boolean(settings.onboarding?.completed) || (neverStarted && allPeople.length > 0);
+
     return c.json({
-      completed: Boolean(settings.onboarding?.completed) || (personCount > 0 && cycleCount > 0),
-      step: settings.onboarding?.step ?? (personCount === 0 ? "team" : cycleCount === 0 ? "cycle" : "done"),
-      personCount,
+      completed,
+      step: completed ? "done" : step,
+      skipped,
+      personCount: allPeople.length,
+      directCount: directs.length,
+      unassignedRoleCount,
+      thinEvidenceCount,
       cycleCount,
+      hasAiKey: ai.hasApiKey,
+      aiEnabled: ai.enabled,
+      integrationsEnabled,
       workspaceName: ws?.name ?? null,
     });
+  });
+
+  app.put("/api/onboarding", async (c) => {
+    const body = await c.req.json<{
+      completed?: boolean;
+      step?: string;
+      skipped?: Partial<Record<string, boolean>>;
+    }>();
+    const next = writeWorkspaceSettings({
+      onboarding: {
+        completed: body.completed,
+        step: body.step,
+        skipped: body.skipped,
+      },
+    });
+    return c.json({ ok: true, onboarding: next.onboarding });
   });
 }
 

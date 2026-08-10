@@ -20,6 +20,8 @@ import { SprintPulsePage } from "./pages/SprintPulsePage";
 import { SearchPage } from "./pages/SearchPage";
 import { BackfillPage } from "./pages/BackfillPage";
 import { TemplatesPage } from "./pages/TemplatesPage";
+import { SetupPage } from "./pages/SetupPage";
+import type { OnboardingStateDTO } from "@prm/shared";
 
 const NAV = [
   {
@@ -56,6 +58,7 @@ export function App() {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [navOpen, setNavOpen] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const { resolved, toggle } = useTheme();
   const location = useLocation();
 
@@ -91,6 +94,26 @@ export function App() {
   useEffect(() => {
     refresh();
   }, []);
+
+  const unlocked = Boolean(getToken()) && Boolean(status?.unlocked);
+
+  useEffect(() => {
+    if (!status?.initialized || !unlocked) {
+      setNeedsSetup(false);
+      return;
+    }
+    let cancelled = false;
+    void api<OnboardingStateDTO>("/api/onboarding")
+      .then((o) => {
+        if (!cancelled) setNeedsSetup(!o.completed);
+      })
+      .catch(() => {
+        if (!cancelled) setNeedsSetup(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status?.initialized, unlocked, location.pathname]);
 
   const themeToggle = (
     <button
@@ -149,10 +172,9 @@ export function App() {
 
   if (!status) return <div className="unlock-screen"><p>Loading…</p></div>;
 
-  const unlocked = Boolean(getToken()) && status.unlocked;
-
   async function handleWorkspaceDestroyed() {
     setToken(null);
+    setNeedsSetup(false);
     await refresh();
   }
 
@@ -170,6 +192,10 @@ export function App() {
         <div className="theme-float">{themeToggle}</div>
       </>
     );
+  }
+
+  if (needsSetup && location.pathname !== "/setup") {
+    return <Navigate to="/setup" replace />;
   }
 
   return (
@@ -252,6 +278,7 @@ export function App() {
       </aside>
       <main className="main">
         <Routes>
+          <Route path="/setup" element={<SetupPage />} />
           <Route path="/" element={<HomePage />} />
           <Route path="/team" element={<TeamPage />} />
           <Route path="/team/:id" element={<PersonPage />} />

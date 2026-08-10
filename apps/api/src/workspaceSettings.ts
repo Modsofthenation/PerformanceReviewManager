@@ -4,11 +4,19 @@ import { getDb, id, logActivity, nowIso } from "./store.js";
 
 export type RetentionPolicy = "current_plus_previous" | "current_only" | "keep_all";
 
+export type OnboardingStep = "team" | "roles" | "ai" | "integrations" | "backfill" | "done";
+
+export type OnboardingState = {
+  completed?: boolean;
+  step?: OnboardingStep | string;
+  skipped?: Partial<Record<string, boolean>>;
+};
+
 export type WorkspaceSettings = {
   retention: RetentionPolicy;
   legalHold: boolean;
   templates?: Record<string, unknown>;
-  onboarding?: { completed?: boolean; step?: string };
+  onboarding?: OnboardingState;
 };
 
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
@@ -43,11 +51,22 @@ export function writeWorkspaceSettings(patch: Partial<WorkspaceSettings>): Works
   const row = db.select().from(workspace).limit(1).all()[0];
   if (!row) throw new Error("Workspace not initialized");
   const current = readWorkspaceSettings();
+  const nextOnboarding =
+    patch.onboarding !== undefined
+      ? {
+          ...current.onboarding,
+          ...patch.onboarding,
+          skipped: {
+            ...(current.onboarding?.skipped ?? {}),
+            ...(patch.onboarding.skipped ?? {}),
+          },
+        }
+      : current.onboarding;
   const next: WorkspaceSettings = {
     ...current,
     ...patch,
     templates: patch.templates !== undefined ? patch.templates : current.templates,
-    onboarding: patch.onboarding !== undefined ? { ...current.onboarding, ...patch.onboarding } : current.onboarding,
+    onboarding: nextOnboarding,
   };
   // Preserve unrelated settingsJson keys
   let raw: Record<string, unknown> = {};

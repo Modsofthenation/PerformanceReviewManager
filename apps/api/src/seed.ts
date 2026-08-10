@@ -80,7 +80,11 @@ export async function seedWorkspace(opts: {
     id: wsId,
     name: opts.name ?? "Platform Engineering",
     createdAt,
-    settingsJson: JSON.stringify({ retention: "current_plus_previous", theme: "workbench" }),
+    settingsJson: JSON.stringify({
+      retention: "current_plus_previous",
+      theme: "workbench",
+      onboarding: { completed: true, step: "done" },
+    }),
     passwordHash: hash,
     passwordSalt: salt,
   }).run();
