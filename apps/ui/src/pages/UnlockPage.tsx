@@ -173,7 +173,8 @@ export function UnlockPage({
               autoComplete="name"
             />
             <p className="muted" style={{ margin: "0.35rem 0 0" }}>
-              Creates you as the first person on the roster (no manager). You can add directs next.
+              Creates you as the first person on the roster (Engineering Manager). The PE career framework
+              (Graduate → CTO) is preloaded so you can assign roles immediately.
             </p>
           </div>
         )}

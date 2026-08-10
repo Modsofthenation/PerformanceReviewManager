@@ -11,6 +11,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 
 - Dedicated **Desktop Installers** and **Release** GitHub Actions workflows
 - Public-release checklist (`docs/PUBLIC_RELEASE.md`) and clearer vulnerability reporting guidance
+- Default **PE Engineering Career Framework** (Graduate → CTO) seeded on empty and demo workspaces
 
 ### Changed
 

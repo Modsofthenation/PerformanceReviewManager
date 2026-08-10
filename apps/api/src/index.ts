@@ -54,6 +54,7 @@ import type {
 } from "@prm/shared";
 import { COMPETENCY_CATALOG, MIDDLE_BAND, competencyLabel } from "@prm/shared";
 import { seedWorkspace } from "./seed.js";
+import { seedDefaultRoleFramework } from "./seedDefaultRoleFramework.js";
 import { buildTeamPerformance } from "./teamPerformance.js";
 import type { TeamPerformancePersonInput } from "./teamPerformance.js";
 import { loadCycleCompare, loadPersonTimeline, loadRatingTrends, loadSprintPulse } from "./analyticsGather.js";
@@ -373,24 +374,42 @@ app.post("/api/workspace/init", async (c) => {
     })
     .run();
   db.insert(aiSettings).values({ id: "default", enabled: 0, provider: "anthropic" }).run();
-  const emName = (body.emName ?? "").trim();
+  const { frameworkVersionId, roleIds } = seedDefaultRoleFramework(db, {
+    ownerName: (body.emName ?? "").trim() || "Workspace EM",
+  });
+  const emNameTrimmed = (body.emName ?? "").trim();
   let emPersonId: string | null = null;
-  if (emName) {
+  if (emNameTrimmed) {
     emPersonId = id("person");
+    const createdAt = nowIso();
     db.insert(people)
       .values({
         id: emPersonId,
-        name: emName,
+        name: emNameTrimmed,
         email: null,
         title: "Engineering Manager",
         levelKey: "M1",
         managerId: null,
         hireDate: null,
         status: "active",
-        createdAt: nowIso(),
+        createdAt,
       })
       .run();
-    logActivity("person.create", "person", emPersonId, { name: emName, role: "em" });
+    const emRoleId = roleIds.eng_m1;
+    if (emRoleId) {
+      db.insert(roleAssignments)
+        .values({
+          id: id("ra"),
+          personId: emPersonId,
+          roleDefinitionId: emRoleId,
+          frameworkVersionId,
+          targetNextRoleDefinitionId: roleIds.eng_m2 ?? null,
+          effectiveFrom: createdAt.slice(0, 10),
+          assignedByAccountId: null,
+        })
+        .run();
+    }
+    logActivity("person.create", "person", emPersonId, { name: emNameTrimmed, role: "em" });
   }
   logActivity("workspace.init", "workspace", wsId);
   return c.json({ workspaceId: wsId, token: getSessionToken(), emPersonId });
