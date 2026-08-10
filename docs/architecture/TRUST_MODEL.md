@@ -67,7 +67,7 @@ No anonymity theater: imported peer text is attributed to the named peer for the
 ### Not shipped yet (do not market as done)
 - OS keychain custody for API keys (keys ride the workspace secret today)
 - SQLCipher / Rusqlite-in-Rust as the primary DB path (Node `better-sqlite3` + file seal is what runs)
-- Signed auto-update / notarized installers (desktop artifacts are manual CI builds)
+- Signed auto-update / notarized installers (desktop artifacts are manual **Desktop Installers** builds)
 - Background jobs when the app is closed
 
 See [LOCAL_STACK.md](./LOCAL_STACK.md) and [SYSTEM.md](./SYSTEM.md).

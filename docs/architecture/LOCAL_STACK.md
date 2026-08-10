@@ -10,7 +10,7 @@ Primary target: installable app on **Linux, Windows, macOS**. No Docker/Postgres
 
 | Layer | Choice | Notes |
 |-------|--------|-------|
-| Shell | **Tauri 2** | dmg / msi|NSIS / AppImage|deb (manual CI `workflow_dispatch`) |
+| Shell | **Tauri 2** | dmg / msi|NSIS / AppImage|deb (manual **Desktop Installers** `workflow_dispatch`) |
 | UI | **React + TypeScript + Vite** | |
 | Backend (shipped) | **Node Hono sidecar** on `127.0.0.1` + session token; desktop adds **per-launch capability token** | Prefer migrating privileged ops to Tauri IPC over time |
 | Backend (target) | Tauri IPC commands for DB/FS/HTTP without a long-lived TCP sidecar | Aspirational |

@@ -63,7 +63,7 @@ pnpm desktop:dev      # native window (needs WebView + Rust)
 pnpm desktop:build
 ```
 
-Desktop installers are built on demand: Actions → **CI** → **Run workflow** (uploads `desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Merges to `main` only run unit tests + typecheck. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
+Desktop installers are built on demand: Actions → **Desktop Installers** → **Run workflow** (defaults to Windows + Linux; uploads `desktop-windows-x86_64` / `desktop-linux-x86_64`, optional macOS). Merges to `main` only run unit tests + typecheck. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
 
 ### Cursor MCP (bulk load)
 
@@ -244,7 +244,7 @@ Regenerate with `pnpm screenshots` (UI + API running; demo password `workbench`)
 - **Sprint pulse** for date-window coaching
 - **Eight accents × dark/light** appearance system (Coral, Amber, Magenta, Citrus plus Teal, Ocean, Forest, Slate)
 - **AI**: digests, section draft, peer synthesize, chat, with citation allowlist
-- **Desktop** packaging (Tauri); installers via Actions **Run workflow**
+- **Desktop** packaging (Tauri); installers via Actions → **Desktop Installers** → **Run workflow**
 - **Delete / recreate workspace** from Unlock or Settings
 
 ## Docs
