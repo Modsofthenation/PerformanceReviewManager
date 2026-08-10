@@ -114,7 +114,7 @@ jobs:
         run: node apps/desktop/scripts/bundle-api-sidecar.mjs --node
         env:
           PRM_BUNDLE_NODE: "1"
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
