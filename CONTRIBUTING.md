@@ -41,7 +41,7 @@ Production `pnpm build` may still have packaging rough edges; typecheck + tests 
 
 ## Desktop
 
-Desktop installers are **not** built on every merge. Use Actions → **CI** → **Run workflow**. See `apps/desktop/README.md`.
+Desktop installers are **not** built on every merge. Use Actions → **Desktop Installers** → **Run workflow** (defaults to Windows + Linux). See `apps/desktop/README.md`.
 
 ## Security
 

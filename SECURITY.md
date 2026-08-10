@@ -27,7 +27,7 @@ What PRM does **not** claim today:
 - Automatic refusal of Dropbox / iCloud / OneDrive data directories (warn when detected; sync folders remain risky)
 - Cryptographic anonymity for peer feedback
 - Tamper-proof legal custody of the activity log (hash-chained and HMAC-exportable, but the EM can re-sign after unlock)
-- Signed auto-update for desktop installers (manual CI artifacts; verify checksums yourself)
+- Signed auto-update for desktop installers (manual **Desktop Installers** artifacts; verify checksums yourself)
 
 Details: [`docs/architecture/TRUST_MODEL.md`](./docs/architecture/TRUST_MODEL.md).
 

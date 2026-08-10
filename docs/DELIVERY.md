@@ -18,7 +18,7 @@ Aligned to [TRUST_MODEL.md](./architecture/TRUST_MODEL.md).
 - ActivityEvent hash chain + HMAC export
 - Encrypted workspace backup/restore
 - Synthetic **8-person** demo seed (rolling relative cycle dates)
-- CI: unit tests on every `main` PR; desktop installers on manual `workflow_dispatch`; **Release** workflow publishes GitHub Release assets
+- CI: unit tests on every `main` PR; desktop installers on manual **Desktop Installers** `workflow_dispatch`; **Release** workflow publishes GitHub Release assets
 
 **Still open (do not claim done)**
 - OS keychain for API keys
