@@ -56,7 +56,7 @@ CI (`ci.yml`) runs unit tests + typecheck only. Desktop installers are built on 
 |---------------|------------------|
 | `desktop-linux-x86_64` | `.deb` / `.AppImage` under `bundle/` |
 | `desktop-macos-aarch64` | `.dmg` / `.app` under `bundle/` |
-| `desktop-windows-x86_64` | `.msi` / NSIS `.exe` under `bundle/` |
+| `desktop-windows-x86_64` | NSIS `.exe` under `bundle/` |
 
 ```bash
 gh workflow run "Desktop Installers" -f platforms=windows-and-linux
@@ -72,8 +72,9 @@ Use the **Release** workflow (Actions → **Release** → **Run workflow**) to b
 - Input `prerelease`: leave on for alphas
 - Or push a tag `v*` (hyphenated versions such as `v0.1.0-alpha.1` are treated as pre-releases)
 
-Assets attached to the release are the platform installers (`.deb` / `.AppImage`, `.dmg`, `.msi` / `.exe`).
+Assets attached to the release are the platform installers (`.deb` / `.AppImage`, `.dmg`, NSIS `.exe`).
 
+Windows uses **NSIS only** (not WiX `.msi`). MSI requires a numeric-only pre-release (`0.1.0-1`); versions like `0.1.0-alpha.1` fail the WiX bundler. NSIS accepts full semver.
 ## Icons
 
 Source mark: `apps/desktop/app-icon.png` (1024²). Regenerate platform icons with:

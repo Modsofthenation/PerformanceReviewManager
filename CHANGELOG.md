@@ -20,6 +20,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 ### Fixed
 
 - Committed Tauri `gen/schemas/capabilities.json` aligned with source capabilities (no `shell:allow-open`)
+- Windows packaging uses NSIS only — WiX `.msi` rejects semver pre-releases like `0.1.0-alpha.1`
 
 ## [0.1.0-alpha.1] - TBD
 
