@@ -12,17 +12,19 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - Dedicated **Desktop Installers** and **Release** GitHub Actions workflows
 - Public-release checklist (`docs/PUBLIC_RELEASE.md`) and clearer vulnerability reporting guidance
 - Default **PE Engineering Career Framework** (Graduate → CTO) seeded on empty and demo workspaces
+- **Cursor Cloud Agents** AI provider — use dashboard `crsr_…` keys via the Cloud Agents API (no-repo agents for digests/drafts)
 
 ### Changed
 
 - Settings → Check for updates explains missing GitHub Releases (404) instead of a generic failure
 - MCP / AGENTS docs no longer imply a silent `PRM_PASSWORD=workbench` default
+- Settings → AI: OpenAI-compatible gateways are a separate provider from Cursor Cloud Agents
 
 ### Fixed
 
 - Committed Tauri `gen/schemas/capabilities.json` aligned with source capabilities (no `shell:allow-open`)
 - Windows packaging uses NSIS only — WiX `.msi` rejects semver pre-releases like `0.1.0-alpha.1`
-- Desktop AI: stop implying Cursor `crsr_` keys are a chat API; clearer network errors; Test saves then probes with visible status
+- Desktop AI: clearer network errors; Test saves then probes with visible status
 - Empty-workspace onboarding: optional EM name at create, single setup checklist, less Home clutter
 - Settings / long-page scroll jank: section nav no longer forces layout on scroll; drop sticky chrome backdrop blur
 

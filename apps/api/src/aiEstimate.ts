@@ -17,6 +17,7 @@ const RATES: Record<string, { input: number; output: number } | null> = {
   anthropic: { input: 3, output: 15 },
   openai: { input: 0.15, output: 0.6 },
   cursor: null,
+  openai_compatible: null,
   ollama: null,
 };
 
@@ -47,7 +48,7 @@ export function buildAiEstimate(opts: {
   const model =
     opts.feature === "evidence_digest"
       ? cfg.modelDigest
-      : cfg.modelDraft || (provider === "cursor" ? "composer-2.5" : "claude-sonnet-4-5");
+      : cfg.modelDraft || (provider === "cursor" ? "default" : "claude-sonnet-4-5");
   const inputTokensApprox = estimateTokensFromMessages(opts.messages);
   const outputTokensMax = maxOutputTokensForFeature(opts.feature);
   const costUsdApprox = estimateCostUsd({
@@ -66,7 +67,7 @@ export function buildAiEstimate(opts: {
     dataClassesSent: opts.dataClassesSent ?? [],
     note:
       costUsdApprox == null
-        ? "Token estimate only — Cursor/Ollama pricing is not modeled."
+        ? "Token estimate only — Cursor Cloud Agents / OpenAI-compatible / Ollama pricing is not modeled."
         : "Approximate list-price estimate; actual bill depends on provider discounts and true tokenizer.",
   };
 }

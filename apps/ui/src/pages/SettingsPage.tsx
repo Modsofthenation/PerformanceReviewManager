@@ -116,6 +116,10 @@ export function SettingsPage({
         method: "PUT",
         body: JSON.stringify({
           ...settings,
+          ollamaBaseUrl:
+            settings.provider === "cursor"
+              ? "http://127.0.0.1:11434"
+              : settings.ollamaBaseUrl,
           apiKey: apiKey ? apiKey : undefined,
         }),
       });
@@ -126,6 +130,7 @@ export function SettingsPage({
         model?: string;
         provider?: string;
         baseUrlTried?: string | null;
+        sample?: string;
       }>("/api/ai/test", {
         method: "POST",
         body: "{}",
@@ -133,7 +138,9 @@ export function SettingsPage({
       if (res.ok) {
         setMsgTone("ok");
         setMsg(
-          `Connection OK (${res.model ?? "unknown"})${res.baseUrlTried ? ` via ${res.baseUrlTried}` : ""}`,
+          `Connection OK (${res.model ?? "unknown"})${
+            res.sample ? ` — ${res.sample}` : ""
+          }${res.baseUrlTried ? ` via ${res.baseUrlTried}` : ""}`,
         );
       } else {
         setMsgTone("danger");
@@ -376,7 +383,7 @@ export function SettingsPage({
         <NextStep
           tone="warn"
           label="Add an API key to use cloud drafting"
-          detail="AI is enabled but no key is on file. Paste a provider key below, Save, then Test — or switch to Ollama / local-only. Cursor dashboard keys (crsr_…) are not a chat API for this app."
+          detail="AI is enabled but no key is on file. Paste a provider key below, Save, then Test — or switch to Ollama / local-only."
           action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         />
       ) : settings.enabled ? (
@@ -420,6 +427,11 @@ export function SettingsPage({
             method: "PUT",
             body: JSON.stringify({
               ...settings,
+              // Avoid legacy cursor+gateway mis-detection when choosing Cloud Agents.
+              ollamaBaseUrl:
+                settings.provider === "cursor"
+                  ? "http://127.0.0.1:11434"
+                  : settings.ollamaBaseUrl,
               apiKey: apiKey ? apiKey : undefined,
             }),
           });
@@ -448,7 +460,7 @@ export function SettingsPage({
               setSettings({
                 ...settings,
                 provider,
-                ...(provider === "cursor"
+                ...(provider === "openai_compatible"
                   ? {
                       modelDigest: settings.modelDigest || "gpt-4o-mini",
                       modelDraft: settings.modelDraft || "gpt-4o-mini",
@@ -457,23 +469,45 @@ export function SettingsPage({
                           ? settings.ollamaBaseUrl
                           : settings.cursorBaseUrl || "",
                     }
-                  : {}),
+                  : provider === "cursor"
+                    ? {
+                        modelDigest: settings.modelDigest || "",
+                        modelDraft: settings.modelDraft || "",
+                      }
+                    : provider === "ollama"
+                      ? {
+                          ollamaBaseUrl: settings.ollamaBaseUrl || "http://127.0.0.1:11434",
+                        }
+                      : {}),
               });
             }}
           >
             <option value="anthropic">Anthropic</option>
             <option value="openai">OpenAI</option>
-            <option value="cursor">OpenAI-compatible (custom URL)</option>
+            <option value="cursor">Cursor Cloud Agents</option>
+            <option value="openai_compatible">OpenAI-compatible (custom URL)</option>
             <option value="ollama">Ollama</option>
           </select>
         </div>
         {settings.provider === "cursor" && (
           <p className="muted">
-            For a local or third-party gateway that speaks OpenAI{" "}
-            <code>/v1/chat/completions</code>. Cursor dashboard API keys (<code>crsr_…</code>) are for{" "}
-            <strong>Cloud Agents only</strong> — they will not work here. Prefer Anthropic, OpenAI, or
-            Ollama unless you already run a compatible proxy. Optional env:{" "}
-            <code>CURSOR_API_BASE_URL</code> / <code>CURSOR_API_KEY</code>.
+            Uses your Cursor dashboard API key (<code>crsr_…</code>) with the{" "}
+            <a href="https://cursor.com/docs/cloud-agent/api/endpoints" target="_blank" rel="noreferrer">
+              Cloud Agents API
+            </a>
+            . Digests and drafts launch a short-lived <strong>no-repo</strong> cloud agent (slower than
+            Anthropic/OpenAI chat). Get a key at{" "}
+            <a href="https://cursor.com/dashboard/api" target="_blank" rel="noreferrer">
+              cursor.com/dashboard/api
+            </a>
+            . Optional env: <code>CURSOR_API_KEY</code>. Leave model fields blank to use your Cursor default.
+          </p>
+        )}
+        {settings.provider === "openai_compatible" && (
+          <p className="muted">
+            For a local or third-party gateway that speaks OpenAI <code>/v1/chat/completions</code>. This is{" "}
+            <em>not</em> Cursor Cloud Agents — use the Cursor Cloud Agents provider for <code>crsr_…</code>{" "}
+            keys. Optional env: <code>CURSOR_API_BASE_URL</code> / <code>CURSOR_API_KEY</code>.
           </p>
         )}
         <div className="field">
@@ -490,24 +524,30 @@ export function SettingsPage({
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={
-              settings.hasApiKey ? "••••••••" : settings.provider === "cursor" ? "gateway key…" : "sk-…"
+              settings.hasApiKey
+                ? "••••••••"
+                : settings.provider === "cursor"
+                  ? "crsr_…"
+                  : settings.provider === "openai_compatible"
+                    ? "gateway key…"
+                    : "sk-…"
             }
           />
         </div>
-        {(settings.provider === "ollama" || settings.provider === "cursor") && (
+        {(settings.provider === "ollama" || settings.provider === "openai_compatible") && (
           <div className="field">
             <label>
-              {settings.provider === "cursor" ? "OpenAI-compatible base URL" : "Ollama base URL"}
+              {settings.provider === "openai_compatible" ? "OpenAI-compatible base URL" : "Ollama base URL"}
             </label>
             <input
               value={settings.ollamaBaseUrl ?? ""}
               onChange={(e) => setSettings({ ...settings, ollamaBaseUrl: e.target.value })}
               placeholder={
-                settings.provider === "cursor"
+                settings.provider === "openai_compatible"
                   ? "https://your-gateway.example/v1"
                   : "http://127.0.0.1:11434"
               }
-              required={settings.provider === "cursor"}
+              required={settings.provider === "openai_compatible"}
             />
           </div>
         )}
@@ -516,7 +556,13 @@ export function SettingsPage({
           <input
             value={settings.modelDigest ?? ""}
             onChange={(e) => setSettings({ ...settings, modelDigest: e.target.value })}
-            placeholder={settings.provider === "cursor" ? "gpt-4o-mini" : undefined}
+            placeholder={
+              settings.provider === "cursor"
+                ? "(account default)"
+                : settings.provider === "openai_compatible"
+                  ? "gpt-4o-mini"
+                  : undefined
+            }
           />
         </div>
         <div className="field">
@@ -524,7 +570,13 @@ export function SettingsPage({
           <input
             value={settings.modelDraft ?? ""}
             onChange={(e) => setSettings({ ...settings, modelDraft: e.target.value })}
-            placeholder={settings.provider === "cursor" ? "gpt-4o-mini" : undefined}
+            placeholder={
+              settings.provider === "cursor"
+                ? "(account default)"
+                : settings.provider === "openai_compatible"
+                  ? "gpt-4o-mini"
+                  : undefined
+            }
           />
         </div>
         <div className="field">
