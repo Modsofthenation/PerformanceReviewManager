@@ -270,7 +270,7 @@ jobs:
             |----------|----------|
             | Linux x86_64 | `.deb` / `.AppImage` |
             | macOS Apple Silicon | `.dmg` |
-            | Windows x86_64 | `.msi` / NSIS `.exe` |
+            | Windows x86_64 | NSIS `.exe` |
 
             ### Notes
 
