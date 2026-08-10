@@ -231,7 +231,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download installer artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           pattern: desktop-*
