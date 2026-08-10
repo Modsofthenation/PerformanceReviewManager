@@ -41,11 +41,13 @@ Production `pnpm build` may still have packaging rough edges; typecheck + tests 
 
 ## Desktop
 
-Desktop installers are **not** built on every merge. Use Actions → **Desktop Installers** → **Run workflow** (defaults to Windows + Linux). See `apps/desktop/README.md`.
+Desktop installers are **not** built on every merge. Use Actions → **Desktop Installers** → **Run workflow** (defaults to Windows + Linux), or Actions → **Release** to attach installers to a GitHub Release. See `apps/desktop/README.md`.
 
 ## Security
 
-Report vulnerabilities privately per [`SECURITY.md`](./SECURITY.md). Do not file public issues that include exploit detail for unfixed flaws.
+Report vulnerabilities privately per [`SECURITY.md`](./SECURITY.md) (prefer GitHub private vulnerability reporting when enabled). Do not file public issues that include exploit detail for unfixed flaws.
+
+Maintainer checklist before making the repo public: [`docs/PUBLIC_RELEASE.md`](./docs/PUBLIC_RELEASE.md).
 
 ## Code of conduct
 

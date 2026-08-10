@@ -22,7 +22,7 @@ Primary target: installable app on **Linux, Windows, macOS**. No Docker/Postgres
 | Auth | Single Account; workspace password vault | API keys encrypted with workspace secret (keychain still a target) |
 | AI | Settings → AI; BYO keys + Ollama + Cursor gateway | |
 | Encryption | **Required** for real data: authenticated encryption of DB+files on lock | |
-| Packaging | Unsigned CI artifacts today; code signing + notarization still needed | |
+| Packaging | Unsigned Actions / Release artifacts today; code signing + notarization still needed | Prefer **Release** workflow for tagged alphas |
 
 ---
 
@@ -82,13 +82,18 @@ Fully in-app **Settings → AI** (see Features §8). Keys are encrypted with the
 
 ## Security baseline
 
-1. Encryption at rest before real employee data  
-2. No unauthenticated localhost API  
-3. Keychain + Linux fallback  
-4. Sync-folder detection  
-5. Hash-chained activity log (evident, not proof)  
-6. Parser allowlists; no fake “malware scanned” status without a scanner  
-7. Signed updates  
+**Shipped today**
+
+1. Encryption at rest before real employee data (AES-GCM seal on lock)
+2. No unauthenticated localhost API (session token; desktop adds launch token)
+3. Sync-folder detection (warn when data dir looks like Dropbox/iCloud/OneDrive/Google Drive)
+4. Hash-chained activity log (evident, not proof; EM-keyed HMAC export)
+5. Parser allowlists; no fake “malware scanned” status without a scanner
+
+**Still targets (not current claims)**
+
+6. OS keychain + Linux secret-service fallback for API keys
+7. Signed / notarized updates (desktop artifacts are manual **Desktop Installers** / **Release** builds)
 
 ---
 

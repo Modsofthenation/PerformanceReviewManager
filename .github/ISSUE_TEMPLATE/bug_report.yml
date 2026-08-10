@@ -1,0 +1,54 @@
+name: Bug report
+description: Something is broken or unsafe
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. **Do not** report security vulnerabilities here — see [SECURITY.md](https://github.com/Modsofthenation/PerformanceReviewManager/blob/main/SECURITY.md).
+        Never paste real employee PII, vault dumps, or live API keys.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps with synthetic / demo data only
+      placeholder: |
+        1. Create empty workspace…
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Browser (pnpm dev)
+        - Packaged desktop
+        - API / MCP only
+        - Unsure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Tag, commit SHA, or “main @ &lt;date&gt;”
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / errors
+      description: Redact secrets. Desktop API log is under the OS app-data directory (e.g. %APPDATA%\\com.prm.workbench\\desktop-api.log).

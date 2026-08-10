@@ -46,9 +46,9 @@ upload role R&R → tag people → year-round dossier
 1. **Faithfulness model eval** — expanded golden + bias suites (injection / cross-person cites); still not a full groundedness model eval.
 2. **External / multi-party audit custody** — local HMAC pack is still EM-controlled; not WORM / HRIS-grade. Legal-hold blocks purge locally.
 3. **Deadline delivery when app closed** — OS Notification API + due-this-week tray while open; no scheduled background agent.
-4. **Signed auto-update** — Settings “Check for updates” hits GitHub Releases; Tauri updater + code-signing keys still needed for silent install.
+4. **Signed auto-update** — Settings “Check for updates” hits GitHub Releases (soft message if none yet); Tauri updater + code-signing keys still needed for silent install. Cut alphas via Actions → **Release**.
 
-## Shipped in P1 features slice (this branch)
+## Shipped in P1 features slice
 
 | Item | Notes |
 |------|--------|
@@ -71,7 +71,7 @@ upload role R&R → tag people → year-round dossier
 | Calibration bundles | Consistency page export/import director decisions |
 | Framework polish | Owner/effective dates, insufficient warnings, migrate & publish |
 | Search + stagnation | FTS on finalized reviews; `/search` page; flat/thin heuristics |
-| Desktop reliability | Same-origin UI serve (PR #25 lineage); version IPC; update check in Settings |
+| Desktop reliability | Same-origin UI serve; version IPC; update check in Settings |
 
 ## Explicit non-goals (unchanged)
 

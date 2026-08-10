@@ -27,7 +27,7 @@ What PRM does **not** claim today:
 - Automatic refusal of Dropbox / iCloud / OneDrive data directories (warn when detected; sync folders remain risky)
 - Cryptographic anonymity for peer feedback
 - Tamper-proof legal custody of the activity log (hash-chained and HMAC-exportable, but the EM can re-sign after unlock)
-- Signed auto-update for desktop installers (manual **Desktop Installers** artifacts; verify checksums yourself)
+- Signed auto-update for desktop installers (manual **Desktop Installers** / **Release** artifacts; verify checksums yourself)
 
 Details: [`docs/architecture/TRUST_MODEL.md`](./docs/architecture/TRUST_MODEL.md).
 
@@ -35,7 +35,15 @@ Details: [`docs/architecture/TRUST_MODEL.md`](./docs/architecture/TRUST_MODEL.md
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Email **zord.lack.net@gmail.com** with:
+### Preferred: GitHub private vulnerability reporting
+
+If [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) is enabled on this repository, use **Security → Report a vulnerability** (or open a draft Security Advisory). That keeps PoCs out of the public issue tracker and gives maintainers a private thread.
+
+Maintainers: enable it under **Settings → Code security → Private vulnerability reporting** before or when making the repo public. See [`docs/PUBLIC_RELEASE.md`](./docs/PUBLIC_RELEASE.md).
+
+### Fallback: email
+
+If private reporting is unavailable, email **zord.lack.net@gmail.com** with:
 
 1. A clear description of the issue and impact
 2. Steps to reproduce (PoC welcome; keep payloads minimal)

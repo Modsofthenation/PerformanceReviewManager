@@ -1,1 +1,13 @@
-{"default":{"identifier":"default","description":"Default permissions for the EM workbench window","local":true,"windows":["main"],"permissions":["core:default","shell:allow-open"]}}
+{
+  "default": {
+    "identifier": "default",
+    "description": "Default permissions for the EM workbench window — no shell/open IPC",
+    "local": true,
+    "windows": ["main"],
+    "permissions": [
+      "core:default",
+      "allow-get-launch-config",
+      "allow-get-app-version"
+    ]
+  }
+}

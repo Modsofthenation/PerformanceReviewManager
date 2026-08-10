@@ -72,8 +72,8 @@ Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 | External URLs | P0 | |
 | Meet / transcript → MeetingSummary | P1 | Opt-in; default private-to-EM; notice that “private” ≠ undiscoverable legally |
 | 1:1 theme tags | P1 | Feedback notes; themes feed AI digests |
-| Integration signals (GitHub/Linear) | P2 | Optional |
-| Jira + Bitbucket sync | P1 | Settings credentials; person account link; tickets/merged PRs → achievements |
+| Integration signals (GitHub / Linear) | P0 | Optional; Settings credentials + person account link; sync into dossier achievements |
+| Jira + Bitbucket sync | P0 | Settings credentials; person account link; tickets/merged PRs → achievements |
 | Private vs shareable | P0 | Controls **share/export** inclusion; EM always sees workspace data |
 | Evidence snapshots at finalize | P0 | Cited title/checksum/excerpt frozen into review |
 | Out-of-window tray | P1 | Don’t silently drop late-uploaded docs |
@@ -157,7 +157,7 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 | Private-tier egress | P0 | Per-data-class opt-in; per-generation manifest |
 | Local-only / Ollama | P0 | |
 | Cost/token estimate | P1 | Before run |
-| Chat-with-dossier | P2 | |
+| Chat-with-dossier | P0 | `/chat` — grounded Q&A over loaded workspace data |
 
 Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 
@@ -170,8 +170,8 @@ Detail: [AI_INTEGRATION.md](../ai/AI_INTEGRATION.md).
 | OS + in-app notifications | P0 | Workbench | |
 | Document / framework upload | P0 | Workbench | |
 | Google Drive / Meet file pick or manual transcript | P1 | Workbench | |
-| GitHub / Linear | P2 | |
-| Jira Cloud + Bitbucket Cloud | P1 | Settings → Integrations; person link + sync into dossier achievements |
+| GitHub / Linear | P0 | Settings → Integrations; person link + sync into dossier achievements |
+| Jira Cloud + Bitbucket Cloud | P0 | Settings → Integrations; person link + sync into dossier achievements |
 | Slack / email digests | — | Hosted-only / later | |
 
 ---
