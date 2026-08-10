@@ -5,6 +5,11 @@ export type SectionNavItem = {
   label: string;
 };
 
+/**
+ * Sticky “On this page” links with active-section highlighting.
+ * Scroll tracking avoids layout thrashing: use IntersectionObserver entry
+ * geometry only, coalesce updates to animation frames, and skip no-op sets.
+ */
 export function PageSectionNav({
   items,
   ariaLabel = "On this page",
@@ -15,55 +20,89 @@ export function PageSectionNav({
   const [activeId, setActiveId] = useState(items[0]?.id ?? "");
   const sectionKey = items.map((item) => item.id).join("|");
   const clickLockUntil = useRef(0);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   useEffect(() => {
-    if (items[0]?.id) setActiveId(items[0].id);
-  }, [sectionKey, items]);
+    const first = sectionKey.split("|")[0];
+    if (first) setActiveId(first);
+  }, [sectionKey]);
 
   useEffect(() => {
-    const nodes = items
-      .map((item) => document.getElementById(item.id))
+    const ids = sectionKey.split("|").filter(Boolean);
+    const nodes = ids
+      .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => Boolean(el));
     if (nodes.length === 0) return;
 
     const ratios = new Map<string, number>();
+    const tops = new Map<string, number>();
+    let raf = 0;
+
+    const commit = () => {
+      raf = 0;
+      if (Date.now() < clickLockUntil.current) return;
+
+      const ordered = itemsRef.current;
+      let bestId = "";
+      let bestRatio = 0;
+      for (const item of ordered) {
+        const ratio = ratios.get(item.id) ?? 0;
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          bestId = item.id;
+        }
+      }
+      if (bestId && bestRatio > 0.02) {
+        setActiveId((prev) => (prev === bestId ? prev : bestId));
+        return;
+      }
+
+      let aboveId = "";
+      let aboveTop = -Infinity;
+      for (const item of ordered) {
+        const top = tops.get(item.id);
+        if (top == null) continue;
+        if (top <= 140 && top >= aboveTop) {
+          aboveTop = top;
+          aboveId = item.id;
+        }
+      }
+      if (aboveId) setActiveId((prev) => (prev === aboveId ? prev : aboveId));
+    };
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (Date.now() < clickLockUntil.current) return;
         for (const entry of entries) {
-          ratios.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0);
+          const id = entry.target.id;
+          ratios.set(id, entry.isIntersecting ? entry.intersectionRatio : 0);
+          // Prefer observer-provided rect — do not call getBoundingClientRect (forces layout).
+          tops.set(id, entry.boundingClientRect.top);
         }
-        const visible = items
-          .map((item) => document.getElementById(item.id))
-          .filter((el): el is HTMLElement => Boolean(el))
-          .filter((el) => (ratios.get(el.id) ?? 0) > 0.02)
-          .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-        if (visible[0]) {
-          setActiveId(visible[0].id);
-          return;
-        }
-        const above = nodes
-          .filter((n) => n.getBoundingClientRect().top <= 140)
-          .sort((a, b) => b.getBoundingClientRect().top - a.getBoundingClientRect().top)[0];
-        if (above) setActiveId(above.id);
+        if (!raf) raf = requestAnimationFrame(commit);
       },
       {
         root: null,
-        rootMargin: "-12% 0px -60% 0px",
-        threshold: [0, 0.1, 0.25, 0.5, 1],
+        rootMargin: "-10% 0px -55% 0px",
+        // Fewer thresholds → fewer callbacks while scrolling.
+        threshold: [0, 0.25, 0.6, 1],
       },
     );
 
     for (const node of nodes) observer.observe(node);
-    return () => observer.disconnect();
-  }, [sectionKey, items]);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [sectionKey]);
 
   function goTo(id: string) {
     const el = document.getElementById(id);
     if (!el) return;
     clickLockUntil.current = Date.now() + 700;
     setActiveId(id);
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
   }
 
   return (

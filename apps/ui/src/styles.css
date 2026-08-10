@@ -308,7 +308,6 @@ a:hover { color: var(--brand-strong); }
   gap: var(--space-3);
   border-bottom: 1px solid var(--line);
   background: var(--sidebar-bg);
-  backdrop-filter: blur(12px);
 }
 
 .topbar-brand {
@@ -356,7 +355,7 @@ a:hover { color: var(--brand-strong); }
   padding-bottom: max(var(--space-6), env(safe-area-inset-bottom));
   border-right: 1px solid var(--line);
   background: var(--sidebar-bg);
-  backdrop-filter: blur(12px);
+  /* Solid sidebar paint — blur while scrolling was a WebView jank source on long pages. */
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -468,6 +467,9 @@ a:hover { color: var(--brand-strong); }
 .settings-section,
 .page-section {
   scroll-margin-top: 1.25rem;
+  /* Skip paint/layout for off-screen sections on long pages (Settings, Person, Writing desk). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 24rem;
 }
 .page-section-nav {
   position: sticky;
@@ -475,6 +477,8 @@ a:hover { color: var(--brand-strong); }
   align-self: start;
   padding: var(--space-3) 0 var(--space-3) var(--space-3);
   border-left: 1px solid var(--line);
+  /* Avoid backdrop-filter here — sticky + blur is expensive while scrolling (esp. WebView). */
+  background: var(--bg);
 }
 .page-section-nav-label {
   font-size: 0.72rem;
@@ -533,8 +537,7 @@ a:hover { color: var(--brand-strong); }
     padding: var(--space-2) var(--space-4);
     border-left: none;
     border-bottom: 1px solid var(--line);
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
-    backdrop-filter: blur(10px);
+    background: var(--bg);
   }
   .page-section-nav-label { display: none; }
   .page-section-nav-list {
