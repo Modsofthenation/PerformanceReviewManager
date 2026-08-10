@@ -48,7 +48,9 @@ Settings → **Check for updates** compares the packaged version (`get_app_versi
 
 Packaged data lives in the OS app-data directory (for example `%APPDATA%\com.prm.workbench` on Windows). Sidecar stdout/stderr is appended to `desktop-api.log` there for debugging startup failures.
 
-CI builds the desktop matrix (Ubuntu / macOS / Windows) only when you **manually run** the **CI** workflow from the Actions tab (`workflow_dispatch`). Merges and PRs still run unit tests only. Each green desktop job uploads an Actions artifact (retained 30 days):
+### CI artifacts (no GitHub Release)
+
+The **CI** workflow builds the desktop matrix only on manual **Run workflow** (`workflow_dispatch`). Merges and PRs still run unit tests only. Each green desktop job uploads an Actions artifact (retained 30 days):
 
 | Artifact name | Typical contents |
 |---------------|------------------|
@@ -56,12 +58,20 @@ CI builds the desktop matrix (Ubuntu / macOS / Windows) only when you **manually
 | `desktop-macos-aarch64` | `.dmg` / `.app` under `bundle/` |
 | `desktop-windows-x86_64` | `.msi` / NSIS `.exe` under `bundle/` |
 
-Download from the run’s **Artifacts** section in the GitHub UI, or:
-
 ```bash
 gh run download <run-id> -n desktop-windows-x86_64
 # also: desktop-macos-aarch64, desktop-linux-x86_64
 ```
+
+### GitHub Releases (alpha / tagged)
+
+Use the **Release** workflow (Actions → **Release** → **Run workflow**) to build installers and publish a GitHub Release:
+
+- Input `version`: semver without `v` (default `0.1.0-alpha.1`)
+- Input `prerelease`: leave on for alphas
+- Or push a tag `v*` (hyphenated versions such as `v0.1.0-alpha.1` are treated as pre-releases)
+
+Assets attached to the release are the platform installers (`.deb` / `.AppImage`, `.dmg`, `.msi` / `.exe`).
 
 ## Icons
 

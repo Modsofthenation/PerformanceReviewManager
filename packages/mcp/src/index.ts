@@ -17,7 +17,7 @@ async function main() {
   const client = new PrmClient();
   const server = new McpServer({
     name: "prm",
-    version: "0.1.0",
+    version: "0.1.0-alpha.1",
   });
 
   registerPrmTools(server, client);

@@ -611,7 +611,7 @@ export function SettingsPage({
             className="btn secondary"
             onClick={async () => {
               try {
-                let localVersion = "0.1.0";
+                let localVersion = "0.1.0-alpha.1";
                 const invoke = (window as unknown as {
                   __TAURI__?: { core?: { invoke?: (cmd: string) => Promise<string> } };
                 }).__TAURI__?.core?.invoke;

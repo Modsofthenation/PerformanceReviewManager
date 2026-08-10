@@ -63,7 +63,12 @@ pnpm desktop:dev      # native window (needs WebView + Rust)
 pnpm desktop:build
 ```
 
-Desktop installers are built on demand: Actions → **CI** → **Run workflow** (uploads `desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`). Merges to `main` only run unit tests + typecheck. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
+Desktop installers:
+
+- **CI artifacts:** Actions → **CI** → **Run workflow** (uploads `desktop-windows-x86_64`, `desktop-macos-aarch64`, `desktop-linux-x86_64`)
+- **GitHub Release:** Actions → **Release** → **Run workflow** with version `0.1.0-alpha.1` (or push tag `v0.1.0-alpha.1`)
+
+Merges to `main` only run unit tests + typecheck. Details: [`apps/desktop/README.md`](./apps/desktop/README.md).
 
 ### Cursor MCP (bulk load)
 

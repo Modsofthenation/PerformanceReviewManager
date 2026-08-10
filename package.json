@@ -1,7 +1,7 @@
 {
   "name": "performance-review-manager",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "license": "MIT",
   "description": "Local solo EM workbench for evidence-backed performance reviews",
   "scripts": {
