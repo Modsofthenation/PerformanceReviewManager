@@ -1506,3 +1506,144 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
     margin-bottom: 0.15rem;
   }
 }
+
+/* ---------- First-run setup wizard ---------- */
+.setup-shell {
+  max-width: 52rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.setup-header {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.setup-header h1 {
+  margin: 0.15rem 0 0.35rem;
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+}
+.setup-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-strong);
+}
+.setup-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.setup-step button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.setup-step.on button {
+  border-color: var(--brand);
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+}
+.setup-step.done button {
+  color: var(--ink-soft);
+  border-color: var(--line-strong);
+}
+.setup-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.setup-step.on .setup-step-num {
+  background: var(--brand);
+  color: #fff;
+}
+.setup-panel {
+  gap: var(--space-4);
+}
+.setup-person-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.setup-person-list li {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.setup-details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel-alt);
+}
+.setup-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.setup-guide-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.setup-guide-list li { margin-bottom: 0.35rem; }
+.setup-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.setup-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.setup-progress-track {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.setup-progress-fill {
+  height: 100%;
+  background: var(--brand);
+  transition: width 0.25s ease;
+}
+
+@media (max-width: 640px) {
+  .setup-steps { gap: 0.25rem; }
+  .setup-step button { padding: 0.4rem 0.55rem; font-size: 0.8rem; }
+}

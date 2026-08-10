@@ -524,12 +524,39 @@ export interface FormTemplateDTO {
   updatedAt?: string;
 }
 
+export type OnboardingStep =
+  | "team"
+  | "roles"
+  | "ai"
+  | "integrations"
+  | "backfill"
+  | "done";
+
+export interface OnboardingStateDTO {
+  completed: boolean;
+  step: OnboardingStep | string;
+  skipped?: Partial<Record<OnboardingStep, boolean>>;
+  personCount: number;
+  directCount: number;
+  unassignedRoleCount: number;
+  thinEvidenceCount: number;
+  cycleCount: number;
+  hasAiKey: boolean;
+  aiEnabled: boolean;
+  integrationsEnabled: string[];
+  workspaceName: string | null;
+}
+
 export interface WorkspaceSettingsDTO {
   retention: "current_plus_previous" | "current_only" | "keep_all";
   legalHold: boolean;
   retentionLabel?: string;
   purgeEligible?: Array<{ id: string; name: string; windowEnd: string }>;
-  onboarding?: { completed?: boolean; step?: string };
+  onboarding?: {
+    completed?: boolean;
+    step?: string;
+    skipped?: Partial<Record<string, boolean>>;
+  };
 }
 
 export interface ConsistencyCardDTO {

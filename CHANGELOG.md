@@ -13,12 +13,14 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - Public-release checklist (`docs/PUBLIC_RELEASE.md`) and clearer vulnerability reporting guidance
 - Default **PE Engineering Career Framework** (Graduate → CTO) seeded on empty and demo workspaces
 - **Cursor Cloud Agents** AI provider — use dashboard `crsr_…` keys via the Cloud Agents API (no-repo agents for digests/drafts)
+- Guided **/setup** onboarding: team → assign-first roles → optional AI → integrations with credential guides → evidence backfill with progress
 
 ### Changed
 
 - Settings → Check for updates explains missing GitHub Releases (404) instead of a generic failure
 - MCP / AGENTS docs no longer imply a silent `PRM_PASSWORD=workbench` default
 - Settings → AI: OpenAI-compatible gateways are a separate provider from Cursor Cloud Agents
+- Empty workspaces land in setup until finished or skipped; demo seed marks onboarding complete
 
 ### Fixed
 

@@ -371,7 +371,7 @@ app.post("/api/workspace/init", async (c) => {
       id: wsId,
       name: body.name || "My Team",
       createdAt: nowIso(),
-      settingsJson: JSON.stringify({ onboarding: { completed: false, step: "team" } }),
+      settingsJson: JSON.stringify({ onboarding: { completed: false, step: "team", skipped: {} } }),
       passwordHash: hash,
       passwordSalt: salt,
     })
@@ -1095,6 +1095,55 @@ app.post("/api/roles/assign", async (c) => {
   }).run();
   logActivity("role.assign", "person", body.personId, { roleDefinitionId: body.roleDefinitionId });
   return c.json({ ok: true, assignmentId });
+});
+
+app.post("/api/roles/assign-bulk", async (c) => {
+  const body = await c.req.json<{
+    assignments?: Array<{
+      personId: string;
+      roleDefinitionId: string;
+      targetNextRoleDefinitionId?: string | null;
+    }>;
+  }>();
+  const list = body.assignments ?? [];
+  if (!list.length) return c.json({ error: "assignments required" }, 400);
+  if (list.length > 100) return c.json({ error: "Max 100 assignments" }, 400);
+  const db = getDb();
+  const today = nowIso().slice(0, 10);
+  let saved = 0;
+  const errors: string[] = [];
+  for (const item of list) {
+    if (!item.personId || !item.roleDefinitionId) {
+      errors.push("Missing personId or roleDefinitionId");
+      continue;
+    }
+    const role = db.select().from(roleDefinitions).where(eq(roleDefinitions.id, item.roleDefinitionId)).all()[0];
+    if (!role) {
+      errors.push(`Role not found for ${item.personId}`);
+      continue;
+    }
+    const existing = db
+      .select()
+      .from(roleAssignments)
+      .where(and(eq(roleAssignments.personId, item.personId), isNull(roleAssignments.effectiveTo)))
+      .all();
+    for (const row of existing) {
+      db.update(roleAssignments).set({ effectiveTo: today }).where(eq(roleAssignments.id, row.id)).run();
+    }
+    db.insert(roleAssignments)
+      .values({
+        id: id("ra"),
+        personId: item.personId,
+        roleDefinitionId: item.roleDefinitionId,
+        frameworkVersionId: role.frameworkVersionId,
+        targetNextRoleDefinitionId: item.targetNextRoleDefinitionId ?? null,
+        effectiveFrom: today,
+      })
+      .run();
+    saved += 1;
+  }
+  logActivity("role.assign_bulk", "workspace", null, { saved, errors: errors.length });
+  return c.json({ ok: true, saved, errors });
 });
 
 app.get("/api/cycles", (c) => {
