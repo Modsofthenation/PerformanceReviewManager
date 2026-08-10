@@ -351,7 +351,7 @@ app.get("/api/workspace/status", (c) => {
 
 app.post("/api/workspace/init", async (c) => {
   if (isInitialized()) return c.json({ error: "Already initialized" }, 400);
-  const body = await c.req.json<{ name?: string; password?: string; seed?: boolean }>();
+  const body = await c.req.json<{ name?: string; password?: string; seed?: boolean; emName?: string }>();
   const pw = validateWorkspacePassword(body.password);
   if (!pw.ok) return c.json({ error: pw.error }, 400);
   // Seed only when explicitly requested — never default to demo data.
@@ -367,14 +367,33 @@ app.post("/api/workspace/init", async (c) => {
       id: wsId,
       name: body.name || "My Team",
       createdAt: nowIso(),
-      settingsJson: "{}",
+      settingsJson: JSON.stringify({ onboarding: { completed: false, step: "team" } }),
       passwordHash: hash,
       passwordSalt: salt,
     })
     .run();
   db.insert(aiSettings).values({ id: "default", enabled: 0, provider: "anthropic" }).run();
+  const emName = (body.emName ?? "").trim();
+  let emPersonId: string | null = null;
+  if (emName) {
+    emPersonId = id("person");
+    db.insert(people)
+      .values({
+        id: emPersonId,
+        name: emName,
+        email: null,
+        title: "Engineering Manager",
+        levelKey: "M1",
+        managerId: null,
+        hireDate: null,
+        status: "active",
+        createdAt: nowIso(),
+      })
+      .run();
+    logActivity("person.create", "person", emPersonId, { name: emName, role: "em" });
+  }
   logActivity("workspace.init", "workspace", wsId);
-  return c.json({ workspaceId: wsId, token: getSessionToken() });
+  return c.json({ workspaceId: wsId, token: getSessionToken(), emPersonId });
 });
 
 app.post("/api/workspace/unlock", async (c) => {
@@ -2183,14 +2202,17 @@ app.get("/api/ai/settings", (c) => {
   const provider = row?.provider ?? "anthropic";
   const hasStoredKey = Boolean(row?.apiKeyEncrypted);
   const hasEnvCursorKey = provider === "cursor" && Boolean(process.env.CURSOR_API_KEY?.trim());
+  const cursorBaseUrl = resolveCursorBaseUrl(row?.ollamaBaseUrl);
   return c.json({
     enabled: Boolean(row?.enabled),
     provider,
     modelDigest: row?.modelDigest,
     modelDraft: row?.modelDraft,
     localOnly: Boolean(row?.localOnly),
-    ollamaBaseUrl: row?.ollamaBaseUrl,
-    cursorBaseUrl: resolveCursorBaseUrl(row?.ollamaBaseUrl),
+    // For OpenAI-compatible provider, expose the gateway URL in the shared field (never invent 18789).
+    ollamaBaseUrl:
+      provider === "cursor" ? cursorBaseUrl ?? "" : (row?.ollamaBaseUrl ?? "http://127.0.0.1:11434"),
+    cursorBaseUrl,
     privateNotesEgress: Boolean(row?.privateNotesEgress),
     meetingSummaryEgress: Boolean(row?.meetingSummaryEgress),
     documentExtractEgress: Boolean(row?.documentExtractEgress),
@@ -3227,22 +3249,66 @@ ${ctx.lines.join("\n")}`,
 
 app.post("/api/ai/test", async (c) => {
   const cfg = getAiConfig();
+  const tried =
+    cfg.localOnly || cfg.provider === "ollama"
+      ? cfg.ollamaBaseUrl
+      : cfg.provider === "cursor"
+        ? cfg.cursorBaseUrl
+        : cfg.provider === "openai"
+          ? "https://api.openai.com/v1"
+          : "https://api.anthropic.com";
   try {
+    if (!cfg.enabled) {
+      return c.json(
+        {
+          ok: false,
+          error: "AI is disabled — enable AI features, Save, then Test.",
+          provider: cfg.provider,
+          baseUrlTried: tried,
+        },
+        400,
+      );
+    }
     if (cfg.localOnly || cfg.provider === "ollama") {
       const text = await runChat("evidence_digest", [
         { role: "system", content: "Reply with exactly: OK" },
         { role: "user", content: "ping" },
       ]);
-      return c.json({ ok: true, model: text.model, sample: text.text.slice(0, 80) });
+      return c.json({
+        ok: true,
+        model: text.model,
+        sample: text.text.slice(0, 80),
+        provider: cfg.provider,
+        baseUrlTried: tried,
+      });
     }
-    if (!cfg.hasApiKey) return c.json({ ok: false, error: "No API key" }, 400);
+    if (!cfg.hasApiKey) {
+      return c.json(
+        { ok: false, error: "No API key on file — paste a key, Save, then Test.", provider: cfg.provider, baseUrlTried: tried },
+        400,
+      );
+    }
     const text = await runChat("evidence_digest", [
       { role: "system", content: "Reply with exactly: OK" },
       { role: "user", content: "ping" },
     ]);
-    return c.json({ ok: true, model: text.model, sample: text.text.slice(0, 80) });
+    return c.json({
+      ok: true,
+      model: text.model,
+      sample: text.text.slice(0, 80),
+      provider: cfg.provider,
+      baseUrlTried: tried,
+    });
   } catch (e) {
-    return c.json({ ok: false, error: e instanceof Error ? e.message : "failed" }, 500);
+    return c.json(
+      {
+        ok: false,
+        error: e instanceof Error ? e.message : "failed",
+        provider: cfg.provider,
+        baseUrlTried: tried,
+      },
+      500,
+    );
   }
 });
 

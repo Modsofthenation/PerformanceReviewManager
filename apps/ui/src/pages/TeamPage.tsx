@@ -73,15 +73,47 @@ export function TeamPage() {
 
       {people.length === 0 && (
         <div className="panel empty-state">
-          <h2>No one on the roster yet</h2>
+          <h2>Add your team</h2>
           <p>
-            Add yourself first (leave manager blank — you become the EM), then add directs. Or paste a CSV
-            below. Empty workspaces start here before roles and cycles.
+            First person without a manager becomes the EM. Prefer empty-workspace create with your name
+            filled in — then use this page to add directs or paste a CSV.
           </p>
           <div className="cta-primary-row">
-            <a className="btn" href="#add-person">Add first person</a>
+            <a className="btn" href="#add-person">
+              Add EM / first person
+            </a>
+            <a className="btn secondary" href="#csv-import">
+              Import CSV
+            </a>
           </div>
         </div>
+      )}
+
+      {people.length > 0 && !em && (
+        <NextStep
+          tone="warn"
+          label="No EM on the roster"
+          detail="Add a person without a manager — that person is treated as the EM for CSV imports and reporting lines."
+          action={<a className="btn" href="#add-person">Add EM</a>}
+        />
+      )}
+
+      {em && directs.length === 0 && (
+        <NextStep
+          tone="brand"
+          label="Add your directs"
+          detail={`${em.name} is EM. Add each direct below, or paste a CSV — new rows report to the EM.`}
+          action={
+            <>
+              <a className="btn" href="#add-person">
+                Add direct
+              </a>
+              <a className="btn secondary" href="#csv-import">
+                Import CSV
+              </a>
+            </>
+          }
+        />
       )}
 
       {unassigned.length > 0 && (

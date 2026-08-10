@@ -16,6 +16,7 @@ export function UnlockPage({
   const [setupMode, setSetupMode] = useState<SetupMode>("empty");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("My team");
+  const [emName, setEmName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [eraseOpen, setEraseOpen] = useState(false);
@@ -46,6 +47,9 @@ export function UnlockPage({
             name: name.trim() || "My team",
             password,
             seed: setupMode === "demo",
+            ...(setupMode === "empty" && emName.trim()
+              ? { emName: emName.trim() }
+              : {}),
           }),
         });
         await onUnlocked(res.token);
@@ -115,7 +119,7 @@ export function UnlockPage({
               onClick={() => selectMode("empty")}
             >
               <strong>Empty workspace</strong>
-              <span>Start clean. Add your people, roles, and cycle when you are ready.</span>
+              <span>Start clean — enter your name as EM, then add directs on Team.</span>
             </button>
             <button
               type="button"
@@ -136,7 +140,7 @@ export function UnlockPage({
           <p className="muted">
             {setupMode === "demo"
               ? "Demo data is for exploring the product. Never store real employee data behind the demo password. You can erase the workspace later from Unlock or Settings and create a new one."
-              : "No sample people or reviews. You will add the roster from Team. Choose a strong password — there is no cloud recovery."}
+              : "Choose a strong password — there is no cloud recovery. Enter your name below so the roster starts with you as EM."}
           </p>
         ) : null}
 
@@ -156,6 +160,21 @@ export function UnlockPage({
               placeholder="Platform Engineering"
               autoComplete="organization"
             />
+          </div>
+        )}
+        {!status.initialized && setupMode === "empty" && (
+          <div className="field">
+            <label htmlFor="em-name">Your name (EM)</label>
+            <input
+              id="em-name"
+              value={emName}
+              onChange={(e) => setEmName(e.target.value)}
+              placeholder="Alex Manager"
+              autoComplete="name"
+            />
+            <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+              Creates you as the first person on the roster (no manager). You can add directs next.
+            </p>
           </div>
         )}
         <div className="field">

@@ -17,23 +17,50 @@ export type AiFeature =
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+function formatFetchFailure(label: string, baseUrl: string, err: unknown): Error {
+  const detail = err instanceof Error ? err.message : String(err);
+  const cause =
+    err instanceof Error && err.cause instanceof Error
+      ? err.cause.message
+      : err instanceof Error && err.cause
+        ? String(err.cause)
+        : "";
+  const combined = [detail, cause].filter(Boolean).join(": ");
+  const isNetwork =
+    /fetch failed|ECONNREFUSED|ENOTFOUND|ECONNRESET|network|socket|timed out/i.test(combined);
+  if (isNetwork) {
+    return new Error(
+      `${label} could not reach ${baseUrl} (${combined || "network error"}). ` +
+        `Cursor dashboard keys (crsr_…) are for Cloud Agents — they are not a chat API. ` +
+        `Use Anthropic, OpenAI, or Ollama, or point this field at a running OpenAI-compatible /v1 gateway.`,
+    );
+  }
+  return new Error(`${label} request failed: ${combined || "unknown error"}`);
+}
+
 async function callAnthropic(apiKey: string, model: string, messages: ChatMessage[], maxTokens = 1600) {
   const system = messages.find((m) => m.role === "system")?.content ?? "";
   const userMessages = messages.filter((m) => m.role !== "system");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: model || "claude-sonnet-4-5",
-      max_tokens: maxTokens,
-      system,
-      messages: userMessages.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
-    }),
-  });
+  const endpoint = "https://api.anthropic.com/v1/messages";
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: model || "claude-sonnet-4-5",
+        max_tokens: maxTokens,
+        system,
+        messages: userMessages.map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
+      }),
+    });
+  } catch (err) {
+    throw formatFetchFailure("Anthropic", endpoint, err);
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Anthropic error: ${res.status} ${text.slice(0, 300)}`);
@@ -49,18 +76,24 @@ async function callOpenAI(
   baseUrl = "https://api.openai.com/v1",
   label = "OpenAI",
 ) {
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: model || "gpt-4o-mini",
-      messages,
-      temperature: 0.3,
-    }),
-  });
+  const endpoint = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: model || "gpt-4o-mini",
+        messages,
+        temperature: 0.3,
+      }),
+    });
+  } catch (err) {
+    throw formatFetchFailure(label, endpoint, err);
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`${label} error: ${res.status} ${text.slice(0, 300)}`);
@@ -70,11 +103,17 @@ async function callOpenAI(
 }
 
 async function callOllama(baseUrl: string, model: string, messages: ChatMessage[]) {
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/chat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: model || "llama3.1", messages, stream: false }),
-  });
+  const endpoint = `${baseUrl.replace(/\/$/, "")}/api/chat`;
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: model || "llama3.1", messages, stream: false }),
+    });
+  } catch (err) {
+    throw formatFetchFailure("Ollama", endpoint, err);
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Ollama error: ${res.status} ${text.slice(0, 300)}`);
@@ -85,12 +124,14 @@ async function callOllama(baseUrl: string, model: string, messages: ChatMessage[
 
 const DEFAULT_OLLAMA_BASE = "http://127.0.0.1:11434";
 
-export function defaultCursorBaseUrl(): string {
-  return (process.env.CURSOR_API_BASE_URL?.trim() || "http://127.0.0.1:18789/v1").replace(/\/$/, "");
+/** Optional env override for OpenAI-compatible gateways. No silent local default. */
+export function defaultCursorBaseUrl(): string | null {
+  const fromEnv = process.env.CURSOR_API_BASE_URL?.trim();
+  return fromEnv ? fromEnv.replace(/\/$/, "") : null;
 }
 
-/** Resolve Cursor OpenAI-compatible base URL; ignore leftover Ollama default. */
-export function resolveCursorBaseUrl(stored: string | null | undefined): string {
+/** Resolve OpenAI-compatible base URL; ignore leftover Ollama default. */
+export function resolveCursorBaseUrl(stored: string | null | undefined): string | null {
   const raw = (stored ?? "").trim().replace(/\/$/, "");
   if (raw && raw !== DEFAULT_OLLAMA_BASE.replace(/\/$/, "")) return raw;
   return defaultCursorBaseUrl();
@@ -115,8 +156,8 @@ export function getAiConfig() {
   return {
     enabled: Boolean(row?.enabled),
     provider,
-    modelDigest: row?.modelDigest ?? (provider === "cursor" ? "composer-2.5" : "claude-sonnet-4-5"),
-    modelDraft: row?.modelDraft ?? (provider === "cursor" ? "composer-2.5" : "claude-sonnet-4-5"),
+    modelDigest: row?.modelDigest ?? (provider === "cursor" ? "gpt-4o-mini" : "claude-sonnet-4-5"),
+    modelDraft: row?.modelDraft ?? (provider === "cursor" ? "gpt-4o-mini" : "claude-sonnet-4-5"),
     localOnly: Boolean(row?.localOnly),
     ollamaBaseUrl: row?.ollamaBaseUrl ?? DEFAULT_OLLAMA_BASE,
     cursorBaseUrl: resolveCursorBaseUrl(row?.ollamaBaseUrl),
@@ -152,14 +193,20 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
     return { text, model: `openai:${model}`, provider: "openai" as const };
   }
   if (cfg.provider === "cursor") {
+    if (!cfg.cursorBaseUrl) {
+      throw new Error(
+        "OpenAI-compatible base URL required. Cursor dashboard API keys (crsr_…) talk to Cloud Agents, not /v1/chat/completions. " +
+          "Prefer Anthropic, OpenAI, or Ollama — or set a gateway URL that implements OpenAI Chat Completions.",
+      );
+    }
     const text = await callOpenAI(
       cfg.apiKey,
-      model || "composer-2.5",
+      model || "gpt-4o-mini",
       messages,
       cfg.cursorBaseUrl,
-      "Cursor",
+      "OpenAI-compatible",
     );
-    return { text, model: `cursor:${model || "composer-2.5"}`, provider: "cursor" as const };
+    return { text, model: `cursor:${model || "gpt-4o-mini"}`, provider: "cursor" as const };
   }
   const text = await callAnthropic(cfg.apiKey, model || "claude-sonnet-4-5", messages, maxTokens);
   return { text, model: `anthropic:${model}`, provider: "anthropic" as const };

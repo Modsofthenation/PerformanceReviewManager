@@ -42,6 +42,8 @@ export function SettingsPage({
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgTone, setMsgTone] = useState<"ok" | "danger" | "muted">("muted");
+  const [testBusy, setTestBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditVerifyResult | null>(null);
   const [auditBusy, setAuditBusy] = useState(false);
@@ -105,14 +107,44 @@ export function SettingsPage({
     !apiKey;
 
   async function testAiConnection() {
+    if (!settings) return;
+    setTestBusy(true);
+    setMsg("Saving settings, then testing…");
+    setMsgTone("muted");
     try {
-      const res = await api<{ ok: boolean; error?: string; model?: string }>("/api/ai/test", {
+      await api("/api/ai/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...settings,
+          apiKey: apiKey ? apiKey : undefined,
+        }),
+      });
+      setApiKey("");
+      const res = await api<{
+        ok: boolean;
+        error?: string;
+        model?: string;
+        provider?: string;
+        baseUrlTried?: string | null;
+      }>("/api/ai/test", {
         method: "POST",
         body: "{}",
       });
-      setMsg(res.ok ? `Connection OK (${res.model})` : `Failed: ${res.error}`);
+      if (res.ok) {
+        setMsgTone("ok");
+        setMsg(
+          `Connection OK (${res.model ?? "unknown"})${res.baseUrlTried ? ` via ${res.baseUrlTried}` : ""}`,
+        );
+      } else {
+        setMsgTone("danger");
+        setMsg(res.error ?? "Test failed");
+      }
+      await load();
     } catch (err) {
+      setMsgTone("danger");
       setMsg(err instanceof Error ? err.message : "Test failed");
+    } finally {
+      setTestBusy(false);
     }
   }
 
@@ -123,11 +155,33 @@ export function SettingsPage({
         job="Appearance, AI, integrations, and private-tier egress. Keys stay encrypted with the workspace secret."
         primary={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         secondary={
-          <button type="button" className="btn secondary" onClick={() => void testAiConnection()}>
-            Test AI connection
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={testBusy}
+            onClick={() => void testAiConnection()}
+          >
+            {testBusy ? "Testing…" : "Test AI connection"}
           </button>
         }
       />
+
+      {msg && (
+        <p
+          role="status"
+          style={{
+            margin: 0,
+            color:
+              msgTone === "ok"
+                ? "var(--ok)"
+                : msgTone === "danger"
+                  ? "var(--danger)"
+                  : "var(--muted)",
+          }}
+        >
+          {msg}
+        </p>
+      )}
 
       <PageSectionsLayout sections={SETTINGS_SECTIONS}>
       <Section
@@ -322,7 +376,7 @@ export function SettingsPage({
         <NextStep
           tone="warn"
           label="Add an API key to use cloud drafting"
-          detail="AI is enabled but no key is on file. Paste a key below, Save, then Test connection — or switch to Ollama / local-only. For Cursor, use a crsr_ key or CURSOR_API_KEY."
+          detail="AI is enabled but no key is on file. Paste a provider key below, Save, then Test — or switch to Ollama / local-only. Cursor dashboard keys (crsr_…) are not a chat API for this app."
           action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         />
       ) : settings.enabled ? (
@@ -331,8 +385,13 @@ export function SettingsPage({
           label="AI ready for writing desk"
           detail="Digest and section drafts pull from dossier + imports. Private notes stay off cloud unless you opt in below."
           action={
-            <button type="button" className="btn" onClick={() => void testAiConnection()}>
-              Test AI connection
+            <button
+              type="button"
+              className="btn"
+              disabled={testBusy}
+              onClick={() => void testAiConnection()}
+            >
+              {testBusy ? "Testing…" : "Test AI connection"}
             </button>
           }
         />
@@ -366,6 +425,7 @@ export function SettingsPage({
           });
           setApiKey("");
           setMsg("Saved");
+          setMsgTone("ok");
           await load();
         }}
       >
@@ -390,12 +450,12 @@ export function SettingsPage({
                 provider,
                 ...(provider === "cursor"
                   ? {
-                      modelDigest: settings.modelDigest || "composer-2.5",
-                      modelDraft: settings.modelDraft || "composer-2.5",
+                      modelDigest: settings.modelDigest || "gpt-4o-mini",
+                      modelDraft: settings.modelDraft || "gpt-4o-mini",
                       ollamaBaseUrl:
                         settings.ollamaBaseUrl && settings.ollamaBaseUrl !== "http://127.0.0.1:11434"
                           ? settings.ollamaBaseUrl
-                          : settings.cursorBaseUrl || "http://127.0.0.1:18789/v1",
+                          : settings.cursorBaseUrl || "",
                     }
                   : {}),
               });
@@ -403,16 +463,17 @@ export function SettingsPage({
           >
             <option value="anthropic">Anthropic</option>
             <option value="openai">OpenAI</option>
-            <option value="cursor">Cursor</option>
+            <option value="cursor">OpenAI-compatible (custom URL)</option>
             <option value="ollama">Ollama</option>
           </select>
         </div>
         {settings.provider === "cursor" && (
           <p className="muted">
-            Uses an OpenAI-compatible Chat Completions endpoint with your Cursor API key
-            (<code>crsr_…</code> from cursor.com/dashboard → API Keys). Set Base URL to your Cursor
-            gateway (local proxy default <code>http://127.0.0.1:18789/v1</code>, or{" "}
-            <code>CURSOR_API_BASE_URL</code>). Key may also come from <code>CURSOR_API_KEY</code>.
+            For a local or third-party gateway that speaks OpenAI{" "}
+            <code>/v1/chat/completions</code>. Cursor dashboard API keys (<code>crsr_…</code>) are for{" "}
+            <strong>Cloud Agents only</strong> — they will not work here. Prefer Anthropic, OpenAI, or
+            Ollama unless you already run a compatible proxy. Optional env:{" "}
+            <code>CURSOR_API_BASE_URL</code> / <code>CURSOR_API_KEY</code>.
           </p>
         )}
         <div className="field">
@@ -429,21 +490,24 @@ export function SettingsPage({
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={
-              settings.hasApiKey ? "••••••••" : settings.provider === "cursor" ? "crsr_…" : "sk-…"
+              settings.hasApiKey ? "••••••••" : settings.provider === "cursor" ? "gateway key…" : "sk-…"
             }
           />
         </div>
         {(settings.provider === "ollama" || settings.provider === "cursor") && (
           <div className="field">
-            <label>{settings.provider === "cursor" ? "Cursor API base URL" : "Ollama base URL"}</label>
+            <label>
+              {settings.provider === "cursor" ? "OpenAI-compatible base URL" : "Ollama base URL"}
+            </label>
             <input
               value={settings.ollamaBaseUrl ?? ""}
               onChange={(e) => setSettings({ ...settings, ollamaBaseUrl: e.target.value })}
               placeholder={
                 settings.provider === "cursor"
-                  ? "http://127.0.0.1:18789/v1"
+                  ? "https://your-gateway.example/v1"
                   : "http://127.0.0.1:11434"
               }
+              required={settings.provider === "cursor"}
             />
           </div>
         )}
@@ -452,7 +516,7 @@ export function SettingsPage({
           <input
             value={settings.modelDigest ?? ""}
             onChange={(e) => setSettings({ ...settings, modelDigest: e.target.value })}
-            placeholder={settings.provider === "cursor" ? "composer-2.5" : undefined}
+            placeholder={settings.provider === "cursor" ? "gpt-4o-mini" : undefined}
           />
         </div>
         <div className="field">
@@ -460,7 +524,7 @@ export function SettingsPage({
           <input
             value={settings.modelDraft ?? ""}
             onChange={(e) => setSettings({ ...settings, modelDraft: e.target.value })}
-            placeholder={settings.provider === "cursor" ? "composer-2.5" : undefined}
+            placeholder={settings.provider === "cursor" ? "gpt-4o-mini" : undefined}
           />
         </div>
         <div className="field">
@@ -498,11 +562,30 @@ export function SettingsPage({
         ))}
         <div className="cta-primary-row">
           <button className="btn">Save AI settings</button>
-          <button type="button" className="btn secondary" onClick={() => void testAiConnection()}>
-            Test AI connection
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={testBusy}
+            onClick={() => void testAiConnection()}
+          >
+            {testBusy ? "Testing…" : "Test AI connection"}
           </button>
         </div>
-        {msg && <p className="muted">{msg}</p>}
+        {msg && (
+          <p
+            role="status"
+            style={{
+              color:
+                msgTone === "ok"
+                  ? "var(--ok)"
+                  : msgTone === "danger"
+                    ? "var(--danger)"
+                    : undefined,
+            }}
+          >
+            {msg}
+          </p>
+        )}
       </form>
       </Section>
 
