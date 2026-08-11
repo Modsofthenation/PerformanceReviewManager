@@ -76,7 +76,7 @@ export function TemplatesPage() {
           </div>
           <button
             type="button"
-            className="btn"
+            className="btn secondary"
             disabled={!selected || !cloneKey.trim()}
             onClick={async () => {
               try {

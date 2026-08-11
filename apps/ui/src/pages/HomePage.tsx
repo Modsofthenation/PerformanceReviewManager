@@ -298,7 +298,7 @@ export function HomePage() {
           when="Use before a skip-level or calibration conversation — flags only, no private note bodies."
           how="Scan reasons, open a writing desk to fix evidence, or jump to consistency / director packs."
           action={
-            <Link className="btn" to={`/consistency?cycleId=${attention.cycleId}`}>
+            <Link className="btn secondary" to={`/consistency?cycleId=${attention.cycleId}`}>
               Open consistency packs
             </Link>
           }
@@ -419,7 +419,7 @@ export function HomePage() {
           action={
             <button
               type="button"
-              className="btn"
+              className="btn secondary"
               onClick={async () => {
                 const text = nudges
                   .map((n) => `${n.personName}${n.email ? ` <${n.email}>` : ""} — ${n.mailtoHref}`)
@@ -498,12 +498,12 @@ export function HomePage() {
                 const finalized = item.managerStatus === "finalized" || item.managerStatus === "shared";
                 let cta: ReactNode;
                 if (needsRole) {
-                  cta = <Link className="btn" to="/roles">Assign role</Link>;
+                  cta = <Link className="btn secondary" to="/roles">Assign role</Link>;
                 } else if (needsSelf) {
                   cta = (
                     <div className="row">
-                      <Link className="btn" to="/cycles">Export self-review pack</Link>
-                      <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>
+                      <Link className="btn secondary" to="/cycles">Export self-review pack</Link>
+                      <Link className="btn ghost" to={`/cycles/${cycleId}/write/${person.id}`}>
                         Open writing desk
                       </Link>
                     </div>
@@ -516,13 +516,13 @@ export function HomePage() {
                   );
                 } else if (item.managerStatus === "draft") {
                   cta = (
-                    <Link className="btn" to={`/cycles/${cycleId}/write/${person.id}`}>
+                    <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>
                       Continue writing
                     </Link>
                   );
                 } else {
                   cta = (
-                    <Link className="btn" to={`/cycles/${cycleId}/write/${person.id}`}>
+                    <Link className="btn secondary" to={`/cycles/${cycleId}/write/${person.id}`}>
                       Start writing review
                     </Link>
                   );

@@ -21,7 +21,11 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - MCP / AGENTS docs no longer imply a silent `PRM_PASSWORD=workbench` default
 - Settings → AI: OpenAI-compatible gateways are a separate provider from Cursor Cloud Agents
 - Empty workspaces land in setup until finished or skipped; demo seed marks onboarding complete
+<<<<<<< HEAD
 - **Cursor Cloud Agents** chat: stream status and assistant text live via SSE; empty-result errors include agent/run ids and a dashboard link
+=======
+- Primary CTA hierarchy: NextStep owns the solid primary action; PageHeader/Section duplicates and table-row moves use secondary/ghost so pages like Cycles no longer show the same green button 3–4 times
+>>>>>>> bd04ca1 (Clarify primary CTAs across Cycles and other pages)
 
 ### Fixed
 

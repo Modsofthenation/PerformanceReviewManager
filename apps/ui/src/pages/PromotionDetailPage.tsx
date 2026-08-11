@@ -107,19 +107,17 @@ export function PromotionDetailPage() {
       <PageHeader
         title={`Promotion: ${detail.person?.name}`}
         job={`${detail.currentRole?.title ?? "—"} → ${detail.targetRole?.title ?? "—"} · Mark next-role expectations, write the case, then submit.`}
-        primary={
-          submitted ? (
-            <button className="btn" type="button" onClick={() => void openHtmlPacket()}>
-              Promo committee export
-            </button>
-          ) : (
-            <button className="btn" onClick={() => save("submitted")}>Submit packet</button>
-          )
-        }
         secondary={
           <>
             <Link className="btn ghost" to="/promotions">All packets</Link>
             {!submitted && <button className="btn secondary" onClick={() => save("draft")}>Save draft</button>}
+            {submitted ? (
+              <button className="btn secondary" type="button" onClick={() => void openHtmlPacket()}>
+                Promo committee export
+              </button>
+            ) : (
+              <button className="btn secondary" onClick={() => save("submitted")}>Submit packet</button>
+            )}
           </>
         }
       />
@@ -259,7 +257,7 @@ export function PromotionDetailPage() {
                 <button className="btn secondary" onClick={() => save("draft")}>
                   Save packet draft
                 </button>
-                <button className="btn" onClick={() => save("submitted")}>
+                <button className="btn secondary" onClick={() => save("submitted")}>
                   Submit promotion packet
                 </button>
               </>
@@ -297,7 +295,7 @@ export function PromotionDetailPage() {
           {!submitted && (
             <div className="cta-primary-row">
               <button className="btn secondary" onClick={() => save("draft")}>Save packet draft</button>
-              <button className="btn" onClick={() => save("submitted")}>Submit promotion packet</button>
+              <button className="btn secondary" onClick={() => save("submitted")}>Submit promotion packet</button>
             </div>
           )}
         </Section>

@@ -89,7 +89,7 @@ export function BackfillPage() {
           tone="ok"
           label="Dossiers look populated"
           detail="Every direct has at least two evidence items. Keep capturing year-round."
-          action={<Link className="btn" to="/">Back to command center</Link>}
+          action={<Link className="btn secondary" to="/">Back to command center</Link>}
         />
       )}
 

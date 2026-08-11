@@ -47,13 +47,15 @@ export function PromotionsPage() {
       <PageHeader
         title="Promotion packets"
         job="Separate from performance rating. Map evidence to next-role expectations only, then submit the case."
-        primary={
+        secondary={
           people.length > 0 ? (
-            <button className="btn" form="start-promo-form" type="submit" disabled={!personId}>
-              Start promotion packet
-            </button>
+            <a className="btn secondary" href="#start-promo-form">
+              Jump to start form
+            </a>
           ) : (
-            <Link className="btn" to="/roles">Set target next roles</Link>
+            <Link className="btn secondary" to="/roles">
+              Set target next roles
+            </Link>
           )
         }
       />
@@ -102,7 +104,7 @@ export function PromotionsPage() {
         <select value={cycleId} onChange={(e) => setCycleId(e.target.value)} aria-label="Cycle">
           {cycles.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button className="btn" disabled={!personId}>Start promotion packet</button>
+        <button className="btn secondary" disabled={!personId}>Start promotion packet</button>
       </form>
 
       <div className="panel">
@@ -121,7 +123,7 @@ export function PromotionsPage() {
                   <td className="muted">{r.currentRole} → {r.targetRole}</td>
                   <td><span className="flag">{r.status}</span></td>
                   <td>
-                    <Link className="btn" to={`/promotions/${r.id}`}>
+                    <Link className="btn secondary" to={`/promotions/${r.id}`}>
                       {r.status === "submitted" ? "View packet" : "Continue packet"}
                     </Link>
                   </td>

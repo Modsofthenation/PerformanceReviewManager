@@ -632,6 +632,15 @@ strong { color: var(--ink-soft); font-weight: 600; }
 }
 .btn.secondary:hover { background: var(--brand-tint); border-color: var(--brand); }
 
+/* Selected state for toggle/chip groups — not a second primary CTA. */
+.btn.btn-toggle-on,
+.btn.secondary[aria-pressed="true"] {
+  background: var(--brand-tint);
+  border-color: var(--brand);
+  color: var(--brand-strong);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
 .btn.ghost {
   background: transparent;
   border-color: var(--line-strong);
