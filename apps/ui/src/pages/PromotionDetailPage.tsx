@@ -4,6 +4,7 @@ import type { GapMark, RoleDefinitionDTO } from "@prm/shared";
 import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
+import { AppSelect } from "../components/AppSelect";
 
 type PromoDetail = {
   id: string;
@@ -233,14 +234,16 @@ export function PromotionDetailPage() {
           {(detail.targetRole?.expectations ?? []).map((e) => (
             <div key={e.id} className="field">
               <label><span className="flag">{e.kind}</span> {e.text}</label>
-              <select
+              <AppSelect
                 value={marks[e.id] ?? "emerging"}
-                onChange={(ev) => setMarks((m) => ({ ...m, [e.id]: ev.target.value as GapMark }))}
-              >
-                <option value="demonstrating">Demonstrating</option>
-                <option value="emerging">Emerging</option>
-                <option value="not_yet">Not yet</option>
-              </select>
+                onChange={(v) => setMarks((m) => ({ ...m, [e.id]: v as GapMark }))}
+                isSearchable={false}
+                options={[
+                  { value: "demonstrating", label: "Demonstrating" },
+                  { value: "emerging", label: "Emerging" },
+                  { value: "not_yet", label: "Not yet" },
+                ]}
+              />
             </div>
           ))}
           {aiOut && <pre className="digest">{aiOut}</pre>}
@@ -278,10 +281,15 @@ export function PromotionDetailPage() {
           </div>
           <div className="field">
             <label>Recommendation</label>
-            <select value={recommendation} onChange={(e) => setRecommendation(e.target.value as "ready" | "not_yet")}>
-              <option value="not_yet">Not yet</option>
-              <option value="ready">Ready</option>
-            </select>
+            <AppSelect
+              value={recommendation}
+              onChange={(v) => setRecommendation(v as "ready" | "not_yet")}
+              isSearchable={false}
+              options={[
+                { value: "not_yet", label: "Not yet" },
+                { value: "ready", label: "Ready" },
+              ]}
+            />
           </div>
           <div className="field">
             <label>Decision reason (when recommendation or status changes)</label>

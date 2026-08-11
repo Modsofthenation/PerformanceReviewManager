@@ -7,6 +7,7 @@ import type {
   RoleDefinitionDTO,
 } from "@prm/shared";
 import { api } from "../lib/api";
+import { AppSelect } from "../components/AppSelect";
 
 const LEVELS = ["IC1", "IC2", "IC3", "IC4", "IC5", "IC6", "L1", "M1", "M2", "M3"];
 
@@ -398,13 +399,11 @@ function TeamStep({
           </div>
           <div className="field">
             <label>Level</label>
-            <select value={levelKey} onChange={(e) => setLevelKey(e.target.value)}>
-              {LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
+            <AppSelect
+              value={levelKey}
+              onChange={(v) => setLevelKey(v)}
+              options={LEVELS.map((l) => ({ value: l, label: l }))}
+            />
           </div>
         </div>
         <button className="btn" disabled={localBusy || !name.trim()}>
@@ -587,43 +586,41 @@ function RolesStep({
                       ) : null}
                     </td>
                     <td>
-                      <select
+                      <AppSelect
                         value={d.roleId}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setDrafts((prev) => ({
                             ...prev,
-                            [p.id]: { roleId: e.target.value, nextId: "" },
+                            [p.id]: { roleId: v, nextId: "" },
                           }))
                         }
-                      >
-                        <option value="">Select…</option>
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.levelKey ? `${r.levelKey} · ` : ""}
-                            {r.title}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "", label: "Select…" },
+                          ...roles.map((r) => ({
+                            value: r.id,
+                            label: `${r.levelKey ? `${r.levelKey} · ` : ""}${r.title}`,
+                          })),
+                        ]}
+                      />
                     </td>
                     <td>
-                      <select
+                      <AppSelect
                         value={d.nextId}
                         disabled={!d.roleId}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setDrafts((prev) => ({
                             ...prev,
-                            [p.id]: { ...d, nextId: e.target.value },
+                            [p.id]: { ...d, nextId: v },
                           }))
                         }
-                      >
-                        <option value="">—</option>
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.levelKey ? `${r.levelKey} · ` : ""}
-                            {r.title}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { value: "", label: "—" },
+                          ...roles.map((r) => ({
+                            value: r.id,
+                            label: `${r.levelKey ? `${r.levelKey} · ` : ""}${r.title}`,
+                          })),
+                        ]}
+                      />
                     </td>
                   </tr>
                 );
@@ -755,10 +752,9 @@ function AiStep({
       </div>
       <div className="field">
         <label>Provider</label>
-        <select
+        <AppSelect
           value={form.provider}
-          onChange={(e) => {
-            const provider = e.target.value;
+          onChange={(provider) => {
             setForm({
               ...form,
               provider,
@@ -786,13 +782,14 @@ function AiStep({
                   : form.ollamaBaseUrl || "http://127.0.0.1:11434",
             });
           }}
-        >
-          <option value="anthropic">Anthropic</option>
-          <option value="openai">OpenAI</option>
-          <option value="cursor">Cursor Cloud Agents</option>
-          <option value="openai_compatible">OpenAI-compatible gateway</option>
-          <option value="ollama">Ollama (local)</option>
-        </select>
+          options={[
+            { value: "anthropic", label: "Anthropic" },
+            { value: "openai", label: "OpenAI" },
+            { value: "cursor", label: "Cursor Cloud Agents" },
+            { value: "openai_compatible", label: "OpenAI-compatible gateway" },
+            { value: "ollama", label: "Ollama (local)" },
+          ]}
+        />
       </div>
       {form.provider === "cursor" && (
         <p className="muted" style={{ margin: 0 }}>

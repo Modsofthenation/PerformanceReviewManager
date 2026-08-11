@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 import { OnboardingWizard } from "../components/OnboardingWizard";
+import { AppSelect } from "../components/AppSelect";
 
 type CommandItem = {
   person: { id: string; name: string; roleTitle: string | null } | null;
@@ -273,16 +274,16 @@ export function HomePage() {
           <label className="muted" htmlFor="home-cycle-select">
             Cycle
           </label>
-          <select
+          <AppSelect
             id="home-cycle-select"
             value={cycleId ?? ""}
-            onChange={(e) => setCycleId(e.target.value || null)}
-          >
-            {cycles.length === 0 && <option value="">No cycles yet</option>}
-            {cycles.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            onChange={(v) => setCycleId(v || null)}
+            fullWidth={false}
+            options={[
+              ...(cycles.length === 0 ? [{ value: "", label: "No cycles yet" }] : []),
+              ...cycles.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
           {active && (
             <span className="muted">
               {active.windowStart} → {active.windowEnd} · {active.status}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { WorkspaceSettingsDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { Section } from "./PageChrome";
+import { AppSelect } from "./AppSelect";
 
 export function RetentionPanel() {
   const [settings, setSettings] = useState<WorkspaceSettingsDTO | null>(null);
@@ -59,20 +60,22 @@ export function RetentionPanel() {
       </p>
       <div className="field">
         <label htmlFor="retention-select">Retention policy</label>
-        <select
+        <AppSelect
           id="retention-select"
           value={settings.retention}
-          onChange={(e) =>
+          onChange={(v) =>
             setSettings({
               ...settings,
-              retention: e.target.value as WorkspaceSettingsDTO["retention"],
+              retention: v as WorkspaceSettingsDTO["retention"],
             })
           }
-        >
-          <option value="current_plus_previous">Current + previous cycle</option>
-          <option value="current_only">Current cycle only</option>
-          <option value="keep_all">Keep all cycles</option>
-        </select>
+          isSearchable={false}
+          options={[
+            { value: "current_plus_previous", label: "Current + previous cycle" },
+            { value: "current_only", label: "Current cycle only" },
+            { value: "keep_all", label: "Keep all cycles" },
+          ]}
+        />
       </div>
       <div className="field">
         <label>

@@ -95,15 +95,26 @@ export function PromotionsPage() {
           navigate(`/promotions/${res.id}`);
         }}
       >
-        <select value={personId} onChange={(e) => setPersonId(e.target.value)} aria-label="Person">
-          {people.length === 0 && <option value="">No eligible people</option>}
-          {people.map((p) => (
-            <option key={p.id} value={p.id}>{p.name} → {p.targetNextRoleTitle}</option>
-          ))}
-        </select>
-        <select value={cycleId} onChange={(e) => setCycleId(e.target.value)} aria-label="Cycle">
-          {cycles.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <AppSelect
+          value={personId}
+          onChange={(v) => setPersonId(v)}
+          aria-label="Person"
+          fullWidth={false}
+          options={[
+            ...(people.length === 0 ? [{ value: "", label: "No eligible people" }] : []),
+            ...people.map((p) => ({
+              value: p.id,
+              label: `${p.name} → ${p.targetNextRoleTitle}`,
+            })),
+          ]}
+        />
+        <AppSelect
+          value={cycleId}
+          onChange={(v) => setCycleId(v)}
+          aria-label="Cycle"
+          fullWidth={false}
+          options={cycles.map((c) => ({ value: c.id, label: c.name }))}
+        />
         <button className="btn secondary" disabled={!personId}>Start promotion packet</button>
       </form>
 
