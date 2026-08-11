@@ -17,6 +17,7 @@ import { PageSectionsLayout, type SectionNavItem } from "../components/PageSecti
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 import { OneOnOnesPanel } from "../components/OneOnOnesPanel";
 import { AppSelect } from "../components/AppSelect";
+import { PersonPerformanceCharts } from "../components/PersonPerformanceCharts";
 
 export function PersonPage() {
   const { id } = useParams();
@@ -116,6 +117,7 @@ export function PersonPage() {
   const sections: SectionNavItem[] = [
     ...(activeCycle ? [{ id: "person-reassign", label: "Reassign" }] : []),
     { id: "timeline", label: "Timeline" },
+    { id: "person-performance", label: "Performance" },
     { id: "integrations", label: "Integrations" },
     { id: "capture-achievements", label: "Achievements" },
     { id: "person-goals", label: "Goals" },
@@ -413,7 +415,28 @@ export function PersonPage() {
         {linkMsg && <p className="muted">{linkMsg}</p>}
       </Section>
 
-      {id ? <DeliveryRollupPanel personId={id} cycleId={cycles[0]?.id} /> : null}
+      {id ? (
+        <Section
+          id="person-performance"
+          title="Performance"
+          when="Use before a 1:1 or writing desk to see work completed vs prior cycles."
+          how="Read the window mix and cycle bars — volume signals only. Sync integrations if delivery looks empty."
+          action={
+            activeCycle ? (
+              <Link className="btn secondary" to={`/team-performance?cycleId=${activeCycle.id}`}>
+                Team performance
+              </Link>
+            ) : (
+              <Link className="btn secondary" to="/team-performance">
+                Team performance
+              </Link>
+            )
+          }
+        >
+          <PersonPerformanceCharts personId={id} cycleId={cycles[0]?.id} />
+          <DeliveryRollupPanel personId={id} cycleId={cycles[0]?.id} />
+        </Section>
+      ) : null}
 
       <div className="grid-2">
         <Section

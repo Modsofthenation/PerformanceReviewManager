@@ -16,6 +16,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - Guided **/setup** onboarding: team → assign-first roles → optional AI → integrations with credential guides → evidence backfill with progress
 - **1:1 sessions** on the person dossier — manual Q&A agenda plus optional AI-suggested questions grounded in evidence
 - Home **suggested next actions** queue: prioritized primary NextStep plus “Up next” list that refreshes when you return to the tab
+- Team / person **work-completed graphs**: delivery-by-person bars + delivery-vs-rating on Team performance; window mix + cycle series + rating trend on dossiers; Sprint pulse throughput chart
 
 ### Changed
 

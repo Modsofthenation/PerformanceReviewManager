@@ -1400,11 +1400,21 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
   white-space: nowrap;
 }
 .tp-histogram,
-.tp-scatter {
+.tp-scatter,
+.tp-series {
   width: 100%;
   max-width: 480px;
   height: auto;
   display: block;
+}
+.person-rating-series {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  font-size: 0.9rem;
+}
+.person-perf-grid {
+  margin-bottom: 0.75rem;
 }
 .tp-hist-bar { fill: var(--brand); opacity: 0.9; }
 .tp-hist-label { fill: var(--muted); font-size: 11px; }
