@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 import { AppSelect } from "../components/AppSelect";
+import { BarChart, maxCount } from "../components/charts";
 
 const PRESETS = [
   { id: "last_7", label: "Last 7 days" },
@@ -68,6 +69,7 @@ export function SprintPulsePage() {
       <PageSectionsLayout
         sections={[
           { id: "pulse-window", label: "Window" },
+          { id: "pulse-throughput", label: "Throughput" },
           { id: "pulse-themes", label: "Themes" },
           { id: "pulse-freshness", label: "Freshness" },
           { id: "pulse-people", label: "People" },
@@ -161,6 +163,28 @@ export function SprintPulsePage() {
               <strong>{data.summary.openConcerns}</strong>
             </div>
           </div>
+
+          <Section
+            id="pulse-throughput"
+            title="Work completed in window"
+            when="Use mid-cycle to see who shipped achievements / tickets / PRs in this date range."
+            how="Bars are achievement counts per person (manual + synced). Drill into a dossier for delivery mix."
+          >
+            {data.people.every((p) => p.achievements === 0) ? (
+              <p className="muted">No achievements in this window yet.</p>
+            ) : (
+              <BarChart
+                rows={[...data.people]
+                  .map((p) => ({
+                    key: p.personId,
+                    label: p.personName,
+                    count: p.achievements,
+                  }))
+                  .sort((a, b) => b.count - a.count)}
+                max={maxCount(data.people.map((p) => p.achievements))}
+              />
+            )}
+          </Section>
 
           <div className="tp-grid">
             <Section

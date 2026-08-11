@@ -135,12 +135,13 @@ Per-participant phase status is source of truth; cycle banner is derived. Overla
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Person timeline | P0 | Person dossier chronological stream (evidence, concerns, reviews, decisions) |
-| Competency sparklines (manager ratings only) | P0 | Team performance → rating trends across cycles |
+| Competency sparklines (manager ratings only) | P0 | Team performance → rating trends; person dossier overall trend |
 | Stagnation hints | P1 | Local heuristics |
 | Search finalized reviews | P1 | FTS on workspace |
 | Workspace stats (time, evidence %) | P0 | Cycle dashboard on Home — writing time, coverage %, thin dossiers |
-| Team performance graphs | P0 | `/team-performance` — rating histogram, competency averages, writing buckets, themes, prior-cycle deltas, cycle compare |
-| Sprint / window pulse | P0 | `/sprint-pulse` — date-range throughput, themes, concerns, evidence freshness |
+| Team performance graphs | P0 | `/team-performance` — ratings, work completed by person, delivery vs overall, competencies, writing, themes, cycle compare |
+| Person delivery / rating graphs | P0 | Dossier Performance section — window mix, multi-cycle delivery bars, rating trend |
+| Sprint / window pulse | P0 | `/sprint-pulse` — throughput chart, themes, concerns, evidence freshness |
 | Adverse-impact reporting | — | Hosted-only |
 
 ---

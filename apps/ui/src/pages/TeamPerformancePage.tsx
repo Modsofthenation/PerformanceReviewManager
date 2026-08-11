@@ -7,6 +7,13 @@ import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { AppSelect } from "../components/AppSelect";
+import {
+  BarChart,
+  DeliverySparkline,
+  Histogram,
+  TrendSparkline,
+  maxCount,
+} from "../components/charts";
 
 const PROMO_LABELS: Record<string, string> = {
   ready: "Ready",
@@ -16,85 +23,10 @@ const PROMO_LABELS: Record<string, string> = {
   unset: "Unset",
 };
 
-function maxCount(values: number[]) {
-  return Math.max(1, ...values);
-}
-
 function formatMinutes(seconds: number) {
   if (seconds <= 0) return "—";
   const m = Math.round(seconds / 60);
   return `${m}m`;
-}
-
-function BarChart({
-  rows,
-  max,
-}: {
-  rows: Array<{ key: string; label: string; count: number }>;
-  max: number;
-}) {
-  return (
-    <div className="consistency-bars">
-      {rows.map((row) => (
-        <div key={row.key} className="consistency-bar-row tp-bar-row">
-          <div className="consistency-bar-label tp-bar-label" title={row.label}>
-            {row.label}
-          </div>
-          <div className="consistency-bar-track">
-            <div
-              className="consistency-bar-fill"
-              style={{ width: `${(row.count / max) * 100}%` }}
-            />
-          </div>
-          <div className="consistency-bar-count">{row.count}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Histogram({
-  buckets,
-}: {
-  buckets: Array<{ key: string; label: string; count: number }>;
-}) {
-  const max = maxCount(buckets.map((b) => b.count));
-  const height = 140;
-  const gap = 10;
-  const barW = 36;
-  const width = buckets.length * (barW + gap) + gap;
-  return (
-    <svg
-      className="tp-histogram"
-      viewBox={`0 0 ${width} ${height + 28}`}
-      role="img"
-      aria-label="Overall rating distribution"
-    >
-      {buckets.map((b, i) => {
-        const h = b.count === 0 ? 0 : Math.max(4, (b.count / max) * height);
-        const x = gap + i * (barW + gap);
-        const y = height - h;
-        return (
-          <g key={b.key}>
-            <rect
-              x={x}
-              y={y}
-              width={barW}
-              height={h}
-              rx={6}
-              className="tp-hist-bar"
-            />
-            <text x={x + barW / 2} y={height + 16} textAnchor="middle" className="tp-hist-label">
-              {b.label}
-            </text>
-            <text x={x + barW / 2} y={y - 6} textAnchor="middle" className="tp-hist-count">
-              {b.count}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
 }
 
 function EvidenceScatter({
@@ -156,57 +88,66 @@ function EvidenceScatter({
   );
 }
 
-function TrendSparkline({
-  points,
-  label,
+function DeliveryScatter({
+  people,
 }: {
-  points: Array<{ value: number | null; cycleName: string }>;
-  label: string;
+  people: TeamPerformanceDTO["people"];
 }) {
-  const w = 160;
-  const h = 36;
-  const vals = points.map((p) => p.value).filter((v): v is number => v != null);
-  if (vals.length < 1) return <span className="muted">—</span>;
-  const min = 1;
-  const max = 5;
-  const coords = points
-    .map((p, i) => {
-      if (p.value == null) return null;
-      const x = points.length === 1 ? w / 2 : (i / (points.length - 1)) * (w - 8) + 4;
-      const y = h - 4 - ((p.value - min) / (max - min)) * (h - 8);
-      return `${x},${y}`;
-    })
-    .filter(Boolean);
-  return (
-    <svg className="tp-trend" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label}>
-      <polyline points={coords.join(" ")} className="tp-trend-line" fill="none" />
-      {points.map((p, i) => {
-        if (p.value == null) return null;
-        const x = points.length === 1 ? w / 2 : (i / (points.length - 1)) * (w - 8) + 4;
-        const y = h - 4 - ((p.value - min) / (max - min)) * (h - 8);
-        return <circle key={p.cycleName} cx={x} cy={y} r={2.5} className="tp-trend-dot" />;
-      })}
-    </svg>
-  );
-}
+  const rated = people.filter((p) => p.overall != null);
+  if (rated.length === 0) {
+    return <p className="muted">No overall ratings yet — points appear once you score drafts.</p>;
+  }
+  const maxDelivery = Math.max(1, ...rated.map((p) => p.deliveryDone ?? 0));
+  const w = 420;
+  const h = 200;
+  const pad = { left: 36, right: 16, top: 16, bottom: 32 };
+  const plotW = w - pad.left - pad.right;
+  const plotH = h - pad.top - pad.bottom;
 
-function DeliverySparkline({ values, label }: { values: number[]; label: string }) {
-  const w = 100;
-  const h = 28;
-  if (values.length < 1) return <span className="muted">—</span>;
-  const max = Math.max(1, ...values);
-  const coords = values.map((v, i) => {
-    const x = values.length === 1 ? w / 2 : (i / (values.length - 1)) * (w - 8) + 4;
-    const y = h - 4 - (v / max) * (h - 8);
-    return `${x},${y}`;
-  });
   return (
-    <svg className="tp-trend" viewBox={`0 0 ${w} ${h}`} role="img" aria-label={label}>
-      <polyline points={coords.join(" ")} className="tp-trend-line" fill="none" />
-      {values.map((v, i) => {
-        const x = values.length === 1 ? w / 2 : (i / (values.length - 1)) * (w - 8) + 4;
-        const y = h - 4 - (v / max) * (h - 8);
-        return <circle key={i} cx={x} cy={y} r={2} className="tp-trend-dot" />;
+    <svg className="tp-scatter" viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Delivery vs overall">
+      <line
+        x1={pad.left}
+        y1={pad.top + plotH}
+        x2={pad.left + plotW}
+        y2={pad.top + plotH}
+        className="tp-axis"
+      />
+      <line x1={pad.left} y1={pad.top} x2={pad.left} y2={pad.top + plotH} className="tp-axis" />
+      {[1, 2, 3, 4, 5].map((n) => {
+        const x = pad.left + ((n - 1) / 4) * plotW;
+        return (
+          <text key={n} x={x} y={h - 8} textAnchor="middle" className="tp-hist-label">
+            {n}
+          </text>
+        );
+      })}
+      <text
+        x={12}
+        y={pad.top + plotH / 2}
+        textAnchor="middle"
+        className="tp-hist-label"
+        transform={`rotate(-90 12 ${pad.top + plotH / 2})`}
+      >
+        Delivery
+      </text>
+      {rated.map((p) => {
+        const x = pad.left + (((p.overall ?? 1) - 1) / 4) * plotW;
+        const y = pad.top + plotH - ((p.deliveryDone ?? 0) / maxDelivery) * plotH;
+        return (
+          <g key={p.personId}>
+            <circle
+              cx={x}
+              cy={y}
+              r={7}
+              className={p.thinDeliveryEvidence ? "tp-dot thin" : "tp-dot"}
+            />
+            <title>
+              {p.personName}: overall {p.overall}, {p.deliveryDone ?? 0} delivery
+              {p.storyPointsDone != null ? `, ${p.storyPointsDone} pts` : ""}
+            </title>
+          </g>
+        );
       })}
     </svg>
   );
@@ -265,11 +206,25 @@ export function TeamPerformancePage() {
     })) ?? [];
   const competencyMax = 5;
 
+  const deliveryRows = [...(data?.people ?? [])]
+    .map((p) => ({
+      key: p.personId,
+      label: p.personName,
+      count: p.deliveryDone ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+  const deliveryTotal = deliveryRows.reduce((s, r) => s + r.count, 0);
+  const storyPointsTotal = (data?.people ?? []).reduce(
+    (s, p) => s + (p.storyPointsDone ?? 0),
+    0,
+  );
+  const storyPointsKnown = (data?.people ?? []).some((p) => p.storyPointsDone != null);
+
   return (
     <div className="stack">
       <PageHeader
         title="Team performance"
-        job="See rating shape, competency averages, writing effort, and coaching themes across the cycle."
+        job="See rating shape, work completed, competency averages, and coaching themes across the cycle."
         primary={
           data ? (
             <>
@@ -347,12 +302,21 @@ export function TeamPerformancePage() {
             id="tp-overview"
             title="Overview"
             when="Use first to see whether this cycle’s ratings, evidence, and concerns look healthy."
-            how="Read the four metrics below, then drill into charts or people when something looks off."
+            how="Read the five metrics below, then drill into charts or people when something looks off."
           >
             <div className="tp-metrics">
               <div className="tp-metric">
                 <div className="muted">Avg overall</div>
                 <strong>{data.avgOverall ?? "—"}</strong>
+              </div>
+              <div className="tp-metric">
+                <div className="muted">Work completed</div>
+                <strong>{deliveryTotal}</strong>
+                <span className="muted">
+                  {" "}
+                  · issues + PRs
+                  {storyPointsKnown ? ` · ${storyPointsTotal} pts` : ""}
+                </span>
               </div>
               <div className="tp-metric">
                 <div className="muted">Evidence coverage</div>
@@ -374,8 +338,8 @@ export function TeamPerformancePage() {
           <Section
             id="tp-charts"
             title="Charts"
-            when="Use mid-cycle or before finalize to spot clustering, thin evidence, or promo skew."
-            how="Scan each chart panel — distribution, evidence scatter, competencies, promo, writing time, levels, and themes."
+            when="Use mid-cycle or before finalize to spot clustering, thin evidence, delivery skew, or promo skew."
+            how="Scan each chart panel — distribution, work completed, delivery vs rating, evidence scatter, competencies, promo, writing time, levels, and themes."
           >
             <div className="tp-grid">
             <div className="panel stack">
@@ -383,7 +347,7 @@ export function TeamPerformancePage() {
               <p className="muted" style={{ margin: 0 }}>
                 Watch for clustering (everyone a 3 or 4) before you finalize.
               </p>
-              <Histogram buckets={overallBuckets} />
+              <Histogram buckets={overallBuckets} ariaLabel="Overall rating distribution" />
             </div>
 
             <div className="panel stack">
@@ -392,6 +356,30 @@ export function TeamPerformancePage() {
                 Thin dossiers sit lower; extreme scores should sit higher.
               </p>
               <EvidenceScatter people={data.people} />
+            </div>
+
+            <div className="panel stack tp-span-2">
+              <h3 style={{ margin: 0 }}>Work completed by person</h3>
+              <p className="muted" style={{ margin: 0 }}>
+                Issues done + PRs merged in this cycle window — delivery volume, not a score. Open a
+                dossier for the breakdown.
+              </p>
+              {deliveryRows.every((r) => r.count === 0) ? (
+                <p className="muted">
+                  No synced delivery yet — connect Jira / Bitbucket / GitHub on person dossiers, or
+                  check <Link to="/sprint-pulse">Sprint pulse</Link>.
+                </p>
+              ) : (
+                <BarChart rows={deliveryRows} max={maxCount(deliveryRows.map((r) => r.count))} />
+              )}
+            </div>
+
+            <div className="panel stack">
+              <h3 style={{ margin: 0 }}>Delivery vs overall</h3>
+              <p className="muted" style={{ margin: 0 }}>
+                High ratings with near-zero delivery may need better cites — or a thin integration sync.
+              </p>
+              <DeliveryScatter people={data.people} />
             </div>
 
             <div className="panel stack">
