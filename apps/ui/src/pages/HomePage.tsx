@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { CycleDTO, CycleStatsDTO, DeadlineNudge, DirectorAttentionDTO, DueThisWeekItem, WorkspaceStatus } from "@prm/shared";
 import { api } from "../lib/api";
-import { NextStep, PageHeader, Section } from "../components/PageChrome";
+import { buildHomeSuggestions } from "../lib/homeSuggestions";
+import { PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
 import { OnboardingWizard } from "../components/OnboardingWizard";
 import { AppSelect } from "../components/AppSelect";
+import { HomeSuggestionQueue } from "../components/HomeSuggestionQueue";
 
 type CommandItem = {
   person: { id: string; name: string; roleTitle: string | null } | null;
@@ -47,24 +49,95 @@ export function HomePage() {
   const [cycleStats, setCycleStats] = useState<CycleStatsDTO | null>(null);
   const [attention, setAttention] = useState<DirectorAttentionDTO | null>(null);
   const [setupActive, setSetupActive] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    api<CycleDTO[]>("/api/cycles").then((c) => {
-      setCycles(c);
+  const refreshWorkspace = useCallback(async () => {
+    const [c, s, due] = await Promise.all([
+      api<CycleDTO[]>("/api/cycles"),
+      api<WorkspaceStatus>("/api/workspace/status"),
+      api<{ items: DueThisWeekItem[] }>("/api/due-this-week?days=7").catch(() => ({ items: [] as DueThisWeekItem[] })),
+    ]);
+    setCycles(c);
+    setThinEvidenceCount(s.thinEvidenceCount ?? 0);
+    setPersonCount(s.personCount ?? 0);
+    setDueWeek(due.items);
+    setCycleId((prev) => {
+      if (prev && c.some((x) => x.id === prev)) return prev;
       const preferred =
         c.find((x) => x.status === "manager_open") ||
         c.find((x) => x.status !== "closed") ||
         c[0];
-      if (preferred) setCycleId(preferred.id);
+      return preferred?.id ?? null;
     });
-    api<WorkspaceStatus>("/api/workspace/status").then((s) => {
+  }, []);
+
+  const refreshCycleData = useCallback(async (id: string) => {
+    const [command, nudgeRes, statsRes, attentionRes] = await Promise.all([
+      api<{ items: CommandItem[] }>(`/api/cycles/${id}/command-center`),
+      api<{ nudges: DeadlineNudge[]; daysUntilDue: number }>(`/api/cycles/${id}/nudges`).catch(() => ({
+        nudges: [] as DeadlineNudge[],
+        daysUntilDue: null as number | null,
+      })),
+      api<CycleStatsDTO>(`/api/cycles/${id}/stats`).catch(() => null),
+      api<DirectorAttentionDTO>(`/api/director-attention?cycleId=${encodeURIComponent(id)}`).catch(() => null),
+    ]);
+    setItems(command.items);
+    setNudges(nudgeRes.nudges);
+    setNudgeDays(nudgeRes.daysUntilDue);
+    setCycleStats(statsRes);
+    setAttention(attentionRes);
+  }, []);
+
+  const refreshAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [c, s, due] = await Promise.all([
+        api<CycleDTO[]>("/api/cycles"),
+        api<WorkspaceStatus>("/api/workspace/status"),
+        api<{ items: DueThisWeekItem[] }>("/api/due-this-week?days=7").catch(() => ({
+          items: [] as DueThisWeekItem[],
+        })),
+      ]);
+      setCycles(c);
       setThinEvidenceCount(s.thinEvidenceCount ?? 0);
       setPersonCount(s.personCount ?? 0);
-    });
-    api<{ items: DueThisWeekItem[] }>("/api/due-this-week?days=7")
-      .then(async (r) => {
-        setDueWeek(r.items);
-        const actionable = r.items.filter((i) => i.missingSelf || i.managerStatus === "missing" || i.managerStatus === "draft");
+      setDueWeek(due.items);
+
+      let selected: string | null = null;
+      setCycleId((prev) => {
+        if (prev && c.some((x) => x.id === prev)) {
+          selected = prev;
+          return prev;
+        }
+        const preferred =
+          c.find((x) => x.status === "manager_open") ||
+          c.find((x) => x.status !== "closed") ||
+          c[0];
+        selected = preferred?.id ?? null;
+        return selected;
+      });
+      if (selected) await refreshCycleData(selected);
+      else {
+        setItems([]);
+        setNudges([]);
+        setNudgeDays(null);
+        setCycleStats(null);
+        setAttention(null);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshCycleData]);
+
+  useEffect(() => {
+    void refreshWorkspace()
+      .then(async () => {
+        const due = await api<{ items: DueThisWeekItem[] }>("/api/due-this-week?days=7").catch(() => ({
+          items: [] as DueThisWeekItem[],
+        }));
+        const actionable = due.items.filter(
+          (i) => i.missingSelf || i.managerStatus === "missing" || i.managerStatus === "draft",
+        );
         if (actionable.length && typeof Notification !== "undefined") {
           const key = `prm_due_notify_${new Date().toISOString().slice(0, 10)}`;
           if (sessionStorage.getItem(key)) return;
@@ -81,132 +154,59 @@ export function HomePage() {
           }
         }
       })
-      .catch(() => setDueWeek([]));
-
-    return () => undefined;
-  }, []);
+      .catch(() => undefined);
+  }, [refreshWorkspace]);
 
   useEffect(() => {
-    if (!cycleId) return;
-    api<{ items: CommandItem[] }>(`/api/cycles/${cycleId}/command-center`).then((r) => setItems(r.items));
-    api<{ nudges: DeadlineNudge[]; daysUntilDue: number }>(`/api/cycles/${cycleId}/nudges`)
-      .then((r) => {
-        setNudges(r.nudges);
-        setNudgeDays(r.daysUntilDue);
-      })
-      .catch(() => {
-        setNudges([]);
-        setNudgeDays(null);
-      });
-    api<CycleStatsDTO>(`/api/cycles/${cycleId}/stats`)
-      .then(setCycleStats)
-      .catch(() => setCycleStats(null));
-    api<DirectorAttentionDTO>(`/api/director-attention?cycleId=${encodeURIComponent(cycleId)}`)
-      .then(setAttention)
-      .catch(() => setAttention(null));
-  }, [cycleId]);
+    if (!cycleId) {
+      setItems([]);
+      setNudges([]);
+      setNudgeDays(null);
+      setCycleStats(null);
+      setAttention(null);
+      return;
+    }
+    void refreshCycleData(cycleId);
+  }, [cycleId, refreshCycleData]);
+
+  // Recompute suggestions when the EM returns from Roles / Cycles / Writing desk.
+  useEffect(() => {
+    const onFocus = () => {
+      void refreshAll();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onFocus();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refreshAll]);
 
   const active = cycles.find((c) => c.id === cycleId);
 
-  const stats = useMemo(() => {
-    const unassigned = items.filter((i) => i.person && !i.person.roleTitle);
-    const needSelf = items.filter((i) => {
-      if (!i.person) return false;
-      const self = i.selfStatus ?? (i.hasSelf ? "returned" : "pending");
-      return self !== "returned" && self !== "waived";
+  const suggestions = useMemo(() => {
+    if (setupActive || personCount === 0) return [];
+    return buildHomeSuggestions({
+      cycleId,
+      thinEvidenceCount,
+      items,
+      nudgeCount: nudges.length,
+      nudgeDays,
+      attentionCount: attention?.items.length ?? 0,
     });
-    const readyToWrite = items.filter(
-      (i) => i.person && i.hasSelf && i.managerStatus !== "finalized" && i.managerStatus !== "shared",
-    );
-    const drafting = items.filter((i) => i.managerStatus === "draft");
-    const done = items.filter((i) => i.managerStatus === "finalized" || i.managerStatus === "shared");
-    return { unassigned, needSelf, readyToWrite, drafting, done };
-  }, [items]);
-
-  const next = (() => {
-    // OnboardingWizard owns the empty / first-cycle path — avoid duplicate banners.
-    if (setupActive || personCount === 0 || !cycleId) return null;
-    if (stats.unassigned[0]?.person) {
-      const p = stats.unassigned[0].person;
-      return (
-        <NextStep
-          tone="warn"
-          label={`${stats.unassigned.length} without a role`}
-          detail={`${p.name}${stats.unassigned.length > 1 ? ` and ${stats.unassigned.length - 1} more` : ""} need a RoleDefinition before fair ratings.`}
-          action={<Link className="btn" to="/roles">Assign roles</Link>}
-        />
-      );
-    }
-    if (stats.needSelf[0]?.person) {
-      const p = stats.needSelf[0].person;
-      return (
-        <NextStep
-          tone="brand"
-          label="Get self-reviews in"
-          detail={`${p.name}${stats.needSelf.length > 1 ? ` (+${stats.needSelf.length - 1})` : ""} still missing a self bundle. Export JSON, send outside the app, then import.`}
-          action={
-            <>
-              <Link className="btn" to="/cycles">Export / import bundles</Link>
-              <Link className="btn secondary" to={`/cycles/${cycleId}/write/${p.id}`}>Write anyway</Link>
-            </>
-          }
-        />
-      );
-    }
-    if (thinEvidenceCount > 0) {
-      return (
-        <NextStep
-          tone="brand"
-          label={`Backfill ${thinEvidenceCount} thin dossier${thinEvidenceCount === 1 ? "" : "s"}`}
-          detail="Cold-start dossiers block grounded reviews. Capture a few achievements/notes, or use MCP bulk load."
-          action={
-            <>
-              <Link className="btn" to="/backfill">Open backfill wizard</Link>
-              {stats.readyToWrite[0]?.person && (
-                <Link className="btn secondary" to={`/cycles/${cycleId}/write/${stats.readyToWrite[0].person.id}`}>
-                  Write anyway
-                </Link>
-              )}
-            </>
-          }
-        />
-      );
-    }
-    if (stats.readyToWrite[0]?.person) {
-      const p = stats.readyToWrite[0].person;
-      const verb = stats.drafting.length > 0 ? "Continue writing" : "Start writing";
-      return (
-        <NextStep
-          tone="brand"
-          label={`${verb}: ${p.name}`}
-          detail={
-            stats.drafting.length > 0
-              ? `${stats.drafting.length} draft${stats.drafting.length === 1 ? "" : "s"} in progress · ${stats.done.length} finalized.`
-              : "Self imports are in. Draft the manager review against the assigned role."
-          }
-          action={<Link className="btn" to={`/cycles/${cycleId}/write/${p.id}`}>{verb}</Link>}
-        />
-      );
-    }
-    if (items.length > 0 && stats.done.length === items.length) {
-      return (
-        <NextStep
-          tone="ok"
-          label="Cycle writing complete"
-          detail="All manager reviews are finalized. Export subject packets from each writing desk, or open promotions where readiness is set."
-          action={<Link className="btn" to="/promotions">Review promotions</Link>}
-        />
-      );
-    }
-    return (
-      <NextStep
-        tone="brand"
-        label="Capture evidence year-round"
-        detail="Between cycles, keep dossiers current — achievements, feedback, and documents make writing faster."
-        action={<Link className="btn" to="/team">Open team</Link>}
-      />
-    );
-  })();
+  }, [
+    setupActive,
+    personCount,
+    cycleId,
+    thinEvidenceCount,
+    items,
+    nudges.length,
+    nudgeDays,
+    attention?.items.length,
+  ]);
 
   const showSetupOnly = personCount === 0 || (!cycleId && (setupActive || cycles.length === 0));
 
@@ -217,7 +217,7 @@ export function HomePage() {
         job={
           showSetupOnly
             ? "Set up your team and first cycle — then this page becomes your review pipeline."
-            : "Unblock the next person in your review pipeline — roles, bundles, then writing."
+            : "Suggested next actions update as you clear roles, bundles, and drafts."
         }
         primary={
           !showSetupOnly && cycleId ? (
@@ -230,7 +230,13 @@ export function HomePage() {
 
       <OnboardingWizard onActiveChange={setSetupActive} />
 
-      {next}
+      {!showSetupOnly ? (
+        <HomeSuggestionQueue
+          suggestions={suggestions}
+          refreshing={refreshing}
+          onRefresh={() => void refreshAll()}
+        />
+      ) : null}
 
       {showSetupOnly ? (
         <Section
