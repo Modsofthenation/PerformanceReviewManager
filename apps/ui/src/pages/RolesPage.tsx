@@ -9,6 +9,7 @@ import type {
 import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
+import { AppSelect } from "../components/AppSelect";
 
 type ExpectationEdit = { id?: string; kind: "responsibility" | "expectation"; text: string };
 
@@ -388,10 +389,9 @@ export function RolesPage() {
                           )}
                         </td>
                         <td data-label="Current role">
-                          <select
+                          <AppSelect
                             value={draft.roleId}
-                            onChange={(e) => {
-                              const roleDefinitionId = e.target.value;
+                            onChange={(roleDefinitionId) => {
                               const nexts = nextOptionsFor(roleDefinitionId);
                               const keepNext = nexts.some((r) => r.id === draft.nextId);
                               setAssignDrafts((prev) => ({
@@ -402,35 +402,33 @@ export function RolesPage() {
                                 },
                               }));
                             }}
-                          >
-                            <option value="">{needs ? "Select role…" : "—"}</option>
-                            {roles.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.levelKey ? `${r.levelKey} · ` : ""}
-                                {r.title}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: "", label: needs ? "Select role…" : "—" },
+                              ...roles.map((r) => ({
+                                value: r.id,
+                                label: `${r.levelKey ? `${r.levelKey} · ` : ""}${r.title}`,
+                              })),
+                            ]}
+                          />
                         </td>
                         <td data-label="Next role">
-                          <select
+                          <AppSelect
                             value={draft.nextId}
                             disabled={!draft.roleId}
-                            onChange={(e) =>
+                            onChange={(v) =>
                               setAssignDrafts((prev) => ({
                                 ...prev,
-                                [p.id]: { ...draft, nextId: e.target.value },
+                                [p.id]: { ...draft, nextId: v },
                               }))
                             }
-                          >
-                            <option value="">—</option>
-                            {nextOptionsFor(draft.roleId).map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.levelKey ? `${r.levelKey} · ` : ""}
-                                {r.title}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: "", label: "—" },
+                              ...nextOptionsFor(draft.roleId).map((r) => ({
+                                value: r.id,
+                                label: `${r.levelKey ? `${r.levelKey} · ` : ""}${r.title}`,
+                              })),
+                            ]}
+                          />
                         </td>
                         <td data-label="">
                           <button
@@ -559,16 +557,18 @@ export function RolesPage() {
                 </div>
                 <div className="field">
                   <label>Track</label>
-                  <select
+                  <AppSelect
                     value={editor.track}
-                    onChange={(e) =>
-                      setEditor({ ...editor, track: e.target.value as "ic" | "manager" | "other" })
+                    onChange={(v) =>
+                      setEditor({ ...editor, track: v as "ic" | "manager" | "other" })
                     }
-                  >
-                    <option value="ic">IC</option>
-                    <option value="manager">Manager</option>
-                    <option value="other">Other</option>
-                  </select>
+                    isSearchable={false}
+                    options={[
+                      { value: "ic", label: "IC" },
+                      { value: "manager", label: "Manager" },
+                      { value: "other", label: "Other" },
+                    ]}
+                  />
                 </div>
                 <div className="field">
                   <label>Key (optional)</label>
@@ -600,20 +600,22 @@ export function RolesPage() {
                 <div className="grid-2" key={idx} style={{ marginBottom: "0.5rem" }}>
                   <div className="field">
                     <label>Kind</label>
-                    <select
+                    <AppSelect
                       value={exp.kind}
-                      onChange={(e) => {
+                      onChange={(v) => {
                         const next = [...editor.expectations];
                         next[idx] = {
                           ...exp,
-                          kind: e.target.value === "expectation" ? "expectation" : "responsibility",
+                          kind: v === "expectation" ? "expectation" : "responsibility",
                         };
                         setEditor({ ...editor, expectations: next });
                       }}
-                    >
-                      <option value="responsibility">Responsibility</option>
-                      <option value="expectation">Expectation</option>
-                    </select>
+                      isSearchable={false}
+                      options={[
+                        { value: "responsibility", label: "Responsibility" },
+                        { value: "expectation", label: "Expectation" },
+                      ]}
+                    />
                   </div>
                   <div className="field">
                     <label>Text</label>

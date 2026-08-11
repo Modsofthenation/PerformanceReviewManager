@@ -8,6 +8,7 @@ import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
+import { AppSelect } from "../components/AppSelect";
 
 type EvidenceLinkDraft = {
   targetType: string;
@@ -1062,19 +1063,21 @@ export function WritingDeskPage() {
           </div>
           <div className="field">
             <label>Promotion readiness</label>
-            <select
+            <AppSelect
               value={promo}
               disabled={finalized}
-              onChange={(e) => {
+              onChange={(v) => {
                 markDirty();
-                setPromo(e.target.value as PromoReadiness);
+                setPromo(v as PromoReadiness);
               }}
-            >
-              <option value="not_applicable">Not applicable</option>
-              <option value="too_early">Too early</option>
-              <option value="not_yet">Not yet</option>
-              <option value="ready">Ready</option>
-            </select>
+              isSearchable={false}
+              options={[
+                { value: "not_applicable", label: "Not applicable" },
+                { value: "too_early", label: "Too early" },
+                { value: "not_yet", label: "Not yet" },
+                { value: "ready", label: "Ready" },
+              ]}
+            />
           </div>
           {showGaps && (
             <div className="stack">
@@ -1087,18 +1090,20 @@ export function WritingDeskPage() {
               {nextExpectations.map((e) => (
                 <div key={e.id} className="field">
                   <label>{e.text}</label>
-                  <select
+                  <AppSelect
                     value={gaps[e.id] ?? "emerging"}
                     disabled={finalized}
-                    onChange={(ev) => {
+                    onChange={(v) => {
                       markDirty();
-                      setGaps((g) => ({ ...g, [e.id]: ev.target.value as GapMark }));
+                      setGaps((g) => ({ ...g, [e.id]: v as GapMark }));
                     }}
-                  >
-                    <option value="demonstrating">Demonstrating</option>
-                    <option value="emerging">Emerging</option>
-                    <option value="not_yet">Not yet</option>
-                  </select>
+                    isSearchable={false}
+                    options={[
+                      { value: "demonstrating", label: "Demonstrating" },
+                      { value: "emerging", label: "Emerging" },
+                      { value: "not_yet", label: "Not yet" },
+                    ]}
+                  />
                 </div>
               ))}
             </div>

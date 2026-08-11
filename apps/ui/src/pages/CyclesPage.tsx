@@ -4,6 +4,7 @@ import type { CycleDTO, PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
+import { AppSelect } from "../components/AppSelect";
 
 const PHASE_STATUSES = [
   { value: "self_open", label: "Self open" },
@@ -319,33 +320,31 @@ export function CyclesPage() {
             >
               <div className="field">
                 <label>Cycle</label>
-                <select value={selectedCycle} onChange={(e) => setSelectedCycle(e.target.value)}>
-                  {cycles.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <AppSelect
+                  value={selectedCycle}
+                  onChange={(v) => setSelectedCycle(v)}
+                  options={cycles.map((c) => ({ value: c.id, label: c.name }))}
+                />
               </div>
               <div className="field">
                 <label>Subject</label>
-                <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-                  {people.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <AppSelect
+                  value={subjectId}
+                  onChange={(v) => setSubjectId(v)}
+                  options={people.map((p) => ({ value: p.id, label: p.name }))}
+                />
               </div>
               <div className="field">
                 <label>Kind</label>
-                <select
+                <AppSelect
                   value={bundleKind}
-                  onChange={(e) => setBundleKind(e.target.value as "self" | "peer")}
-                >
-                  <option value="self">Self-review</option>
-                  <option value="peer">Peer feedback</option>
-                </select>
+                  onChange={(v) => setBundleKind(v as "self" | "peer")}
+                  isSearchable={false}
+                  options={[
+                    { value: "self", label: "Self-review" },
+                    { value: "peer", label: "Peer feedback" },
+                  ]}
+                />
               </div>
               {bundleKind === "peer" && (
                 <div className="field">

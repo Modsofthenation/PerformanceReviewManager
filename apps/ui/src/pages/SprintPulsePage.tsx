@@ -4,6 +4,7 @@ import type { SprintPulseDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
+import { AppSelect } from "../components/AppSelect";
 
 const PRESETS = [
   { id: "last_7", label: "Last 7 days" },
@@ -81,17 +82,13 @@ export function SprintPulsePage() {
         <div className="row" style={{ flexWrap: "wrap", gap: 12, alignItems: "end" }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="pulse-preset">Preset</label>
-            <select
+            <AppSelect
               id="pulse-preset"
               value={preset}
-              onChange={(e) => setParams({ preset: e.target.value })}
-            >
-              {PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setParams({ preset: v })}
+              isSearchable={false}
+              options={PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+            />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="pulse-from">From</label>

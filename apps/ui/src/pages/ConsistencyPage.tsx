@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { downloadBinaryExport, openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout } from "../components/PageSectionsLayout";
+import { AppSelect } from "../components/AppSelect";
 
 export function ConsistencyPage() {
   const [params, setParams] = useSearchParams();
@@ -81,17 +82,15 @@ export function ConsistencyPage() {
       <div className="panel">
         <div className="field" style={{ marginBottom: 0, maxWidth: 360 }}>
           <label htmlFor="consistency-cycle">Cycle</label>
-          <select
+          <AppSelect
             id="consistency-cycle"
             value={cycleId || data?.cycleId || ""}
-            onChange={(e) => setParams({ cycleId: e.target.value })}
-          >
-            {cycles.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.status})
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setParams({ cycleId: v })}
+            options={cycles.map((c) => ({
+              value: c.id,
+              label: `${c.name} (${c.status})`,
+            }))}
+          />
         </div>
       </div>
 
@@ -227,22 +226,23 @@ export function ConsistencyPage() {
                     </div>
                     <div className="field" style={{ margin: 0 }}>
                       <label>Overall</label>
-                      <select
+                      <AppSelect
                         value={row.overall}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setDirectorDecisions({
                             ...directorDecisions,
-                            [card.personId]: { ...row, overall: e.target.value },
+                            [card.personId]: { ...row, overall: v },
                           })
                         }
-                      >
-                        <option value="">Keep</option>
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <option key={n} value={String(n)}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
+                        isSearchable={false}
+                        options={[
+                          { value: "", label: "Keep" },
+                          ...[1, 2, 3, 4, 5].map((n) => ({
+                            value: String(n),
+                            label: String(n),
+                          })),
+                        ]}
+                      />
                     </div>
                     <div className="field" style={{ margin: 0, flex: 1, minWidth: 160 }}>
                       <label>Note</label>

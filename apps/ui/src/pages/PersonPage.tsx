@@ -16,6 +16,7 @@ import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
 import { OneOnOnesPanel } from "../components/OneOnOnesPanel";
+import { AppSelect } from "../components/AppSelect";
 
 export function PersonPage() {
   const { id } = useParams();
@@ -48,6 +49,7 @@ export function PersonPage() {
   const [meetings, setMeetings] = useState<MeetingSummaryDTO[]>([]);
   const [meetTitle, setMeetTitle] = useState("");
   const [meetTranscript, setMeetTranscript] = useState("");
+  const [meetDocId, setMeetDocId] = useState("");
   const [meetConsent, setMeetConsent] = useState(false);
   const [meetUseAi, setMeetUseAi] = useState(false);
   const [concernTitle, setConcernTitle] = useState("");
@@ -201,16 +203,16 @@ export function PersonPage() {
           <div className="row" style={{ alignItems: "end" }}>
             <div className="field" style={{ margin: 0, minWidth: 220 }}>
               <label>New manager</label>
-              <select value={reassignManagerId} onChange={(e) => setReassignManagerId(e.target.value)}>
-                <option value="">Select…</option>
-                {roster
-                  .filter((p) => p.id !== person.id)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
+              <AppSelect
+                value={reassignManagerId}
+                onChange={(v) => setReassignManagerId(v)}
+                options={[
+                  { value: "", label: "Select…" },
+                  ...roster
+                    .filter((p) => p.id !== person.id)
+                    .map((p) => ({ value: p.id, label: p.name })),
+                ]}
+              />
             </div>
             <div className="field" style={{ margin: 0, flex: 1 }}>
               <label>Reason</label>
@@ -283,15 +285,17 @@ export function PersonPage() {
         <div className="row" style={{ flexWrap: "wrap", gap: 8, alignItems: "end" }}>
           <div className="field" style={{ margin: 0 }}>
             <label>Provider</label>
-            <select
+            <AppSelect
               value={linkProvider}
-              onChange={(e) => setLinkProvider(e.target.value as IntegrationProvider)}
-            >
-              <option value="jira">Jira</option>
-              <option value="bitbucket">Bitbucket</option>
-              <option value="github">GitHub</option>
-              <option value="linear">Linear</option>
-            </select>
+              onChange={(v) => setLinkProvider(v as IntegrationProvider)}
+              isSearchable={false}
+              options={[
+                { value: "jira", label: "Jira" },
+                { value: "bitbucket", label: "Bitbucket" },
+                { value: "github", label: "GitHub" },
+                { value: "linear", label: "Linear" },
+              ]}
+            />
           </div>
           <div className="field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
             <label>Search remote users</label>
@@ -522,11 +526,16 @@ export function PersonPage() {
             </div>
             <div className="field">
               <label>Kind</label>
-              <select value={fbKind} onChange={(e) => setFbKind(e.target.value)}>
-                <option value="coaching">Coaching / 1:1</option>
-                <option value="praise">Praise</option>
-                <option value="incident">Incident</option>
-              </select>
+              <AppSelect
+                value={fbKind}
+                onChange={(v) => setFbKind(v)}
+                isSearchable={false}
+                options={[
+                  { value: "coaching", label: "Coaching / 1:1" },
+                  { value: "praise", label: "Praise" },
+                  { value: "incident", label: "Incident" },
+                ]}
+              />
             </div>
           </div>
           <div className="field">
@@ -690,10 +699,10 @@ export function PersonPage() {
           </div>
           <div className="field">
             <label>Or load from dossier documents</label>
-            <select
-              defaultValue=""
-              onChange={async (e) => {
-                const docId = e.target.value;
+            <AppSelect
+              value={meetDocId}
+              onChange={async (docId) => {
+                setMeetDocId(docId);
                 if (!docId) return;
                 try {
                   const fileRes = await fetch(apiUrl(`/api/documents/${docId}/download`), {
@@ -710,16 +719,16 @@ export function PersonPage() {
                   setCaptureMsg(err instanceof Error ? err.message : "Load failed");
                 }
               }}
-            >
-              <option value="">Select a transcript-like document…</option>
-              {(dossier?.documents ?? [])
-                .filter((d) => /\.(txt|md|vtt)$/i.test(d.filename) || /transcript|meet|notes/i.test(d.filename))
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.title || d.filename}
-                  </option>
-                ))}
-            </select>
+              options={[
+                { value: "", label: "Select a transcript-like document…" },
+                ...(dossier?.documents ?? [])
+                  .filter((d) => /\.(txt|md|vtt)$/i.test(d.filename) || /transcript|meet|notes/i.test(d.filename))
+                  .map((d) => ({
+                    value: d.id,
+                    label: d.title || d.filename,
+                  })),
+              ]}
+            />
             <p className="muted" style={{ margin: "0.35rem 0 0" }}>
               Tip: export Meet / Drive notes as .txt/.vtt, upload to the dossier, then pick them here.
             </p>

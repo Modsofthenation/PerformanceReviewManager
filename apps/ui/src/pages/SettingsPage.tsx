@@ -7,6 +7,7 @@ import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { IntegrationsPanel } from "../components/IntegrationsPanel";
 import { RetentionPanel } from "../components/RetentionPanel";
+import { AppSelect } from "../components/AppSelect";
 
 const SETTINGS_SECTIONS: SectionNavItem[] = [
   { id: "settings-appearance", label: "Appearance" },
@@ -198,15 +199,17 @@ export function SettingsPage({
       >
         <div className="field">
           <label htmlFor="theme-select">Color mode</label>
-          <select
+          <AppSelect
             id="theme-select"
             value={colorMode}
-            onChange={(e) => setColorMode(e.target.value as ColorMode)}
-          >
-            <option value="system">System</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
+            onChange={(v) => setColorMode(v as ColorMode)}
+            isSearchable={false}
+            options={[
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+              { value: "light", label: "Light" },
+            ]}
+          />
         </div>
         <div className="field">
           <label>Accent</label>
@@ -451,10 +454,9 @@ export function SettingsPage({
         </div>
         <div className="field">
           <label>Provider</label>
-          <select
+          <AppSelect
             value={settings.provider}
-            onChange={(e) => {
-              const provider = e.target.value;
+            onChange={(provider) => {
               setSettings({
                 ...settings,
                 provider,
@@ -479,13 +481,14 @@ export function SettingsPage({
                       : {}),
               });
             }}
-          >
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-            <option value="cursor">Cursor Cloud Agents</option>
-            <option value="openai_compatible">OpenAI-compatible (custom URL)</option>
-            <option value="ollama">Ollama</option>
-          </select>
+            options={[
+              { value: "anthropic", label: "Anthropic" },
+              { value: "openai", label: "OpenAI" },
+              { value: "cursor", label: "Cursor Cloud Agents" },
+              { value: "openai_compatible", label: "OpenAI-compatible (custom URL)" },
+              { value: "ollama", label: "Ollama" },
+            ]}
+          />
         </div>
         {settings.provider === "cursor" && (
           <p className="muted">

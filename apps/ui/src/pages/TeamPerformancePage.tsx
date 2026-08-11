@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { openHtmlExport } from "../lib/exports";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
+import { AppSelect } from "../components/AppSelect";
 
 const PROMO_LABELS: Record<string, string> = {
   ready: "Ready",
@@ -306,17 +307,15 @@ export function TeamPerformancePage() {
       <div className="panel">
         <div className="field" style={{ marginBottom: 0, maxWidth: 360 }}>
           <label htmlFor="tp-cycle">Cycle</label>
-          <select
+          <AppSelect
             id="tp-cycle"
             value={cycleId || data?.cycleId || ""}
-            onChange={(e) => setParams({ cycleId: e.target.value })}
-          >
-            {cycles.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.status})
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setParams({ cycleId: v })}
+            options={cycles.map((c) => ({
+              value: c.id,
+              label: `${c.name} (${c.status})`,
+            }))}
+          />
         </div>
       </div>
 

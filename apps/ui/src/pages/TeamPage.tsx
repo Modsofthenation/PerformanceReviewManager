@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { PeopleImportResult, PersonDTO } from "@prm/shared";
 import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { AppSelect } from "../components/AppSelect";
 
 export function TeamPage() {
   const [people, setPeople] = useState<PersonDTO[]>([]);
@@ -194,9 +195,12 @@ export function TeamPage() {
           <div className="field"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
           <div className="field">
             <label>Level</label>
-            <select value={levelKey} onChange={(e) => setLevelKey(e.target.value)}>
-              {["IC3", "IC4", "IC5", "M1"].map((l) => <option key={l}>{l}</option>)}
-            </select>
+            <AppSelect
+              value={levelKey}
+              onChange={(v) => setLevelKey(v)}
+              isSearchable={false}
+              options={["IC3", "IC4", "IC5", "M1"].map((l) => ({ value: l, label: l }))}
+            />
           </div>
         </div>
         <div className="cta-primary-row">

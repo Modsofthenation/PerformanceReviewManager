@@ -4,6 +4,7 @@ import type { PersonDTO } from "@prm/shared";
 import { api, streamChat } from "../lib/api";
 import { estimateThenConfirm } from "../lib/aiEstimate";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { AppSelect } from "../components/AppSelect";
 
 type CycleRow = {
   id: string;
@@ -289,42 +290,41 @@ export function ChatPage() {
         <div className="row chat-scope-row">
           <div className="field" style={{ flex: 1, marginBottom: 0 }}>
             <label htmlFor="chat-person">Person scope</label>
-            <select
+            <AppSelect
               id="chat-person"
               value={personId}
-              onChange={(e) => {
-                setPersonId(e.target.value);
+              onChange={(v) => {
+                setPersonId(v);
                 clearChat();
               }}
               disabled={sending}
-            >
-              <option value="">Entire workspace</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.title ? ` — ${p.title}` : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Entire workspace" },
+                ...people.map((p) => ({
+                  value: p.id,
+                  label: p.title ? `${p.name} — ${p.title}` : p.name,
+                })),
+              ]}
+            />
           </div>
           <div className="field" style={{ flex: 1, marginBottom: 0 }}>
             <label htmlFor="chat-cycle">Cycle (optional)</label>
-            <select
+            <AppSelect
               id="chat-cycle"
               value={cycleId}
-              onChange={(e) => {
-                setCycleId(e.target.value);
+              onChange={(v) => {
+                setCycleId(v);
                 clearChat();
               }}
               disabled={sending}
-            >
-              <option value="">No cycle filter</option>
-              {cycles.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.status})
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "No cycle filter" },
+                ...cycles.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${c.status})`,
+                })),
+              ]}
+            />
           </div>
         </div>
       </div>
