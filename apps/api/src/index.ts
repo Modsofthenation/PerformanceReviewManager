@@ -110,6 +110,7 @@ import { extractCitationIds, filterCitationsAgainstAllowlist } from "./citations
 import { runBiasToneLint } from "./bias.js";
 import { mergeLintFindings, runFaithfulnessLint } from "./faithfulness.js";
 import { registerP1Routes } from "./p1Routes.js";
+import { registerOneOnOneRoutes } from "./oneOnOnes.js";
 import { indexReviewFts } from "./reviewSearch.js";
 import { renderPromotionPacketHtml, renderSubjectPacketHtml } from "./packetHtml.js";
 import {
@@ -4691,6 +4692,8 @@ registerP1Routes(app, {
   },
   frameworkInsufficient,
 });
+
+registerOneOnOneRoutes(app, { buildEvidenceContext });
 
 registerFeatureRoutes(app, {
   buildEvidenceContext,

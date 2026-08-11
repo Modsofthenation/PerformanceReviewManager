@@ -71,6 +71,7 @@ Trust boundary: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 | Document uploads | P0 | PDF/DOCX/PPTX/images/CSV → app-data; allowlist + size caps; `scan_status` = allowlist/not_scanned unless real scanner configured |
 | External URLs | P0 | |
 | Meet / transcript → MeetingSummary | P1 | Opt-in; default private-to-EM; notice that “private” ≠ undiscoverable legally |
+| Interactive **1:1 sessions** (Q&A) | P0 | Person dossier; manual agenda + answers; optional AI-suggested questions from evidence |
 | 1:1 theme tags | P1 | Feedback notes; themes feed AI digests |
 | Integration signals (GitHub / Linear) | P0 | Optional; Settings credentials + person account link; sync into dossier achievements |
 | Jira + Bitbucket sync | P0 | Settings credentials; person account link; tickets/merged PRs → achievements |

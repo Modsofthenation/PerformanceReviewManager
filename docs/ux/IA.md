@@ -19,7 +19,7 @@ No IC nav in v1.
 ## Key screens
 
 1. **Home** — bundle pipeline; continue writing; thin evidence / unassigned role.  
-2. **Person dossier** — Overview · Role · Goals · Evidence · Reviews · Promotions · Trends.  
+2. **Person dossier** — Overview · Role · Goals · Evidence · **1:1 sessions** · Meetings · Reviews · Promotions · Trends.  
 3. **Writing desk** — packet/draft split; role strip; autosave; subject preview.  
 4. **Bundle center** — export self/peer; import dropzone; provenance.  
 5. **Role admin** — upload → structure expectations (stable ids) → publish → assign.  

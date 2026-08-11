@@ -9,8 +9,9 @@ See [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 
 1. Add achievements / goals / feedback on each Person.  
 2. Upload supporting documents (set `occurred_at` when it’s evidence).  
-3. Optional: import Meet transcript → private MeetingSummary (`em_only`).  
-4. Optional: 1:1 theme tags.
+3. Optional: run an interactive **1:1 session** on the Person dossier (manual Q&A; optional AI-suggested questions from evidence).  
+4. Optional: import Meet transcript → private MeetingSummary (`em_only`).  
+5. Optional: 1:1 theme tags.
 
 **Budget:** ~5 min/week/person.
 

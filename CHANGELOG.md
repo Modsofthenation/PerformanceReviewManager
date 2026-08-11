@@ -14,6 +14,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - Default **PE Engineering Career Framework** (Graduate → CTO) seeded on empty and demo workspaces
 - **Cursor Cloud Agents** AI provider — use dashboard `crsr_…` keys via the Cloud Agents API (no-repo agents for digests/drafts)
 - Guided **/setup** onboarding: team → assign-first roles → optional AI → integrations with credential guides → evidence backfill with progress
+- **1:1 sessions** on the person dossier — manual Q&A agenda plus optional AI-suggested questions grounded in evidence
 
 ### Changed
 

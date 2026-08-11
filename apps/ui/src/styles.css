@@ -1302,6 +1302,32 @@ pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
   flex-direction: column;
   gap: 0.35rem;
 }
+
+.ono-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.ono-item {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.ono-item textarea {
+  width: 100%;
+}
+.ono-item .btn.ghost {
+  align-self: flex-start;
+}
+
 .backfill-person {
   width: 100%;
   display: flex;

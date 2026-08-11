@@ -120,6 +120,16 @@ export function registerFeatureRoutes(app: Hono<any>, helpers: Helpers) {
             content: `WORKSPACE EVIDENCE (${ctx.scopeLabel}):\n${ctx.lines.join("\n")}\n\nUser question: (preview — actual question sent on confirm)`,
           },
         ];
+      } else if (body.feature === "one_on_one_questions" && body.personId) {
+        const ctx = helpers.buildEvidenceContext(body.personId, body.cycleId);
+        dataClassesSent = ctx.dataClassesSent;
+        messages = [
+          { role: "system", content: buildSystemPrompt() },
+          {
+            role: "user",
+            content: `Suggest 1:1 questions.\n\nEVIDENCE:\n${ctx.lines.join("\n") || "(thin evidence)"}`,
+          },
+        ];
       } else if (body.personId && body.cycleId) {
         const ctx = helpers.buildEvidenceContext(body.personId, body.cycleId);
         dataClassesSent = ctx.dataClassesSent;

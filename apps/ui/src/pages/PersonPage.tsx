@@ -15,6 +15,7 @@ import { api, authHeaders, apiUrl } from "../lib/api";
 import { NextStep, PageHeader, Section } from "../components/PageChrome";
 import { PageSectionsLayout, type SectionNavItem } from "../components/PageSectionsLayout";
 import { DeliveryRollupPanel } from "../components/DeliveryRollupPanel";
+import { OneOnOnesPanel } from "../components/OneOnOnesPanel";
 
 export function PersonPage() {
   const { id } = useParams();
@@ -118,6 +119,7 @@ export function PersonPage() {
     { id: "person-goals", label: "Goals" },
     { id: "person-feedback", label: "Feedback" },
     { id: "person-documents", label: "Documents" },
+    { id: "person-one-on-ones", label: "1:1s" },
     { id: "person-meetings", label: "Meetings" },
     { id: "person-concerns", label: "Concerns" },
   ];
@@ -604,6 +606,13 @@ export function PersonPage() {
       </Section>
 
       {captureMsg && <p className="muted">{captureMsg}</p>}
+
+      <OneOnOnesPanel
+        personId={person.id}
+        personName={person.name}
+        cycleId={activeCycle?.id}
+        onCaptureMsg={setCaptureMsg}
+      />
 
       <Section
         id="person-meetings"
