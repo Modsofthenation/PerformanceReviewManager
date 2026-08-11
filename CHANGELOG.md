@@ -21,6 +21,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - MCP / AGENTS docs no longer imply a silent `PRM_PASSWORD=workbench` default
 - Settings → AI: OpenAI-compatible gateways are a separate provider from Cursor Cloud Agents
 - Empty workspaces land in setup until finished or skipped; demo seed marks onboarding complete
+- **Cursor Cloud Agents** chat: stream status and assistant text live via SSE; empty-result errors include agent/run ids and a dashboard link
 
 ### Fixed
 
@@ -29,6 +30,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - Desktop AI: clearer network errors; Test saves then probes with visible status
 - Empty-workspace onboarding: optional EM name at create, single setup checklist, less Home clutter
 - Settings / long-page scroll jank: section nav no longer forces layout on scroll; drop sticky chrome backdrop blur
+- Cursor Cloud Agents: recover reply text from streamed assistant deltas when the terminal `result` field is empty
 
 ## [0.1.0-alpha.1] - TBD
 

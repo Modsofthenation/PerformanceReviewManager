@@ -2,7 +2,12 @@ import { eq } from "drizzle-orm";
 import { aiSettings } from "@prm/db";
 import { decryptSecret, getDb, getWorkspaceSecret, id, logActivity, nowIso } from "./store.js";
 import { aiGenerations } from "@prm/db";
-import { CURSOR_CLOUD_API_BASE, cursorCloudMe, runCursorCloudAgent } from "./cursorCloud.js";
+import {
+  CURSOR_CLOUD_API_BASE,
+  cursorCloudMe,
+  runCursorCloudAgent,
+  type CursorCloudProgress,
+} from "./cursorCloud.js";
 
 export type AiFeature =
   | "evidence_digest"
@@ -223,13 +228,24 @@ export async function probeCursorCloudKey(apiKey: string) {
   };
 }
 
-export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
+export type RunChatOpts = {
+  /** Live updates (Cursor Cloud Agents SSE status / text / tools). */
+  onProgress?: (event: CursorCloudProgress) => void;
+};
+
+export async function runChat(feature: AiFeature, messages: ChatMessage[], opts: RunChatOpts = {}) {
   const cfg = getAiConfig();
   if (!cfg.enabled) {
     throw new Error("AI disabled — enable in Settings → AI");
   }
   const maxTokens = feature === "framework_extract" ? 4096 : 1600;
   if (cfg.localOnly || cfg.provider === "ollama") {
+    opts.onProgress?.({
+      type: "status",
+      status: "RUNNING",
+      agentId: "ollama",
+      runId: "local",
+    });
     const text = await callOllama(cfg.ollamaBaseUrl, cfg.modelDraft || "llama3.1", messages);
     return { text, model: `ollama:${cfg.modelDraft || "llama3.1"}`, provider: "ollama" as const };
   }
@@ -244,6 +260,12 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
   }
   const model = feature === "evidence_digest" ? cfg.modelDigest : cfg.modelDraft;
   if (cfg.provider === "openai") {
+    opts.onProgress?.({
+      type: "status",
+      status: "RUNNING",
+      agentId: "openai",
+      runId: "chat",
+    });
     const text = await callOpenAI(cfg.apiKey, model || "gpt-4o-mini", messages);
     return { text, model: `openai:${model}`, provider: "openai" as const };
   }
@@ -254,6 +276,12 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
           "or switch provider to Cursor Cloud Agents to use a crsr_… dashboard key.",
       );
     }
+    opts.onProgress?.({
+      type: "status",
+      status: "RUNNING",
+      agentId: "openai_compatible",
+      runId: "chat",
+    });
     const text = await callOpenAI(
       cfg.apiKey,
       model || "gpt-4o-mini",
@@ -273,9 +301,16 @@ export async function runChat(feature: AiFeature, messages: ChatMessage[]) {
       messages,
       feature,
       model: model || null,
+      onProgress: opts.onProgress,
     });
     return { text: result.text, model: result.model, provider: "cursor" as const };
   }
+  opts.onProgress?.({
+    type: "status",
+    status: "RUNNING",
+    agentId: "anthropic",
+    runId: "chat",
+  });
   const text = await callAnthropic(cfg.apiKey, model || "claude-sonnet-4-5", messages, maxTokens);
   return { text, model: `anthropic:${model}`, provider: "anthropic" as const };
 }
