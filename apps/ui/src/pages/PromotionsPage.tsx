@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { PersonDTO } from "@prm/shared";
 import { api } from "../lib/api";
 import { NextStep, PageHeader } from "../components/PageChrome";
+import { AppSelect } from "../components/AppSelect";
 
 type PromoRow = {
   id: string;
