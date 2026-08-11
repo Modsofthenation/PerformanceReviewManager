@@ -160,7 +160,6 @@ export function SettingsPage({
       <PageHeader
         title="Settings"
         job="Appearance, AI, integrations, and private-tier egress. Keys stay encrypted with the workspace secret."
-        primary={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
         secondary={
           <button
             type="button"
@@ -242,7 +241,7 @@ export function SettingsPage({
           <>
             <button
               type="button"
-              className="btn"
+              className="btn secondary"
               disabled={auditBusy}
               onClick={async () => {
                 setAuditBusy(true);
@@ -313,7 +312,7 @@ export function SettingsPage({
         action={
           <button
             type="button"
-            className="btn"
+            className="btn secondary"
             disabled={backupBusy}
             onClick={async () => {
               setBackupBusy(true);
@@ -394,7 +393,7 @@ export function SettingsPage({
           action={
             <button
               type="button"
-              className="btn"
+              className="btn secondary"
               disabled={testBusy}
               onClick={() => void testAiConnection()}
             >
@@ -416,7 +415,6 @@ export function SettingsPage({
         title="AI"
         when="Enable when you want grounded digests and section drafts on the writing desk; leave off to draft from packet evidence only."
         how="Choose a provider, paste a key if needed, set models and private-tier egress, then save and test the connection."
-        action={<button className="btn" form="ai-settings-form" type="submit">Save AI settings</button>}
       >
       <form
         id="ai-settings-form"
@@ -613,7 +611,9 @@ export function SettingsPage({
           </div>
         ))}
         <div className="cta-primary-row">
-          <button className="btn">Save AI settings</button>
+          <button className={needsKey || !settings.enabled ? "btn secondary" : "btn"}>
+            Save AI settings
+          </button>
           <button
             type="button"
             className="btn secondary"

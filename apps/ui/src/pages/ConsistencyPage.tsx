@@ -56,9 +56,9 @@ export function ConsistencyPage() {
       <PageHeader
         title="Consistency"
         job="Check rating distribution and side-by-side drafts across your directs before you finalize."
-        primary={
+        secondary={
           data?.cards[0] ? (
-            <Link className="btn" to={`/cycles/${data.cycleId}/write/${data.cards[0].personId}`}>
+            <Link className="btn secondary" to={`/cycles/${data.cycleId}/write/${data.cards[0].personId}`}>
               Open first writing desk
             </Link>
           ) : undefined
@@ -114,7 +114,7 @@ export function ConsistencyPage() {
             action={
               <button
                 type="button"
-                className="btn"
+                className="btn secondary"
                 onClick={async () => {
                   try {
                     await openHtmlExport(`/api/exports/calib-room/${data.cycleId}?format=html`);
@@ -262,7 +262,7 @@ export function ConsistencyPage() {
               })}
               <button
                 type="button"
-                className="btn"
+                className="btn secondary"
                 onClick={async () => {
                   const decisions = exportedBundle.cards
                     .map((card) => {
@@ -303,7 +303,7 @@ export function ConsistencyPage() {
           </div>
           <button
             type="button"
-            className="btn"
+            className="btn secondary"
             disabled={!importJson.trim()}
             onClick={async () => {
               const parsed = JSON.parse(importJson) as {
@@ -375,7 +375,7 @@ export function ConsistencyPage() {
             how="Scan flags and competency scores, then open each person’s writing desk to adjust or link evidence."
             action={
               data.cards[0] ? (
-                <Link className="btn" to={`/cycles/${data.cycleId}/write/${data.cards[0].personId}`}>
+                <Link className="btn secondary" to={`/cycles/${data.cycleId}/write/${data.cards[0].personId}`}>
                   Open first writing desk
                 </Link>
               ) : undefined

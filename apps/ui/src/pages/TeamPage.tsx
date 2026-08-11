@@ -67,7 +67,6 @@ export function TeamPage() {
       <PageHeader
         title="Team"
         job="Open a dossier to capture evidence, or add someone new. People are subjects — they do not need app accounts."
-        primary={unassigned[0] ? <Link className="btn" to="/roles">Assign missing roles</Link> : undefined}
         secondary={<a className="btn secondary" href="#add-person">Add person</a>}
       />
 
@@ -156,7 +155,7 @@ export function TeamPage() {
                 <td data-label="Level">{em.levelKey}</td>
                 <td data-label="Role" className="muted">EM account</td>
                 <td data-label="Next" className="muted">—</td>
-                <td data-label="Your move"><Link className="btn" to={`/team/${em.id}`}>Open dossier</Link></td>
+                <td data-label="Your move"><Link className="btn secondary" to={`/team/${em.id}`}>Open dossier</Link></td>
               </tr>
             )}
             {directs.map((p) => (
@@ -168,9 +167,9 @@ export function TeamPage() {
                 <td data-label="Next" className="muted">{p.targetNextRoleTitle ?? "—"}</td>
                 <td data-label="Your move">
                   {!p.roleDefinitionId ? (
-                    <Link className="btn" to="/roles">Assign role</Link>
+                    <Link className="btn secondary" to="/roles">Assign role</Link>
                   ) : (
-                    <Link className="btn" to={`/team/${p.id}`}>Open dossier</Link>
+                    <Link className="btn secondary" to={`/team/${p.id}`}>Open dossier</Link>
                   )}
                 </td>
               </tr>

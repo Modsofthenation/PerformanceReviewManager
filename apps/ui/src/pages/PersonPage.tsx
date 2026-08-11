@@ -127,15 +127,6 @@ export function PersonPage() {
       <PageHeader
         title={person.name}
         job={`${person.title ?? "No title"} · ${person.levelKey ?? "—"} · Role: ${person.roleTitle ?? "unassigned"}${person.targetNextRoleTitle ? ` → ${person.targetNextRoleTitle}` : ""}`}
-        primary={
-          needsRole ? (
-            <Link className="btn" to="/roles">Assign role</Link>
-          ) : activeCycle ? (
-            <Link className="btn" to={`/cycles/${activeCycle.id}/write/${person.id}`}>Write review</Link>
-          ) : (
-            <Link className="btn" to="/cycles">Open a cycle</Link>
-          )
-        }
         secondary={<Link className="btn secondary" to="/team">Back to team</Link>}
       />
 

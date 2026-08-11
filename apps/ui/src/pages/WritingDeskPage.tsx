@@ -370,17 +370,6 @@ export function WritingDeskPage() {
       <PageHeader
         title={packet.person.name}
         job={`${packet.currentRole?.title ?? "No role"}${packet.nextRole ? ` → ${packet.nextRole.title}` : ""} · Score competencies with evidence, lint tone, finalize (freezes citations), then share HTML/PDF.`}
-        primary={
-          finalized ? (
-            <button className="btn" type="button" onClick={() => void openSubjectHtml()}>
-              Open subject packet (HTML)
-            </button>
-          ) : (
-            <button className="btn" type="button" onClick={() => void save("finalized")}>
-              Finalize review
-            </button>
-          )
-        }
         secondary={
           <>
             <Link className="btn ghost" to={`/team/${packet.person.id}`}>
@@ -392,6 +381,15 @@ export function WritingDeskPage() {
             {!finalized && (
               <button className="btn secondary" type="button" onClick={() => void save("draft")}>
                 Save draft
+              </button>
+            )}
+            {finalized ? (
+              <button className="btn secondary" type="button" onClick={() => void openSubjectHtml()}>
+                Open subject packet (HTML)
+              </button>
+            ) : (
+              <button className="btn secondary" type="button" onClick={() => void save("finalized")}>
+                Finalize review
               </button>
             )}
           </>
@@ -804,7 +802,7 @@ export function WritingDeskPage() {
                 <button className="btn secondary" type="button" onClick={() => void save("draft")}>
                   Save manager draft
                 </button>
-                <button className="btn" type="button" onClick={() => void save("finalized")}>
+                <button className="btn secondary" type="button" onClick={() => void save("finalized")}>
                   Finalize review
                 </button>
               </>
@@ -1143,7 +1141,7 @@ export function WritingDeskPage() {
                 {!finalized && (
                   <button
                     type="button"
-                    className="btn"
+                    className="btn secondary"
                     onClick={() =>
                       void runAiAction(async () => {
                         const res = await api<{
@@ -1241,7 +1239,7 @@ export function WritingDeskPage() {
                 <button className="btn secondary" type="button" onClick={() => void save("draft")}>
                   Save manager draft
                 </button>
-                <button className="btn" type="button" onClick={() => void save("finalized")}>
+                <button className="btn secondary" type="button" onClick={() => void save("finalized")}>
                   Finalize review
                 </button>
               </>

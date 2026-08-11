@@ -289,17 +289,6 @@ export function RolesPage() {
       <PageHeader
         title="Roles"
         job="Primary job: assign each direct a current role. Editing the catalog is secondary — only when the ladder itself changes."
-        primary={
-          unassigned[0] ? (
-            <a className="btn" href="#roles-assign">
-              Assign {unassigned[0].name}
-            </a>
-          ) : (
-            <a className="btn" href="#roles-assign">
-              Review assignments
-            </a>
-          )
-        }
         secondary={<Link className="btn secondary" to="/team">View team</Link>}
       />
 
@@ -446,7 +435,7 @@ export function RolesPage() {
                         <td data-label="">
                           <button
                             type="button"
-                            className="btn"
+                            className="btn secondary"
                             disabled={rowBusy === p.id || !draft.roleId || (!needs && !dirty)}
                             onClick={() => void saveAssignment(p.id)}
                           >
@@ -519,7 +508,7 @@ export function RolesPage() {
                     ))}
                   </ol>
                   <div className="cta-primary-row">
-                    <button className="btn" type="button" onClick={() => startEdit(selected)}>
+                    <button className="btn secondary" type="button" onClick={() => startEdit(selected)}>
                       Edit role
                     </button>
                     <button
@@ -745,7 +734,7 @@ export function RolesPage() {
                   </div>
                   <button
                     type="button"
-                    className="btn"
+                    className="btn secondary"
                     disabled={busy || !migrateLabel.trim()}
                     onClick={async () => {
                       const keyMap = JSON.parse(keyMapText || "{}") as Record<string, string>;
@@ -809,7 +798,7 @@ export function RolesPage() {
                 </div>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn secondary"
                   disabled={busy || !extractText.trim()}
                   onClick={() => void runExtract()}
                 >
@@ -830,7 +819,7 @@ export function RolesPage() {
                       ))}
                     </ul>
                     <div className="cta-primary-row">
-                      <button type="button" className="btn" disabled={busy} onClick={() => void applyDrafts(false)}>
+                      <button type="button" className="btn secondary" disabled={busy} onClick={() => void applyDrafts(false)}>
                         Add drafts to catalog
                       </button>
                       <button
