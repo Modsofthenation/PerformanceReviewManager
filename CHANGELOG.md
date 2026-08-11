@@ -24,6 +24,7 @@ Versions follow [SemVer](https://semver.org/) (`0.1.0-alpha.x` while the public 
 - Empty workspaces land in setup until finished or skipped; demo seed marks onboarding complete
 - **Cursor Cloud Agents** chat: stream status and assistant text live via SSE; empty-result errors include agent/run ids and a dashboard link
 - Primary CTA hierarchy: NextStep owns the solid primary action; PageHeader/Section duplicates and table-row moves use secondary/ghost so pages like Cycles no longer show the same green button 3–4 times
+- Form dropdowns use themed **react-select** (`AppSelect`) with a properly padded chevron; native `<select>` keeps a CSS fallback chevron that no longer hugs the right edge
 
 ### Fixed
 
