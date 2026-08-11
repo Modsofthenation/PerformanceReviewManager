@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
 import { access, readFile } from "node:fs/promises";
 import { basename, extname, join, normalize, resolve, sep } from "node:path";
 import { and, eq, isNull } from "drizzle-orm";
@@ -3483,6 +3484,84 @@ app.post("/api/ai/chat", async (c) => {
     },
     ...history,
   ];
+
+  const wantsStream = (c.req.header("accept") || "").includes("text/event-stream");
+
+  if (wantsStream) {
+    return streamSSE(c, async (stream) => {
+      let eventId = 0;
+      let writeChain: Promise<void> = Promise.resolve();
+      const send = (event: string, data: unknown) => {
+        writeChain = writeChain.then(async () => {
+          eventId += 1;
+          await stream.writeSSE({
+            id: String(eventId),
+            event,
+            data: JSON.stringify(data),
+          });
+        });
+        return writeChain;
+      };
+      try {
+        await send("status", {
+          status: "CREATING",
+          detail: "Starting model…",
+        });
+        const result = await runChat("chat_dossier", packed, {
+          onProgress: (p) => {
+            if (p.type === "status") {
+              void send("status", {
+                status: p.status,
+                agentId: p.agentId,
+                runId: p.runId,
+                agentUrl: p.agentUrl,
+                detail:
+                  p.status === "CREATING"
+                    ? "Creating Cursor Cloud Agent…"
+                    : p.status === "RUNNING"
+                      ? "Cloud Agent is working…"
+                      : `Cloud Agent ${p.status.toLowerCase()}`,
+              });
+            } else if (p.type === "text") {
+              void send("delta", { text: p.delta, cumulative: p.cumulative });
+            } else if (p.type === "thinking") {
+              void send("thinking", { text: p.delta });
+            } else if (p.type === "tool_call") {
+              void send("tool", {
+                name: p.name,
+                status: p.status,
+                callId: p.callId,
+              });
+            }
+          },
+        });
+        await writeChain;
+        const filtered = filterCitationsAgainstAllowlist(result.text, ctx.citations);
+        const generationId = storeGeneration({
+          feature: "chat_dossier",
+          subjectPersonId: personId,
+          cycleId,
+          model: result.model,
+          outputText: filtered.text,
+          citations: filtered.citationsUsed,
+          dataClassesSent: ctx.dataClassesSent,
+        });
+        await send("done", {
+          generationId,
+          reply: filtered.text,
+          model: result.model,
+          provider: result.provider,
+          citations: filtered.citationsUsed,
+          citationsDropped: filtered.citationsDropped,
+          dataClassesSent: ctx.dataClassesSent,
+          scopeLabel: ctx.scopeLabel,
+        });
+      } catch (e) {
+        await writeChain.catch(() => undefined);
+        await send("error", { error: e instanceof Error ? e.message : "AI failed" });
+      }
+    });
+  }
 
   try {
     const result = await runChat("chat_dossier", packed);

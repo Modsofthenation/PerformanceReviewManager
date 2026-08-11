@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PersonDTO } from "@prm/shared";
-import { api } from "../lib/api";
+import { api, streamChat } from "../lib/api";
 import { estimateThenConfirm } from "../lib/aiEstimate";
 import { NextStep, PageHeader } from "../components/PageChrome";
 
@@ -26,6 +26,9 @@ type ChatTurn = {
   content: string;
   model?: string;
   error?: boolean;
+  pending?: boolean;
+  statusDetail?: string;
+  agentUrl?: string;
 };
 
 const WORKSPACE_SUGGESTIONS = [
@@ -100,8 +103,16 @@ export function ChatPage() {
     }
 
     const userTurn: ChatTurn = { id: newId(), role: "user", content };
+    const assistantId = newId();
+    const pendingTurn: ChatTurn = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      pending: true,
+      statusDetail: "Reading evidence…",
+    };
     const nextHistory = [...messages, userTurn];
-    setMessages(nextHistory);
+    setMessages([...nextHistory, pendingTurn]);
     setDraft("");
     setSending(true);
     setError(null);
@@ -130,30 +141,87 @@ export function ChatPage() {
       const payload = nextHistory
         .filter((m) => !m.error)
         .map((m) => ({ role: m.role, content: m.content }));
-      const res = await api<{
-        reply: string;
-        model: string;
-        scopeLabel: string;
-      }>("/api/ai/chat", {
-        method: "POST",
-        body: JSON.stringify({
+      const res = await streamChat(
+        {
           messages: payload,
           personId: personId || null,
           cycleId: cycleId || null,
           confirmWorkspaceScope: !personId,
-        }),
-      });
-      setMessages((prev) => [
-        ...prev,
-        { id: newId(), role: "assistant", content: res.reply, model: res.model },
-      ]);
+        },
+        {
+          onStatus: (s) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      statusDetail: s.detail || s.status || m.statusDetail,
+                      agentUrl: s.agentUrl || m.agentUrl,
+                    }
+                  : m,
+              ),
+            );
+          },
+          onDelta: (d) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: d.cumulative,
+                      statusDetail: undefined,
+                      pending: true,
+                    }
+                  : m,
+              ),
+            );
+          },
+          onTool: (t) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      statusDetail: `${t.name} ${t.status}`,
+                    }
+                  : m,
+              ),
+            );
+          },
+        },
+      );
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                id: assistantId,
+                role: "assistant",
+                content: res.reply,
+                model: res.model,
+                pending: false,
+                statusDetail: undefined,
+              }
+            : m,
+        ),
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Chat failed";
       setError(msg);
-      setMessages((prev) => [
-        ...prev,
-        { id: newId(), role: "assistant", content: msg, error: true },
-      ]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                id: assistantId,
+                role: "assistant",
+                content: msg,
+                error: true,
+                pending: false,
+                statusDetail: undefined,
+                agentUrl: m.agentUrl,
+              }
+            : m,
+        ),
+      );
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -263,7 +331,7 @@ export function ChatPage() {
 
       <div className="panel chat-shell">
         <div className="chat-transcript" role="log" aria-live="polite">
-          {messages.length === 0 && !sending ? (
+          {messages.length === 0 ? (
             <div className="chat-empty">
               <p className="chat-empty-title">Ask anything about loaded workbench data</p>
               <p className="muted">
@@ -288,22 +356,28 @@ export function ChatPage() {
             messages.map((m) => (
               <div
                 key={m.id}
-                className={`chat-bubble chat-bubble-${m.role}${m.error ? " chat-bubble-error" : ""}`}
+                className={`chat-bubble chat-bubble-${m.role}${m.error ? " chat-bubble-error" : ""}${m.pending ? " chat-bubble-pending" : ""}`}
               >
                 <div className="chat-bubble-meta">
                   {m.role === "user" ? "You" : "Assistant"}
                   {m.model ? <span className="muted"> · {m.model}</span> : null}
+                  {m.pending && m.statusDetail && m.content ? (
+                    <span className="muted"> · {m.statusDetail}</span>
+                  ) : null}
                 </div>
-                <div className="chat-bubble-body">{m.content}</div>
+                <div className="chat-bubble-body">
+                  {m.content || (m.pending ? m.statusDetail || "Working…" : "")}
+                </div>
+                {m.error && m.agentUrl ? (
+                  <p className="chat-bubble-link muted">
+                    <a href={m.agentUrl} target="_blank" rel="noreferrer">
+                      Open Cloud Agent run
+                    </a>
+                  </p>
+                ) : null}
               </div>
             ))
           )}
-          {sending ? (
-            <div className="chat-bubble chat-bubble-assistant chat-bubble-pending">
-              <div className="chat-bubble-meta">Assistant</div>
-              <div className="chat-bubble-body">Reading evidence…</div>
-            </div>
-          ) : null}
           <div ref={bottomRef} />
         </div>
 

@@ -24,7 +24,7 @@ Workbench trust: [TRUST_MODEL.md](../architecture/TRUST_MODEL.md).
 - Provider: Anthropic / OpenAI / **Cursor Cloud Agents** / OpenAI-compatible (custom URL) / Ollama  
 - API key → encrypted with workspace secret (masked in UI); Test connection saves then probes  
   - Anthropic / OpenAI: standard cloud keys  
-  - **Cursor Cloud Agents**: dashboard key (`crsr_…` from [cursor.com/dashboard/api](https://cursor.com/dashboard/api)); digests/drafts launch a short-lived **no-repo** agent via `https://api.cursor.com/v1` (Test probes `/v1/me`)  
+  - **Cursor Cloud Agents**: dashboard key (`crsr_…` from [cursor.com/dashboard/api](https://cursor.com/dashboard/api)); digests/drafts/chat launch a short-lived **no-repo** agent via `https://api.cursor.com/v1` (Test probes `/v1/me`). Runs prefer the Cloud Agents **SSE stream** (`/runs/{id}/stream`) so chat can show status and assistant text live; empty terminal replies include agent/run ids and a link to inspect the transcript.  
   - OpenAI-compatible: any gateway that implements `/v1/chat/completions` (set Base URL explicitly)  
   - Optional env: `CURSOR_API_KEY` (Cloud Agents or gateway); `CURSOR_API_BASE_URL` (gateway only)  
 - Models per capability (blank Cursor models → account default)  

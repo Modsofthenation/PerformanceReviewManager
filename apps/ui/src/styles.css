@@ -1027,6 +1027,13 @@ li { margin-bottom: 0.4rem; line-height: 1.55; color: var(--ink-soft); }
   background: var(--danger-tint);
   color: var(--danger);
 }
+.chat-bubble-link {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+}
+.chat-bubble-link a {
+  color: inherit;
+}
 .chat-bubble-pending { opacity: 0.75; }
 .chat-bubble-meta {
   font-size: 0.75rem;
