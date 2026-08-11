@@ -258,6 +258,34 @@ export interface MeetingSummaryDTO {
   updatedAt: string;
 }
 
+export type OneOnOneSessionStatus = "planned" | "in_progress" | "done";
+export type OneOnOneItemSource = "manual" | "ai_suggested";
+
+export interface OneOnOneItemDTO {
+  id: string;
+  sessionId: string;
+  sortOrder: number;
+  questionText: string;
+  answerText: string | null;
+  source: OneOnOneItemSource;
+  generationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OneOnOneSessionDTO {
+  id: string;
+  personId: string;
+  occurredAt: string;
+  title: string;
+  status: OneOnOneSessionStatus;
+  notes: string | null;
+  visibility: Visibility;
+  items: OneOnOneItemDTO[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DeadlineNudge {
   personId: string;
   personName: string;

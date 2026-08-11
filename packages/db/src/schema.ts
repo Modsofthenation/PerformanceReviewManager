@@ -248,6 +248,32 @@ export const meetingSummaries = sqliteTable("meeting_summaries", {
   updatedAt: text("updated_at").notNull(),
 });
 
+/** Interactive 1:1 session — prep / run questions with optional answers (AI optional). */
+export const oneOnOneSessions = sqliteTable("one_on_one_sessions", {
+  id: text("id").primaryKey(),
+  personId: text("person_id").notNull(),
+  occurredAt: text("occurred_at").notNull(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("planned"),
+  notes: text("notes"),
+  visibility: text("visibility").notNull().default("em_only"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/** Questions (and optional answers) inside a 1:1 session. */
+export const oneOnOneItems = sqliteTable("one_on_one_items", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  questionText: text("question_text").notNull(),
+  answerText: text("answer_text"),
+  source: text("source").notNull().default("manual"),
+  generationId: text("generation_id"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const aiSettings = sqliteTable("ai_settings", {
   id: text("id").primaryKey(),
   enabled: integer("enabled").notNull().default(0),
@@ -336,6 +362,8 @@ export const schema = {
   promotionCases,
   concernLogs,
   meetingSummaries,
+  oneOnOneSessions,
+  oneOnOneItems,
   aiSettings,
   integrationSettings,
   personExternalLinks,

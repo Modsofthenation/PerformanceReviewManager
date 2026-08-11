@@ -250,6 +250,30 @@ CREATE TABLE IF NOT EXISTS meeting_summaries (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS one_on_one_sessions (
+  id TEXT PRIMARY KEY,
+  person_id TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  title TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'planned',
+  notes TEXT,
+  visibility TEXT NOT NULL DEFAULT 'em_only',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS one_on_one_items (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  question_text TEXT NOT NULL,
+  answer_text TEXT,
+  source TEXT NOT NULL DEFAULT 'manual',
+  generation_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ai_settings (
   id TEXT PRIMARY KEY,
   enabled INTEGER NOT NULL DEFAULT 0,
@@ -356,6 +380,28 @@ export function openDatabase(dbPath: string): { sqlite: Database.Database; db: D
       themes_json TEXT NOT NULL DEFAULT '[]',
       visibility TEXT NOT NULL DEFAULT 'em_only',
       consent_noted INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS one_on_one_sessions (
+      id TEXT PRIMARY KEY,
+      person_id TEXT NOT NULL,
+      occurred_at TEXT NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'planned',
+      notes TEXT,
+      visibility TEXT NOT NULL DEFAULT 'em_only',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS one_on_one_items (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      question_text TEXT NOT NULL,
+      answer_text TEXT,
+      source TEXT NOT NULL DEFAULT 'manual',
+      generation_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );

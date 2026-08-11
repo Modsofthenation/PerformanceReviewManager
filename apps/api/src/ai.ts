@@ -19,7 +19,8 @@ export type AiFeature =
   | "peer_synthesize"
   | "framework_extract"
   | "meeting_summary"
-  | "skip_level_talking_points";
+  | "skip_level_talking_points"
+  | "one_on_one_questions";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 

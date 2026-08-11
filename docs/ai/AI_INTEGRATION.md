@@ -49,6 +49,7 @@ Missing key → writing desk works; Generate CTA → Settings.
 | Bias/tone lint | Ephemeral findings by default | Optional |
 | Next-cycle goals | From gaps | No |
 | Calib talking points | Single-EM consistency | Display |
+| **1:1 question suggestions** | Dossier evidence → agenda questions; never auto-fills answers | No |
 
 ---
 
