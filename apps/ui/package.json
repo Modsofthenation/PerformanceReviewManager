@@ -13,7 +13,7 @@
     "@prm/shared": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.18.2",
+    "react-router-dom": "^7.18.3",
     "react-select": "^5.10.2"
   },
   "devDependencies": {
