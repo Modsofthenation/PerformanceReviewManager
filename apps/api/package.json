@@ -15,9 +15,9 @@
     "@prm/db": "workspace:*",
     "@prm/shared": "workspace:*",
     "better-sqlite3": "^11.8.1",
-    "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.1",
-    "nanoid": "^6.0.1"
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
+    "nanoid": "^6.0.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
